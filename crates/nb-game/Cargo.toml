@@ -7,6 +7,11 @@ license.workspace = true
 [dependencies]
 nb-core.workspace = true
 nb-data.workspace = true
+nb-world.workspace = true
+nb-mesh.workspace = true
+nb-ecs.workspace = true
+# Parties pures de nb-gfx seulement (caméra, horloge jour/nuit, FrameInput) : pas de fenêtre.
+nb-gfx = { workspace = true, default-features = false }
 
 [lints]
 workspace = true
