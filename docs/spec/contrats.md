@@ -45,3 +45,12 @@ Toute modification passe par l'architecte.
 Ordre réel des systèmes : PlayerInput, Physics, PassiveAI, AggressiveAI, MobSpawn, Health
 (`ecs.md` place MobSpawn en 3ᵉ). `rendering.md` : pas de seuil de bloom, blur 10 passes en
 demi-résolution, `cloud.vert/frag` jamais compilés.
+
+## Décisions de Gabriel (2026-11-01)
+
+1. Monde FLAT : **ne pas** reproduire le recouvrement quasi total de lave ; corriger pour un
+   monde plat sensé (écart volontaire, documenté et testé).
+2. Séparateur décimal des commandes : **toujours le point**, uniforme.
+3. Ordre d'itération des entités : libre choix ; on prend un ordre **déterministe** (par id
+   d'entité croissant) plutôt que d'émuler le `HashMap` Java.
+4. Écarts proposés au §« Décisions » point 4 : **tous appliqués** (au mieux, documentés).
