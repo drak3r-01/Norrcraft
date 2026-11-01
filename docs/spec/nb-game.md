@@ -1,0 +1,119 @@
+# Spécification comportementale — crates `nb-game` et `nb-app`
+
+Relevé du Java de référence (`Main`, `GameLoop`, `InputManager`, `ChatController`,
+`state/*State.java`, `GameContext`, `WorldSaveManager.saveWorldState/applyPlayerState`).
+`nb-game` contient toute la logique (testable sans fenêtre ni GPU) ; `nb-app` n'est que la
+plateforme (winit, `nb_gfx::Renderer`, conversion des touches).
+
+## 1. Boucle fixe (`GameLoop`)
+
+```
+step = 1/60 s ; acc = 0
+chaque frame : frame = now - last ; last = now ; acc += frame
+               tant que acc >= step : update(step) ; acc -= step
+               render() ; window.update()   // present, reset clic/molette, pollEvents
+```
+
+* Pas d'interpolation au rendu.
+* **Écart appliqué** (contrats §« Décisions » 4, « clamp optionnel de l'accumulateur ») : la
+  durée d'une frame est bornée à 0,25 s avant d'entrer dans l'accumulateur (au plus 15 ticks par
+  frame, pas de spirale de la mort). `FixedStep::java()` garde le comportement sans borne.
+* La molette (`Window.scrollY`) est la **dernière** valeur reçue et n'est remise à 0 qu'après le
+  rendu : tous les ticks d'une même frame la voient (reproduit).
+
+## 2. Ordre de `Main.update(dt)` (chaque tick)
+
+1. `inputManager.update()` (états d'actions courant/précédent, case sélectionnée, delta souris) ;
+2. `masterRenderer.updateTime(dt)` — horloge jour/nuit, **dans tous les états** ;
+3. `chatController.update(dt)` — ouverture / validation / annulation ; les commandes s'exécutent
+   ici, avant l'ECS ;
+4. redimensionnement (`camera.aspect`) ;
+5. `stateManager.update(dt)` — seul PLAYING fait tourner l'ECS ;
+6. `world.update(camera.position)` (chunks seulement) ;
+7. remaillage (`ChunkMeshManager.update(world, activeChunks)`).
+
+`PLAYING.update` : ÉCHAP (front) → PAUSED et retour ; E (front) → INVENTORY et retour ; puis
+`world.update(camPos, dt)` = chunks, particules, particules ambiantes, position de spawn,
+systèmes ECS (PlayerInput, Physics, PassiveAI, AggressiveAI, MobSpawn, Health) ; puis minuterie
+du nom de l'objet tenu (1 s affiché + 0,5 s de fondu, relancée quand la case ou le bloc change).
+
+`render()` : rendu 3D (+ UI de l'état) puis chat.
+
+Init (`Main.initEngine`) : registres → caméra (FOV 70°) → monde du menu (graine
+`nextInt(1e9)`, stockage en mémoire, joueur CREATIVE, jamais sauvegardé) → réglages appliqués
+(FOV, distance de rendu, vsync, plein écran, ombres, bloom, touches, taille de fenêtre, pack)
+→ état MAIN_MENU → `world.update` + remaillage. Fermeture : sauvegarde si un monde nommé est
+chargé, arrêt des threads.
+
+## 3. Entrées (`InputManager`)
+
+Actions : FORWARD, BACKWARD, LEFT, RIGHT, JUMP, SPRINT, CROUCH, PAUSE, INVENTORY, PRIMARY,
+SECONDARY, OPEN_CHAT, SUBMIT_CHAT, CANCEL_CHAT, DROP. Touches par défaut du Java puis
+`applyKeyBindings(settings.keyBindings)` ; PRIMARY/SECONDARY = boutons gauche/droit.
+
+* Hors saisie : chaque action = touche liée enfoncée ; ÉCHAP force PAUSE ; OPEN_CHAT = T, `/`
+  ou `/` du pavé ; touches 1..9 → case ; molette : `slot -= signum(scroll)` avec bouclage.
+* En saisie (`typingMode`) : seules SUBMIT_CHAT (Entrée / Entrée pavé) et CANCEL_CHAT (ÉCHAP)
+  peuvent valoir vrai ; le delta souris est nul.
+* Caractères (callback) : en saisie, ajoutés au tampon actif (principal ou secondaire). Tampon
+  principal : un `t`/`T` en tête est ignoré sauf `suppressChatFilter` ; un second `/` après
+  `"/"` est ignoré. Retour arrière (appui ou répétition) en saisie : efface un caractère.
+* Écouteur de réaffectation : le prochain appui de touche lui est livré et rien d'autre.
+* `resetMouse()` : le prochain tick prend la position courante comme référence (delta 0).
+
+## 4. Chat (`ChatController`)
+
+Fermé + OPEN_CHAT (front) → ouvert, saisie active, tampon = `"/"`. Ouvert : SUBMIT → journal
+blanc de la ligne, exécution (`nb_ecs::execute_command`), réponse jaune si non nulle, journal
+borné à 4, fermeture ; CANCEL → fermeture. Fermeture : saisie coupée, tampon vidé, minuterie
+d'affichage 5 s (décrémentée seulement chat fermé). Le chat tourne dans **tous** les états.
+
+## 5. États (`StateManager`)
+
+`switchState(s)` : `exit(ancien)` puis `enter(nouveau)`. `previousState` (défaut MAIN_MENU) et
+`pendingSettingsTab` sont dans le contexte.
+
+| État | enter | update (logique) | exit |
+|---|---|---|---|
+| MAIN_MENU | souris libre | `menuRotation += dt·10` ; caméra (0,150,0), tangage 20, lacet = rotation ; PLAY → WORLD_SELECT ; SETTINGS (`previous = MAIN_MENU`) ; QUIT | caméra rot 0, pos (0,100,0) |
+| WORLD_SELECT | curseur normal ; caméra rot 0, pos (0,100,0) ; liste des mondes | jouer / créer / éditer / supprimer / recréer / annuler → MAIN_MENU | fin de saisie |
+| PLAYING | souris capturée (`resetMouse`) | voir §2 | — |
+| PAUSED | souris libre | ÉCHAP → PLAYING ; RESUME ; SETTINGS (`previous = PAUSED`) ; MAIN MENU = sauvegarde puis MAIN_MENU (le monde reste chargé) | — |
+| INVENTORY | souris libre ; curseur vidé | E ou ÉCHAP → objet tenu reposé, PLAYING ; clic → `InventoryCursor::left_click` | objet tenu reposé |
+| SETTINGS | onglet CONTROLS si demandé, sinon GRAPHICS | ÉCHAP / Retour → `previous` ; Appliquer : réglages copiés, appliqués (distance, FOV, vsync, plein écran, ombres, bloom, touches, taille), sauvegardés, mobs supprimés si le registre est modifié, → `previous` ; onglets → RESOURCE_PACKS / MOB_SETTINGS | fin de réaffectation |
+| RESOURCE_PACKS | liste des packs | Appliquer : si pack ≠ courant, rechargement de l'atlas, icônes, invalidation de tous les maillages, réglage sauvegardé ; → SETTINGS ; onglets | — |
+| MOB_SETTINGS | — | ÉCHAP / quitter : modèles rechargés, mobs supprimés si modifié → SETTINGS ; onglets | fin de saisie |
+
+Dans PAUSED / INVENTORY / menus l'ECS est figé ; les chunks et le maillage continuent (§2).
+
+Charger un monde (`loadAndPlay`) : sauvegarde du monde nommé courant, arrêt de son gestionnaire
+de chunks, libération des maillages, nouveau monde (`FileChunkStorage`), joueur créé avec la
+caméra courante, distance de rendu, nom, triche, horloge (`dayLengthSeconds`, `timeOfDay`), état
+du joueur (§6) → PLAYING.
+
+## 6. Sauvegarde de l'état (`saveWorldState`, `applyPlayerState`)
+
+* Sauvegarde : chunks sales écrits ; métadonnées relues (ou neuves) ; `lastPlayedAt` ;
+  `dayLengthSeconds`/`timeOfDay` de l'horloge recopiés dans la config ; pieds, lacet/tangage de
+  la caméra (degrés), santé, mode, vol ; inventaire (cases non vides).
+* Application : jamais joué → spawn recherché (`findSpawnLocation`) et écrit dans la config ;
+  pieds, caméra (yeux = pieds + 1,62 ; tangage/lacet), santé (`alive = santé > 0`), vol,
+  inventaire (bloc inconnu → ignoré).
+
+## 7. Façades (intégration)
+
+* **UI** (`nb_game::ui::Ui`) : à chaque tick d'un état, l'UI reçoit l'état, une vue en lecture et
+  les entrées, et renvoie des `UiCommand` (boutons) que `nb-game` exécute. nb-ui l'implémentera ;
+  `StubUi` (clavier, sans rendu) sert en attendant.
+* **Rendu** : `Game::render_view()` fournit caméra, horloge, fluide à l'œil, chaleur, bloc visé,
+  et la liste des mobs (`MobInstance`) et particules pour le futur rendu de nb-gfx.
+* **Maillage** : `WorldChunks` implémente `nb_mesh::ChunkSource` sur le `ChunkManager` ;
+  `WorldBiomes` implémente `BiomeSource`. Les `MeshAction` sont relayées à la plateforme.
+
+## 8. Écarts
+
+1. Accumulateur borné (§1).
+2. Ordre des chunks actifs trié par (x, z) avant le remaillage (le Java itère un `HashMap`).
+3. Changement de monde : génération de maillage incrémentée (`invalidate_all`) au lieu d'un
+   simple `chunkMeshes.clear()` — un maillage en vol de l'ancien monde ne peut plus être affiché.
+4. Graines des RNG de l'ECS : `EcsRngs::from_entropy()` (Java : `new Random()`), injectables.
