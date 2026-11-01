@@ -10,3 +10,4 @@ Cargo.lock.bak
 .vscode/
 .DS_Store
 Thumbs.db
+!crates/nb-gfx/shaders/spv/*.spv
