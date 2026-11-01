@@ -29,8 +29,10 @@ pub const OUTPUT_FORMAT: vk::Format = vk::Format::B8G8R8A8_UNORM;
 pub const HDR_DEPTH_FORMAT: vk::Format = DEPTH_FORMAT;
 
 /// `clouds.png` (ressource « classpath » `/textures/environment/clouds.png`).
-const CLOUDS_PNG: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/textures/environment/clouds.png"));
+const CLOUDS_PNG: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/textures/environment/clouds.png"
+));
 
 /// Assets CPU nécessaires au renderer.
 #[derive(Clone, Debug)]
@@ -142,7 +144,13 @@ impl Samplers {
         use vk::SamplerMipmapMode as M;
         Ok(Self {
             // NEAREST_MIPMAP_LINEAR / NEAREST, REPEAT, aniso ≤ 8 (§5.1, §18.3).
-            atlas: mk(F::NEAREST, M::LINEAR, A::REPEAT, vk::LOD_CLAMP_NONE, ctx.max_anisotropy)?,
+            atlas: mk(
+                F::NEAREST,
+                M::LINEAR,
+                A::REPEAT,
+                vk::LOD_CLAMP_NONE,
+                ctx.max_anisotropy,
+            )?,
             nearest_repeat: mk(F::NEAREST, M::NEAREST, A::REPEAT, 0.0, None)?,
             linear_repeat: mk(F::LINEAR, M::NEAREST, A::REPEAT, 0.0, None)?,
             linear_clamp: mk(F::LINEAR, M::NEAREST, A::CLAMP_TO_EDGE, 0.0, None)?,
@@ -192,7 +200,11 @@ fn chunk_aabb() -> Vec<[f32; 3]> {
         .collect()
 }
 
-fn image_info(view: vk::ImageView, sampler: vk::Sampler, layout: vk::ImageLayout) -> [vk::DescriptorImageInfo; 1] {
+fn image_info(
+    view: vk::ImageView,
+    sampler: vk::Sampler,
+    layout: vk::ImageLayout,
+) -> [vk::DescriptorImageInfo; 1] {
     [vk::DescriptorImageInfo {
         sampler,
         image_view: view,
@@ -286,14 +298,15 @@ impl SceneRenderer {
             .pool_sizes(&sizes);
         // SAFETY : device valide.
         let descriptor_pool = unsafe { c.device.create_descriptor_pool(&pool_ci, None)? };
-        let alloc_sets = |layout: vk::DescriptorSetLayout, count: usize| -> Result<Vec<vk::DescriptorSet>> {
-            let layouts = vec![layout; count];
-            let ai = vk::DescriptorSetAllocateInfo::default()
-                .descriptor_pool(descriptor_pool)
-                .set_layouts(&layouts);
-            // SAFETY : pool dimensionné pour ces sets.
-            Ok(unsafe { c.device.allocate_descriptor_sets(&ai)? })
-        };
+        let alloc_sets =
+            |layout: vk::DescriptorSetLayout, count: usize| -> Result<Vec<vk::DescriptorSet>> {
+                let layouts = vec![layout; count];
+                let ai = vk::DescriptorSetAllocateInfo::default()
+                    .descriptor_pool(descriptor_pool)
+                    .set_layouts(&layouts);
+                // SAFETY : pool dimensionné pour ces sets.
+                Ok(unsafe { c.device.allocate_descriptor_sets(&ai)? })
+            };
         let frame_sets = alloc_sets(pipelines.frame_set_layout, FRAMES_IN_FLIGHT)?;
         let pp_sets = alloc_sets(pipelines.pp_set_layout, FRAMES_IN_FLIGHT)?;
         let tex_sets = alloc_sets(pipelines.texture_set_layout, 5)?;
@@ -334,7 +347,12 @@ impl SceneRenderer {
                 frame_number: None,
             });
         }
-        let aabb = Buffer::with_data(c, &chunk_aabb(), vk::BufferUsageFlags::VERTEX_BUFFER, "aabb")?;
+        let aabb = Buffer::with_data(
+            c,
+            &chunk_aabb(),
+            vk::BufferUsageFlags::VERTEX_BUFFER,
+            "aabb",
+        )?;
         let lines = Buffer::with_data(
             c,
             &highlight_lines(),
@@ -672,6 +690,11 @@ impl SceneRenderer {
         Ok(())
     }
 
+    /// Créneau qu'utilisera le prochain [`Self::begin_frame`].
+    pub fn next_slot(&self) -> usize {
+        (self.frame_counter % FRAMES_IN_FLIGHT as u64) as usize
+    }
+
     /// Attend la fin de la frame soumise dans ce créneau.
     pub fn wait_slot(&self, slot: usize) -> Result<()> {
         // SAFETY : fence valide.
@@ -724,8 +747,12 @@ impl SceneRenderer {
 
         let cmd = token.cmd;
         let slot = &self.slots[token.slot];
-        let (frame_set, pp_set, queries, query_capacity) =
-            (slot.frame_set, slot.pp_set, slot.queries, slot.query_capacity);
+        let (frame_set, pp_set, queries, query_capacity) = (
+            slot.frame_set,
+            slot.pp_set,
+            slot.queries,
+            slot.query_capacity,
+        );
         let ctx = &*self.ctx;
         let d = &ctx.device;
         let t = self.targets.as_ref().expect("cibles HDR");
@@ -746,7 +773,8 @@ impl SceneRenderer {
                     Transition::DEPTH_READ.discard(),
                     Transition::DEPTH_ATTACHMENT,
                 );
-                let depth_att = depth_attachment(self.shadow.view, vk::AttachmentLoadOp::CLEAR, false);
+                let depth_att =
+                    depth_attachment(self.shadow.view, vk::AttachmentLoadOp::CLEAR, false);
                 begin_rendering(d, cmd, square(n), &[], Some(&depth_att));
                 set_viewport(d, cmd, square(n));
                 d.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.pipelines.shadow);
@@ -814,7 +842,11 @@ impl SceneRenderer {
                     self.draw_chunk(cmd, *pos);
                 }
             }
-            d.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.pipelines.occlusion);
+            d.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipelines.occlusion,
+            );
             d.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
@@ -899,7 +931,11 @@ impl SceneRenderer {
                         Transition::SHADER_READ.discard(),
                         Transition::COLOR_ATTACHMENT,
                     );
-                    let att = [color_attachment(target.view, vk::AttachmentLoadOp::DONT_CARE, [0.0; 4])];
+                    let att = [color_attachment(
+                        target.view,
+                        vk::AttachmentLoadOp::DONT_CARE,
+                        [0.0; 4],
+                    )];
                     begin_rendering(d, cmd, half, &att, None);
                     set_viewport(d, cmd, half);
                     d.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.pipelines.blur);
@@ -940,7 +976,11 @@ impl SceneRenderer {
                     Transition::SHADER_READ.discard(),
                     Transition::COLOR_ATTACHMENT,
                 );
-                let att = [color_attachment(p0.view, vk::AttachmentLoadOp::CLEAR, [0.0; 4])];
+                let att = [color_attachment(
+                    p0.view,
+                    vk::AttachmentLoadOp::CLEAR,
+                    [0.0; 4],
+                )];
                 begin_rendering(d, cmd, half, &att, None);
                 d.cmd_end_rendering(cmd);
                 barrier(
@@ -967,12 +1007,27 @@ impl SceneRenderer {
                 base_array_layer: 0,
                 layer_count: 1,
             };
-            barrier(ctx, cmd, out.image, out_range, initial, Transition::COLOR_ATTACHMENT);
-            let att = [color_attachment(out.view, vk::AttachmentLoadOp::CLEAR, clear)];
+            barrier(
+                ctx,
+                cmd,
+                out.image,
+                out_range,
+                initial,
+                Transition::COLOR_ATTACHMENT,
+            );
+            let att = [color_attachment(
+                out.view,
+                vk::AttachmentLoadOp::CLEAR,
+                clear,
+            )];
             let depth_att = depth_attachment(t.depth.view, vk::AttachmentLoadOp::LOAD, true);
             begin_rendering(d, cmd, extent, &att, Some(&depth_att));
             set_viewport(d, cmd, extent);
-            d.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.pipelines.composite);
+            d.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipelines.composite,
+            );
             d.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
@@ -1011,7 +1066,11 @@ impl SceneRenderer {
         let d = &self.ctx.device;
         // SAFETY : appelé pendant l'enregistrement de la passe composite.
         unsafe {
-            d.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.pipelines.highlight);
+            d.cmd_bind_pipeline(
+                cmd,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipelines.highlight,
+            );
             d.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
@@ -1020,7 +1079,12 @@ impl SceneRenderer {
                 &[frame_set],
                 &[],
             );
-            push_model(d, cmd, self.pipelines.hl_layout, &Mat4::from_translation(b.as_vec3()));
+            push_model(
+                d,
+                cmd,
+                self.pipelines.hl_layout,
+                &Mat4::from_translation(b.as_vec3()),
+            );
             d.cmd_bind_vertex_buffers(cmd, 0, &[self.lines.raw], &[0]);
             d.cmd_draw(cmd, 24, 1, 0, 0);
         }
@@ -1070,7 +1134,8 @@ impl Drop for SceneRenderer {
         self.pipelines.destroy(&ctx);
         // SAFETY : GPU inactif ; les sets et tampons appartiennent à ces pools.
         unsafe {
-            ctx.device.destroy_descriptor_pool(self.descriptor_pool, None);
+            ctx.device
+                .destroy_descriptor_pool(self.descriptor_pool, None);
             ctx.device.destroy_command_pool(self.command_pool, None);
         }
     }
@@ -1104,7 +1169,12 @@ fn upload_atlas(ctx: &GpuContext, a: &TextureArrayCpu) -> Result<Image> {
         .map(|l| atlas::mip_chain(l, a.tile, a.tile))
         .collect();
     let data: Vec<Vec<u8>> = (0..levels as usize)
-        .map(|lvl| chains.iter().flat_map(|c| c[lvl].2.iter().copied()).collect())
+        .map(|lvl| {
+            chains
+                .iter()
+                .flat_map(|c| c[lvl].2.iter().copied())
+                .collect()
+        })
         .collect();
     Image::upload(
         ctx,
@@ -1239,7 +1309,12 @@ unsafe fn set_viewport(d: &ash::Device, cmd: vk::CommandBuffer, extent: vk::Exte
 
 /// # Safety
 /// `cmd` doit être en cours d'enregistrement avec un layout à push constant mat4.
-unsafe fn push_model(d: &ash::Device, cmd: vk::CommandBuffer, layout: vk::PipelineLayout, m: &Mat4) {
+unsafe fn push_model(
+    d: &ash::Device,
+    cmd: vk::CommandBuffer,
+    layout: vk::PipelineLayout,
+    m: &Mat4,
+) {
     let cols = m.to_cols_array();
     // SAFETY : garanti par l'appelant.
     unsafe {

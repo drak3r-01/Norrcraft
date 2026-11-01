@@ -11,7 +11,7 @@ mod targets;
 
 pub use context::{validation_error_count, GpuContext};
 pub use offscreen::OffscreenRenderer;
-pub use resources::{Buffer, Image, ImageDesc};
+pub use resources::{Buffer, Image, ImageDesc, Transition};
 pub use scene::{
     FrameToken, OutputTarget, OverlayPass, SceneAssets, SceneRenderer, FRAMES_IN_FLIGHT,
     HDR_DEPTH_FORMAT, OUTPUT_FORMAT,

@@ -237,7 +237,10 @@ mod tests {
         let water = EyeFluid::Water {
             color: Vec3::new(0.1, 0.2, 0.3),
         };
-        assert_eq!(water.state_and_color(Vec3::ONE), (1, Vec3::new(0.1, 0.2, 0.3)));
+        assert_eq!(
+            water.state_and_color(Vec3::ONE),
+            (1, Vec3::new(0.1, 0.2, 0.3))
+        );
         assert_eq!(EyeFluid::None.state_and_color(Vec3::ONE), (0, Vec3::ONE));
     }
 

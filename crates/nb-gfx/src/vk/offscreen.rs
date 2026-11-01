@@ -136,7 +136,7 @@ impl OffscreenRenderer {
         self.scene.wait_slot(token.slot)?;
         let bgra = self.readback.read()?;
         let mut rgba = Vec::with_capacity(bgra.len());
-        for p in bgra.chunks_exact(4) {
+        for p in bgra.as_chunks::<4>().0 {
             rgba.extend_from_slice(&[p[2], p[1], p[0], p[3]]);
         }
         Ok(RgbaImage::from_raw(w, h, rgba).expect("taille de relecture"))

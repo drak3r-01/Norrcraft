@@ -68,7 +68,13 @@ impl Buffer {
         name: &str,
     ) -> Result<Self> {
         let bytes: &[u8] = bytemuck::cast_slice(data);
-        let mut b = Self::new(ctx, bytes.len() as u64, usage, MemoryLocation::CpuToGpu, name)?;
+        let mut b = Self::new(
+            ctx,
+            bytes.len() as u64,
+            usage,
+            MemoryLocation::CpuToGpu,
+            name,
+        )?;
         b.write(0, bytes)?;
         Ok(b)
     }
@@ -117,7 +123,12 @@ pub struct ImageDesc {
 }
 
 impl ImageDesc {
-    pub fn color_2d(width: u32, height: u32, format: vk::Format, usage: vk::ImageUsageFlags) -> Self {
+    pub fn color_2d(
+        width: u32,
+        height: u32,
+        format: vk::Format,
+        usage: vk::ImageUsageFlags,
+    ) -> Self {
         Self {
             width,
             height,
@@ -130,7 +141,12 @@ impl ImageDesc {
         }
     }
 
-    pub fn depth_2d(width: u32, height: u32, format: vk::Format, usage: vk::ImageUsageFlags) -> Self {
+    pub fn depth_2d(
+        width: u32,
+        height: u32,
+        format: vk::Format,
+        usage: vk::ImageUsageFlags,
+    ) -> Self {
         Self {
             aspect: vk::ImageAspectFlags::DEPTH,
             ..Self::color_2d(width, height, format, usage)
@@ -234,7 +250,12 @@ impl Image {
 
     /// Crée une image échantillonnée et y copie `levels[mip]` (toutes les couches à la suite),
     /// puis la laisse en `SHADER_READ_ONLY_OPTIMAL`.
-    pub fn upload(ctx: &GpuContext, desc: ImageDesc, levels: &[Vec<u8>], name: &str) -> Result<Self> {
+    pub fn upload(
+        ctx: &GpuContext,
+        desc: ImageDesc,
+        levels: &[Vec<u8>],
+        name: &str,
+    ) -> Result<Self> {
         let desc = ImageDesc {
             usage: desc.usage | vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
             ..desc

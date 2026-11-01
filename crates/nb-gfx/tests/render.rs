@@ -29,7 +29,10 @@ fn gpu() -> Option<(Arc<GpuContext>, MutexGuard<'static, ()>)> {
     let guard = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let ctx = CTX.get_or_init(|| match GpuContext::new_headless() {
         Ok(c) => {
-            eprintln!("GPU : {} (validation : {})", c.device_name, c.validation_enabled);
+            eprintln!(
+                "GPU : {} (validation : {})",
+                c.device_name, c.validation_enabled
+            );
             Some(Arc::new(c))
         }
         Err(e) => {
@@ -66,7 +69,10 @@ fn check_golden(name: &str, img: &RgbaImage) {
         return;
     }
     let Ok(golden) = image::open(&path) else {
-        panic!("référence absente : {} (NB_GFX_UPDATE_GOLDEN=1)", path.display());
+        panic!(
+            "référence absente : {} (NB_GFX_UPDATE_GOLDEN=1)",
+            path.display()
+        );
     };
     let golden = golden.to_rgba8();
     assert_eq!(golden.dimensions(), img.dimensions());
@@ -85,7 +91,10 @@ fn check_golden(name: &str, img: &RgbaImage) {
     let n = (img.width() * img.height()) as f64;
     let mean = sum as f64 / n;
     assert!(mean < 1.0, "{name} : écart moyen {mean}");
-    assert!((big as f64) / n < 0.005, "{name} : {big} pixels très différents");
+    assert!(
+        (big as f64) / n < 0.005,
+        "{name} : {big} pixels très différents"
+    );
 }
 
 fn mean_rgb(img: &RgbaImage) -> Vec3 {
@@ -217,8 +226,7 @@ fn assert_no_validation_errors() {
 #[test]
 fn sky_matches_cpu_reference() {
     let Some((ctx, _g)) = gpu() else { return };
-    let mut r =
-        OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
     let cam = Camera {
         position: Vec3::new(0.0, 70.0, 0.0),
         pitch_deg: 0.0,
@@ -240,7 +248,10 @@ fn sky_matches_cpu_reference() {
     let mut checked = 0;
     for py in (H / 2 + 4..H).step_by(7) {
         for px in (0..W).step_by(13) {
-            let uv = ((px as f32 + 0.5) / W as f32, 1.0 - (py as f32 + 0.5) / H as f32);
+            let uv = (
+                (px as f32 + 0.5) / W as f32,
+                1.0 - (py as f32 + 0.5) / H as f32,
+            );
             let ndc = Vec4::new(uv.0 * 2.0 - 1.0, uv.1 * 2.0 - 1.0, 1.0, 1.0);
             let mut vp = inv_proj * ndc;
             vp /= vp.w;
@@ -255,7 +266,12 @@ fn sky_matches_cpu_reference() {
             let p = img.get_pixel(px, py);
             for k in 0..3 {
                 let d = (f32::from(p[k]) - mapped[k]).abs();
-                assert!(d <= 2.0, "pixel ({px},{py}) canal {k} : {} vs {}", p[k], mapped[k]);
+                assert!(
+                    d <= 2.0,
+                    "pixel ({px},{py}) canal {k} : {} vs {}",
+                    p[k],
+                    mapped[k]
+                );
             }
             checked += 1;
         }
@@ -267,8 +283,7 @@ fn sky_matches_cpu_reference() {
 #[test]
 fn demo_world_noon_golden() {
     let Some((ctx, _g)) = gpu() else { return };
-    let mut r =
-        OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
     demo_world(&mut r);
     assert_eq!(r.scene.chunk_mesh_count(), 9);
     let cam = demo_camera();
@@ -288,8 +303,7 @@ fn demo_world_noon_golden() {
 #[test]
 fn day_night_cycle_and_fluids() {
     let Some((ctx, _g)) = gpu() else { return };
-    let mut r =
-        OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
     demo_world(&mut r);
     let cam = demo_camera();
     let mut clock = SkyClock::new();
@@ -302,7 +316,10 @@ fn day_night_cycle_and_fluids() {
     save("demo_midnight", &midnight);
     check_golden("demo_sunset", &sunset);
     let (ln, ls, lm) = (mean_rgb(&noon), mean_rgb(&sunset), mean_rgb(&midnight));
-    assert!(ln.length() > ls.length() && ls.length() > lm.length(), "{ln} {ls} {lm}");
+    assert!(
+        ln.length() > ls.length() && ls.length() > lm.length(),
+        "{ln} {ls} {lm}"
+    );
     // Coucher de soleil : dominante chaude.
     assert!(ls.x > ls.z, "{ls}");
 
@@ -377,8 +394,7 @@ fn shadows_and_shadow_off_clear() {
 #[test]
 fn highlight_outline_is_black() {
     let Some((ctx, _g)) = gpu() else { return };
-    let mut r =
-        OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
     demo_world(&mut r);
     // Joueur debout (œil à y = 62.6), regard à 45° vers le bas : vise le bloc (4, 60, 5).
     let cam = Camera {
@@ -412,8 +428,7 @@ fn highlight_outline_is_black() {
 #[test]
 fn water_and_lava_surfaces() {
     let Some((ctx, _g)) = gpu() else { return };
-    let mut r =
-        OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
     demo_world(&mut r);
     let clock = SkyClock::new();
     // Au-dessus du bord sud de la mare (x 2..8, z -12..-6), regard vers le bas.
@@ -461,8 +476,7 @@ fn quad(z: f32, half: f32, layer: f32) -> Vec<ChunkVertex> {
 #[test]
 fn culling_and_occlusion_queries() {
     let Some((ctx, _g)) = gpu() else { return };
-    let mut r =
-        OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &GfxSettings::default()).unwrap();
     let stone = r.scene.block_atlas().layer("stone") as f32;
     // Mur immense dans le chunk (0,-1) ; petit quad caché derrière dans (0,-3) ; un chunk
     // derrière la caméra (0,3).
@@ -485,7 +499,10 @@ fn culling_and_occlusion_queries() {
     let vis = r.scene.visible_chunks().to_vec();
     assert!(vis.contains(&ChunkPos::new(0, -1)));
     assert!(vis.contains(&ChunkPos::new(0, -3)));
-    assert!(!vis.contains(&ChunkPos::new(0, 3)), "chunk derrière la caméra : {vis:?}");
+    assert!(
+        !vis.contains(&ChunkPos::new(0, 3)),
+        "chunk derrière la caméra : {vis:?}"
+    );
     assert!(r.scene.occlusion_visible(ChunkPos::new(0, -1)));
     assert!(!r.scene.occlusion_visible(ChunkPos::new(0, -3)));
     // Mur retiré : le chunk redevient visible après une frame de latence ou plus.
@@ -515,7 +532,9 @@ fn resize_and_atlas_reload() {
     r.resize(101, 37).unwrap();
     let b = r.render(&frame(&cam, &clock)).unwrap();
     assert_eq!(b.dimensions(), (101, 37));
-    r.scene.reload_block_atlas(TextureArrayCpu::fallback()).unwrap();
+    r.scene
+        .reload_block_atlas(TextureArrayCpu::fallback())
+        .unwrap();
     assert_eq!(r.scene.chunk_mesh_count(), 0);
     let c = r.render(&frame(&cam, &clock)).unwrap();
     assert_eq!(c.dimensions(), (101, 37));

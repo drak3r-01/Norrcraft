@@ -28,8 +28,16 @@ impl HdrTargets {
         let (w, h) = (extent.width, extent.height);
         let (hw, hh) = ((w / 2).max(1), (h / 2).max(1));
         Ok(Self {
-            color: Image::new(ctx, ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage), "hdr-color")?,
-            bright: Image::new(ctx, ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage), "hdr-bright")?,
+            color: Image::new(
+                ctx,
+                ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage),
+                "hdr-color",
+            )?,
+            bright: Image::new(
+                ctx,
+                ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage),
+                "hdr-bright",
+            )?,
             depth: Image::new(
                 ctx,
                 ImageDesc::depth_2d(
@@ -41,8 +49,16 @@ impl HdrTargets {
                 "hdr-depth",
             )?,
             ping: [
-                Image::new(ctx, ImageDesc::color_2d(hw, hh, HDR_COLOR_FORMAT, usage), "ping0")?,
-                Image::new(ctx, ImageDesc::color_2d(hw, hh, HDR_COLOR_FORMAT, usage), "ping1")?,
+                Image::new(
+                    ctx,
+                    ImageDesc::color_2d(hw, hh, HDR_COLOR_FORMAT, usage),
+                    "ping0",
+                )?,
+                Image::new(
+                    ctx,
+                    ImageDesc::color_2d(hw, hh, HDR_COLOR_FORMAT, usage),
+                    "ping1",
+                )?,
             ],
             extent,
         })

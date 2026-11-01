@@ -3,7 +3,12 @@
 
 macro_rules! spv {
     ($name:literal) => {
-        include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/shaders/spv/", $name, ".spv"))
+        include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/shaders/spv/",
+            $name,
+            ".spv"
+        ))
     };
 }
 
@@ -19,11 +24,9 @@ pub const PP_FRAG: &[u8] = spv!("pp.frag");
 
 /// Convertit un binaire SPIR-V en mots (copie alignée).
 pub fn words(bytes: &[u8]) -> Vec<u32> {
-    assert!(bytes.len() % 4 == 0, "SPIR-V de taille invalide");
-    bytes
-        .chunks_exact(4)
-        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-        .collect()
+    let (words, rest) = bytes.as_chunks::<4>();
+    assert!(rest.is_empty(), "SPIR-V de taille invalide");
+    words.iter().map(|c| u32::from_le_bytes(*c)).collect()
 }
 
 #[cfg(test)]
@@ -34,8 +37,15 @@ mod tests {
     #[test]
     fn spirv_magic() {
         for s in [
-            MAIN_VERT, MAIN_FRAG, SHADOW_VERT, SHADOW_FRAG, HL_VERT, HL_FRAG, QUAD_VERT,
-            BLUR_FRAG, PP_FRAG,
+            MAIN_VERT,
+            MAIN_FRAG,
+            SHADOW_VERT,
+            SHADOW_FRAG,
+            HL_VERT,
+            HL_FRAG,
+            QUAD_VERT,
+            BLUR_FRAG,
+            PP_FRAG,
         ] {
             assert_eq!(words(s)[0], 0x0723_0203);
         }

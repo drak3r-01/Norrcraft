@@ -30,7 +30,9 @@ unsafe extern "system" fn debug_callback(
         if data.is_null() || (*data).p_message.is_null() {
             String::new()
         } else {
-            CStr::from_ptr((*data).p_message).to_string_lossy().into_owned()
+            CStr::from_ptr((*data).p_message)
+                .to_string_lossy()
+                .into_owned()
         }
     };
     if severity.contains(vk::DebugUtilsMessageSeverityFlagsEXT::ERROR) {
@@ -62,8 +64,7 @@ pub struct GpuContext {
 }
 
 /// Fabrique de surface appelée entre la création de l'instance et le choix du GPU.
-pub type SurfaceFactory<'a> =
-    &'a dyn Fn(&ash::Entry, &ash::Instance) -> Result<vk::SurfaceKHR>;
+pub type SurfaceFactory<'a> = &'a dyn Fn(&ash::Entry, &ash::Instance) -> Result<vk::SurfaceKHR>;
 
 impl GpuContext {
     /// Contexte sans surface (rendu hors écran).
@@ -90,15 +91,13 @@ impl GpuContext {
         // SAFETY : chargement dynamique de la bibliothèque Vulkan système.
         let entry = unsafe { ash::Entry::load()? };
         // SAFETY : appels Vulkan sur un `Entry` valide.
-        let version = unsafe { entry.try_enumerate_instance_version()? }
-            .unwrap_or(vk::API_VERSION_1_0);
+        let version =
+            unsafe { entry.try_enumerate_instance_version()? }.unwrap_or(vk::API_VERSION_1_0);
         if version < vk::API_VERSION_1_3 {
             return Err(GfxError::NoDevice);
         }
-        let want_validation = std::env::var("NB_GFX_VALIDATION").map_or(
-            cfg!(debug_assertions),
-            |v| v != "0",
-        );
+        let want_validation =
+            std::env::var("NB_GFX_VALIDATION").map_or(cfg!(debug_assertions), |v| v != "0");
         // SAFETY : énumération sur un `Entry` valide.
         let layers = unsafe { entry.enumerate_instance_layer_properties()? };
         let has_validation = layers
@@ -192,7 +191,7 @@ impl GpuContext {
                 vk::PhysicalDeviceType::VIRTUAL_GPU => 2,
                 _ => 1,
             };
-            if best.map_or(true, |(s, _, _)| score > s) {
+            if best.is_none_or(|(s, _, _)| score > s) {
                 best = Some((score, pd, family));
             }
         }
@@ -268,8 +267,7 @@ impl GpuContext {
                 queue: Mutex::new(queue),
                 allocator: ManuallyDrop::new(Mutex::new(allocator)),
                 command_pool: Mutex::new(command_pool),
-                max_anisotropy: anisotropy
-                    .then(|| props.limits.max_sampler_anisotropy.min(8.0)),
+                max_anisotropy: anisotropy.then(|| props.limits.max_sampler_anisotropy.min(8.0)),
                 device_name,
                 validation_enabled: debug.is_some(),
                 debug,

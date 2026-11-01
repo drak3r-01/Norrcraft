@@ -122,7 +122,9 @@ pub fn list_resource_packs(root: &Path) -> Vec<ResourcePackMeta> {
         (n != DEFAULT_PACK, n.to_lowercase())
     });
     dirs.iter()
-        .map(|d| ResourcePackMeta::load(d).unwrap_or_else(|| ResourcePackMeta::new(&folder_name(d), "")))
+        .map(|d| {
+            ResourcePackMeta::load(d).unwrap_or_else(|| ResourcePackMeta::new(&folder_name(d), ""))
+        })
         .collect()
 }
 
@@ -137,19 +139,18 @@ pub fn resolve_block_textures(root: &Path, name: &str) -> (PathBuf, ResourcePack
     ] {
         let dir = pack.join(sub);
         if dir.is_dir() {
-            let meta = ResourcePackMeta::load(&pack).unwrap_or_else(|| ResourcePackMeta::new(name, ""));
+            let meta =
+                ResourcePackMeta::load(&pack).unwrap_or_else(|| ResourcePackMeta::new(name, ""));
             return (dir, meta);
         }
     }
-    (
-        default_block_dir(root),
-        ResourcePackMeta::builtin(),
-    )
+    (default_block_dir(root), ResourcePackMeta::builtin())
 }
 
 /// Dossier des textures de blocs du pack Default.
 pub fn default_block_dir(root: &Path) -> PathBuf {
-    root.join(DEFAULT_PACK).join("assets/minecraft/textures/block")
+    root.join(DEFAULT_PACK)
+        .join("assets/minecraft/textures/block")
 }
 
 #[cfg(test)]
@@ -166,7 +167,10 @@ mod tests {
             parse_description(r#"{"pack":{"description":{"text":"x"}}}"#),
             ""
         );
-        assert_eq!(parse_description(r#"{"pack":{"description" :  "ok"}}"#), "ok");
+        assert_eq!(
+            parse_description(r#"{"pack":{"description" :  "ok"}}"#),
+            "ok"
+        );
         assert_eq!(parse_description("{}"), "");
         assert_eq!(parse_description("{\"description\": \"\\u00e9\"}"), "u00e9");
     }

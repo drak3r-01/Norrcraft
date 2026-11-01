@@ -149,7 +149,7 @@ pub fn checkerboard(size: u32, cell: u32) -> Vec<u8> {
     let mut out = Vec::with_capacity((size * size * 4) as usize);
     for y in 0..size {
         for x in 0..size {
-            out.extend_from_slice(if (x / cell + y / cell) % 2 == 0 {
+            out.extend_from_slice(if (x / cell + y / cell).is_multiple_of(2) {
                 &MAGENTA
             } else {
                 &BLACK

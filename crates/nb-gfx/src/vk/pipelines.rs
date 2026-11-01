@@ -257,8 +257,7 @@ impl Pipelines {
         let frame_set_layout = set_layout(ctx, &[ubo, tex, tex])?;
         let texture_set_layout = set_layout(ctx, &[tex])?;
         let pp_set_layout = set_layout(ctx, &[ubo, tex, tex, tex, tex, tex])?;
-        let terrain_layout =
-            pipeline_layout(ctx, &[frame_set_layout, texture_set_layout], None)?;
+        let terrain_layout = pipeline_layout(ctx, &[frame_set_layout, texture_set_layout], None)?;
         let hl_layout = pipeline_layout(ctx, &[frame_set_layout], Some((S::VERTEX, 64)))?;
         let blur_layout = pipeline_layout(ctx, &[texture_set_layout], Some((S::FRAGMENT, 4)))?;
         let pp_layout = pipeline_layout(ctx, &[pp_set_layout], None)?;
