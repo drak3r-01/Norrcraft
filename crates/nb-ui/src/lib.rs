@@ -10,6 +10,8 @@ pub mod font;
 pub mod hud;
 pub mod input;
 pub mod inventory;
+pub mod jfmt;
+pub mod screens;
 pub mod state;
 pub mod textures;
 pub mod widgets;
