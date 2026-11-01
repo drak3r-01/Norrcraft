@@ -280,6 +280,78 @@ fn sky_matches_cpu_reference() {
     assert_no_validation_errors();
 }
 
+fn aces_gamma(x: Vec3) -> Vec3 {
+    let a = ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(Vec3::ZERO, Vec3::ONE);
+    a.powf(1.0 / 2.2) * 255.0
+}
+
+/// Terrain opaque éclairé (main.frag) puis brouillard + tonemapping (pp.frag), comparé à un
+/// calcul CPU : texture unie (atlas de repli magenta), sans ombre ni bloom.
+#[test]
+fn lit_terrain_matches_cpu_reference() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let settings = GfxSettings {
+        shadow_quality: ShadowQuality::Off,
+        bloom: false,
+        ..GfxSettings::default()
+    };
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &settings).unwrap();
+    r.scene
+        .reload_block_atlas(TextureArrayCpu::fallback())
+        .unwrap();
+    let v = |x: f32, z: f32| ChunkVertex {
+        pos: [x, 60.0, z],
+        // UV variables (texture unie en REPEAT) : des UV constantes donnent des dérivées nulles,
+        // que lavapipe + anisotropie transforme en NaN.
+        uv: [x, z],
+        layer: 0.0,
+        color: [0.8, 0.9, 0.7],
+    };
+    let (a, b, c, d) = (
+        v(-50.0, 50.0),
+        v(50.0, 50.0),
+        v(50.0, -50.0),
+        v(-50.0, -50.0),
+    );
+    r.scene
+        .upload_chunk_mesh(ChunkPos::new(0, 0), &[a, b, c, c, d, a])
+        .unwrap();
+    for (time, name) in [
+        (900.0, "flat_noon"),
+        (0.0, "flat_sunset"),
+        (300.0, "flat_midnight"),
+    ] {
+        let cam = Camera {
+            position: Vec3::new(8.0, 70.0, 8.0),
+            pitch_deg: 89.0,
+            yaw_deg: 0.0,
+            ..Camera::default()
+        };
+        let mut clock = SkyClock::new();
+        clock.set_time(time);
+        let img = render_settled(&mut r, &frame(&cam, &clock));
+        save(name, &img);
+        let sky = sky_params(time);
+        let dist = 10.0 / 89f32.to_radians().sin();
+        let fog = (-(dist * 0.002f32).powf(1.8)).exp();
+        // Regard quasi vertical vers le bas : ciel = horizon, pas de halo.
+        let lit =
+            Vec3::new(1.0, 0.0, 1.0) * Vec3::new(0.8, 0.9, 0.7) * (sky.ambient + sky.light_color);
+        let hdr = sky.horizon.lerp(lit, fog) * Vec3::new(1.15, 1.05, 0.95);
+        let expect = aces_gamma(hdr);
+        let p = img.get_pixel(W / 2, H / 2);
+        for k in 0..3 {
+            assert!(
+                (f32::from(p[k]) - expect[k]).abs() <= 2.0,
+                "{name} canal {k} : {} vs {}",
+                p[k],
+                expect[k]
+            );
+        }
+    }
+    assert_no_validation_errors();
+}
+
 #[test]
 fn demo_world_noon_golden() {
     let Some((ctx, _g)) = gpu() else { return };
