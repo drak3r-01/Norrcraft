@@ -1,0 +1,12 @@
+/target
+Cargo.lock.bak
+/saves/*
+!/saves/.gitkeep
+!/saves/mobs_defaults.json
+/resource_packs/*
+!/resource_packs/Default
+*.spv
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
