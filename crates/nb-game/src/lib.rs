@@ -23,4 +23,5 @@ pub use session::{Registries, WorldSession};
 pub use state::{GameState, HudState, SettingsTab};
 pub use ui::{NewWorld, NullUi, StubUi, Ui, UiCommand, UiView};
 
+pub use nb_ecs::GameMode;
 pub use nb_mesh::MeshAction;

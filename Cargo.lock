@@ -811,7 +811,11 @@ dependencies = [
 name = "nb-app"
 version = "0.1.0"
 dependencies = [
+ "nb-data",
  "nb-game",
+ "nb-gfx",
+ "nb-mesh",
+ "winit",
 ]
 
 [[package]]
@@ -849,6 +853,10 @@ version = "0.1.0"
 dependencies = [
  "nb-core",
  "nb-data",
+ "nb-ecs",
+ "nb-gfx",
+ "nb-mesh",
+ "nb-world",
 ]
 
 [[package]]
