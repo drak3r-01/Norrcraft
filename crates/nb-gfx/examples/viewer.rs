@@ -1,5 +1,7 @@
 //! Visionneuse de démonstration (fenêtre winit + Vulkan) : terrain procédural maillé par
-//! nb-mesh, cycle jour/nuit, ombres, brouillard, nuages, surbrillance.
+//! nb-mesh, cycle jour/nuit, ombres, brouillard, nuages, surbrillance, mobs intégrés (renne,
+//! poisson, orque), un mob vanilla sans texture (damier), un mob inconnu (cube manquant) et des
+//! particules.
 //!
 //! `cargo run -p nb-gfx --example viewer --release`
 //!
@@ -11,10 +13,11 @@ use std::collections::HashSet;
 use std::time::Instant;
 
 use glam::{IVec3, Vec3};
-use nb_data::BlockRegistry;
+use nb_data::{BlockRegistry, MobRegistry, ParticleRegistry};
 use nb_gfx::window::{center_on_monitor, load_icon, set_fullscreen, window_attributes, Renderer};
 use nb_gfx::{
-    find_packs_root, Camera, ChunkPos, EyeFluid, FrameInput, GfxSettings, ShadowQuality, SkyClock,
+    find_packs_root, Camera, ChunkPos, EyeFluid, FrameInput, GfxSettings, MobInstance,
+    MobModelDesc, ParticleInstance, ShadowQuality, SkyClock,
 };
 use nb_mesh::{mesh_chunk, BlockTable, ChunkVoxels, Neighborhood, UniformBiome};
 use winit::application::ApplicationHandler;
@@ -95,6 +98,62 @@ fn build_world(r: &mut Renderer) {
                 .expect("upload");
         }
     }
+}
+
+/// Mobs intégrés + une vache (forme vanilla ; sans texture d'entité dans le pack Default →
+/// damier).
+fn demo_mob_descs() -> Vec<MobModelDesc> {
+    let mut d = MobModelDesc::from_registry(&MobRegistry::builtin());
+    d.push(MobModelDesc {
+        id: "cow".into(),
+        built_in: false,
+        geometry: None,
+    });
+    d
+}
+
+/// Mobs de démonstration autour de l'origine (le renne tourne sur lui-même).
+fn demo_mobs(t: f32) -> Vec<MobInstance<'static>> {
+    let reg = MobRegistry::builtin();
+    let ground = |x: i32, z: i32| (height_at(x, z) + 1) as f32;
+    let mob = |id: &'static str, x: i32, y: f32, z: i32, yaw: f32| {
+        let s = reg.get(id).map_or(Vec3::new(0.75, 2.0, 1.375), |c| {
+            Vec3::new(c.width_x, c.height, c.width_z)
+        });
+        MobInstance {
+            model_id: id,
+            position: Vec3::new(x as f32 + 0.5, y, z as f32 + 0.5),
+            yaw_rad: yaw,
+            pitch_rad: 0.0,
+            missing_scale: s,
+        }
+    };
+    vec![
+        mob("reindeer", 0, ground(0, 8), 8, t * 0.5),
+        mob("fish", 4, 59.0, 4, t),
+        mob("orca", -10, 55.0, -6, 0.3),
+        mob("cow", 3, ground(3, 10), 10, 1.0),
+        mob("inconnu", -3, ground(-3, 10), 10, 0.0),
+    ]
+}
+
+/// Feuilles qui tombent et gouttes de lave en boucle au-dessus de l'origine.
+fn demo_particles(t: f32, atlas: &nb_gfx::TextureArrayCpu) -> Vec<ParticleInstance> {
+    let reg = ParticleRegistry::builtin();
+    let (leaf, lava) = (reg.get("leaf").unwrap(), reg.get("lava").unwrap());
+    (0..40)
+        .map(|i| {
+            let ty = if i % 4 == 0 { lava } else { leaf };
+            let phase = (t * 0.3 + i as f32 * 0.37).fract();
+            let (x, z) = ((i % 8) as f32 * 0.7 - 2.5, (i / 8) as f32 * 0.7 + 6.0);
+            ParticleInstance {
+                position: Vec3::new(x, 72.0 - phase * 6.0, z),
+                scale: ty.scale,
+                layer: atlas.layer(&ty.texture),
+                color: Vec3::ONE,
+            }
+        })
+        .collect()
 }
 
 struct App {
@@ -212,6 +271,7 @@ impl ApplicationHandler for App {
             &window,
             (size.width, size.height),
             &find_packs_root(),
+            &demo_mob_descs(),
             &self.settings,
         )
         .expect("renderer");
@@ -262,6 +322,13 @@ impl ApplicationHandler for App {
                 self.last = now;
                 self.update(dt);
                 let target = self.camera.position.floor().as_ivec3() - IVec3::new(0, 2, 0);
+                let t = self.start.elapsed().as_secs_f32();
+                let mobs = demo_mobs(t);
+                let particles = self
+                    .renderer
+                    .as_ref()
+                    .map(|r| demo_particles(t, r.particle_atlas()))
+                    .unwrap_or_default();
                 let input = FrameInput {
                     camera: &self.camera,
                     time_seconds: self.start.elapsed().as_secs_f32(),
@@ -274,6 +341,8 @@ impl ApplicationHandler for App {
                         EyeFluid::None
                     },
                     heat_intensity: 0.0,
+                    mobs: &mobs,
+                    particles: &particles,
                     highlight_block: Some(target),
                 };
                 if let Some(r) = self.renderer.as_mut() {

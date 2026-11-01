@@ -3,6 +3,7 @@
 //! swapchain ou image hors écran de l'[`OffscreenRenderer`]).
 
 mod context;
+mod mobs;
 mod offscreen;
 mod pipelines;
 mod resources;

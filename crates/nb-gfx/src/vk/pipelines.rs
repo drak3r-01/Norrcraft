@@ -2,6 +2,7 @@
 
 use ash::vk;
 
+use super::mobs::PARTICLE_PUSH_SIZE;
 use super::targets::{DEPTH_FORMAT, HDR_COLOR_FORMAT};
 use super::{GpuContext, Result};
 use crate::shaders;
@@ -13,6 +14,10 @@ enum Vertex {
     Chunk { color: bool },
     /// `vec3` seul (12 o) : AABB d'occlusion, contour de bloc.
     Position,
+    /// `MobVertex` (40 o) : vec3, vec2, vec4, float.
+    Mob,
+    /// Quad de particule (20 o) : vec3, vec2.
+    Particle,
     /// Aucun (quad plein écran généré dans le vertex shader).
     None,
 }
@@ -111,6 +116,30 @@ fn build(ctx: &GpuContext, d: &Desc<'_>) -> Result<vk::Pipeline> {
                 input_rate: vk::VertexInputRate::VERTEX,
             }],
             vec![f(0, vk::Format::R32G32B32_SFLOAT, 0)],
+        ),
+        Vertex::Mob => (
+            vec![vk::VertexInputBindingDescription {
+                binding: 0,
+                stride: 40,
+                input_rate: vk::VertexInputRate::VERTEX,
+            }],
+            vec![
+                f(0, vk::Format::R32G32B32_SFLOAT, 0),
+                f(1, vk::Format::R32G32_SFLOAT, 12),
+                f(2, vk::Format::R32G32B32A32_SFLOAT, 20),
+                f(3, vk::Format::R32_SFLOAT, 36),
+            ],
+        ),
+        Vertex::Particle => (
+            vec![vk::VertexInputBindingDescription {
+                binding: 0,
+                stride: 20,
+                input_rate: vk::VertexInputRate::VERTEX,
+            }],
+            vec![
+                f(0, vk::Format::R32G32B32_SFLOAT, 0),
+                f(1, vk::Format::R32G32_SFLOAT, 12),
+            ],
         ),
         Vertex::None => (Vec::new(), Vec::new()),
     };
@@ -238,6 +267,11 @@ pub struct Pipelines {
     pub hl_layout: vk::PipelineLayout,
     pub blur_layout: vk::PipelineLayout,
     pub pp_layout: vk::PipelineLayout,
+    /// Mobs : set 0 (UBO) + set 1 (texture du modèle), push `model` (64 o, vertex).
+    pub mob_layout: vk::PipelineLayout,
+    /// Particules : set 0 (UBO) + set 1 (atlas particules), push `model`, `colorTint`,
+    /// `layer` (80 o, vertex + fragment).
+    pub particle_layout: vk::PipelineLayout,
     pub shadow: vk::Pipeline,
     pub opaque: vk::Pipeline,
     pub occlusion: vk::Pipeline,
@@ -245,6 +279,11 @@ pub struct Pipelines {
     pub blur: vk::Pipeline,
     pub composite: vk::Pipeline,
     pub highlight: vk::Pipeline,
+    /// Plage opaque des mobs : blend off, écriture de profondeur.
+    pub mob_opaque: vk::Pipeline,
+    /// Plage transparente des mobs : blend, sans écriture de profondeur.
+    pub mob_transparent: vk::Pipeline,
+    pub particle: vk::Pipeline,
     pub output_format: vk::Format,
 }
 
@@ -261,6 +300,16 @@ impl Pipelines {
         let hl_layout = pipeline_layout(ctx, &[frame_set_layout], Some((S::VERTEX, 64)))?;
         let blur_layout = pipeline_layout(ctx, &[texture_set_layout], Some((S::FRAGMENT, 4)))?;
         let pp_layout = pipeline_layout(ctx, &[pp_set_layout], None)?;
+        let mob_layout = pipeline_layout(
+            ctx,
+            &[frame_set_layout, texture_set_layout],
+            Some((S::VERTEX, 64)),
+        )?;
+        let particle_layout = pipeline_layout(
+            ctx,
+            &[frame_set_layout, texture_set_layout],
+            Some((S::VERTEX | S::FRAGMENT, PARTICLE_PUSH_SIZE)),
+        )?;
 
         let hdr = |blend, write| ColorTarget {
             format: HDR_COLOR_FORMAT,
@@ -379,6 +428,42 @@ impl Pipelines {
                 layout: hl_layout,
             },
         )?;
+        // Passe B2 (§14.1, §15, §18.4.4) : les shaders n'écrivent que la location 0. Le bright
+        // buffer doit rester inchangé ([JAVA-BUG] GL « indéfini ») : plutôt qu'un
+        // colorWriteMask = 0 sur un attachement 1 que le shader n'écrit pas (sortie indéfinie,
+        // qui exige independentBlend et a produit des halos de bloom parasites sous lavapipe),
+        // la passe B2 n'attache que `colorBuffer` : résultat voulu, sans valeur indéfinie.
+        let mob_desc = |depth_write: bool, colors| Desc {
+            vs: shaders::MOB_VERT,
+            fs: shaders::MOB_FRAG,
+            render_pass_constant: None,
+            vertex: Vertex::Mob,
+            topology: vk::PrimitiveTopology::TRIANGLE_LIST,
+            cull: vk::CullModeFlags::BACK,
+            depth: Some((true, depth_write)),
+            depth_format: DEPTH_FORMAT,
+            colors,
+            layout: mob_layout,
+        };
+        let opaque_b2 = [hdr(false, true)];
+        let blended_b2 = [hdr(true, true)];
+        let mob_opaque = build(ctx, &mob_desc(true, &opaque_b2))?;
+        let mob_transparent = build(ctx, &mob_desc(false, &blended_b2))?;
+        let particle = build(
+            ctx,
+            &Desc {
+                vs: shaders::PARTICLE_VERT,
+                fs: shaders::PARTICLE_FRAG,
+                render_pass_constant: None,
+                vertex: Vertex::Particle,
+                topology: vk::PrimitiveTopology::TRIANGLE_LIST,
+                cull: vk::CullModeFlags::BACK,
+                depth: Some((true, false)),
+                depth_format: DEPTH_FORMAT,
+                colors: &blended_b2,
+                layout: particle_layout,
+            },
+        )?;
         Ok(Self {
             frame_set_layout,
             texture_set_layout,
@@ -387,6 +472,8 @@ impl Pipelines {
             hl_layout,
             blur_layout,
             pp_layout,
+            mob_layout,
+            particle_layout,
             shadow,
             opaque,
             occlusion,
@@ -394,6 +481,9 @@ impl Pipelines {
             blur,
             composite,
             highlight,
+            mob_opaque,
+            mob_transparent,
+            particle,
             output_format,
         })
     }
@@ -409,6 +499,9 @@ impl Pipelines {
                 self.blur,
                 self.composite,
                 self.highlight,
+                self.mob_opaque,
+                self.mob_transparent,
+                self.particle,
             ] {
                 ctx.device.destroy_pipeline(p, None);
             }
@@ -417,6 +510,8 @@ impl Pipelines {
                 self.hl_layout,
                 self.blur_layout,
                 self.pp_layout,
+                self.mob_layout,
+                self.particle_layout,
             ] {
                 ctx.device.destroy_pipeline_layout(l, None);
             }

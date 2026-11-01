@@ -13,12 +13,14 @@ use image::RgbaImage;
 use nb_core::ChunkPos;
 use nb_mesh::{highlight_lines, ChunkQuadtree, ChunkVertex, Frustum};
 
+use super::mobs::MobResources;
 use super::pipelines::Pipelines;
 use super::resources::{barrier, Buffer, Image, ImageDesc, Transition};
 use super::targets::{shadow_map, HdrTargets, DEPTH_FORMAT};
 use super::{GpuContext, Result};
 use crate::atlas::{self, TextureArrayCpu};
 use crate::frame::{shadow_resolution, FrameDerived, FrameInput, FrameUniforms, GfxSettings};
+use crate::mob_model::{load_all_mob_models, load_mob_model, MobModelCpu, MobModelDesc, MobRoots};
 use crate::packs::{self, ResourcePackMeta};
 
 /// Nombre de frames en vol (ressources par frame : UBO, commandes, requêtes d'occlusion).
@@ -34,22 +36,43 @@ const CLOUDS_PNG: &[u8] = include_bytes!(concat!(
     "/../../assets/textures/environment/clouds.png"
 ));
 
+/// Textures de particules « classpath » (`/textures/particle`, §5.4).
+const LEAF_PNG: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/textures/particle/leaf.png"
+));
+const LAVA_DROP_PNG: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../assets/textures/particle/lava_drop.png"
+));
+
 /// Assets CPU nécessaires au renderer.
 #[derive(Clone, Debug)]
 pub struct SceneAssets {
     pub block_atlas: TextureArrayCpu,
     /// Texture de nuages retournée (512×512 attendue).
     pub clouds: Option<RgbaImage>,
+    /// Atlas des particules (`leaf` → 0, `lava_drop` → 1, manquante → 2).
+    pub particle_atlas: TextureArrayCpu,
+    /// Racines des modèles de mobs (pour `reload_mob_model`).
+    pub mob_roots: MobRoots,
+    /// Modèles de mobs chargés (`MobModelLoader.loadAll`) ; id absent → cube manquant.
+    pub mob_models: HashMap<String, MobModelCpu>,
 }
 
 impl SceneAssets {
-    /// Atlas du pack `pack` (repli Default, §5.2) + nuages intégrés.
-    pub fn load(packs_root: &Path, pack: &str) -> (Self, ResourcePackMeta) {
+    /// Atlas du pack `pack` (repli Default, §5.2), nuages et particules intégrés, modèles de
+    /// `mobs` avec les racines `(packs_root/pack, packs_root/Default)`.
+    pub fn load(packs_root: &Path, pack: &str, mobs: &[MobModelDesc]) -> (Self, ResourcePackMeta) {
         let (dir, meta) = packs::resolve_block_textures(packs_root, pack);
+        let mob_roots = MobRoots::for_pack(packs_root, pack);
         (
             Self {
                 block_atlas: TextureArrayCpu::from_dir(&dir),
                 clouds: Self::builtin_clouds(),
+                particle_atlas: Self::builtin_particle_atlas(),
+                mob_models: load_all_mob_models(mobs, &mob_roots),
+                mob_roots,
             },
             meta,
         )
@@ -57,6 +80,11 @@ impl SceneAssets {
 
     pub fn builtin_clouds() -> Option<RgbaImage> {
         atlas::cloud_texture(CLOUDS_PNG)
+    }
+
+    /// `loadFromClasspath("/textures/particle", "leaf", "lava_drop")`.
+    pub fn builtin_particle_atlas() -> TextureArrayCpu {
+        TextureArrayCpu::from_named(&[("leaf", Some(LEAF_PNG)), ("lava_drop", Some(LAVA_DROP_PNG))])
     }
 }
 
@@ -236,6 +264,8 @@ pub struct SceneRenderer {
     blur_sets: [vk::DescriptorSet; 3],
     aabb: Buffer,
     lines: Buffer,
+    /// Modèles de mobs, atlas et quad des particules (passe B2).
+    mobs: MobResources,
     meshes: HashMap<ChunkPos, ChunkMesh>,
     retired: Vec<(Option<u64>, Buffer)>,
     quadtree: ChunkQuadtree,
@@ -359,6 +389,15 @@ impl SceneRenderer {
             vk::BufferUsageFlags::VERTEX_BUFFER,
             "highlight",
         )?;
+        let mobs = MobResources::new(
+            c,
+            pipelines.texture_set_layout,
+            samplers.nearest_repeat,
+            samplers.atlas,
+            assets.particle_atlas,
+            assets.mob_roots,
+            assets.mob_models,
+        )?;
 
         let renderer = Self {
             ctx: ctx.clone(),
@@ -380,6 +419,7 @@ impl SceneRenderer {
             blur_sets: [tex_sets[2], tex_sets[3], tex_sets[4]],
             aabb,
             lines,
+            mobs,
             meshes: HashMap::new(),
             retired: Vec::new(),
             quadtree: ChunkQuadtree::new(),
@@ -500,6 +540,46 @@ impl SceneRenderer {
         self.clear_chunk_meshes();
         self.write_static_sets();
         Ok(())
+    }
+
+    /// Atlas des particules (mapping texture → couche pour [`crate::ParticleInstance::layer`]).
+    pub fn particle_atlas(&self) -> &TextureArrayCpu {
+        self.mobs.particle_atlas()
+    }
+
+    /// Racines actives des modèles de mobs.
+    pub fn mob_roots(&self) -> &MobRoots {
+        self.mobs.roots()
+    }
+
+    /// `(sommets opaques, sommets transparents)` du modèle chargé pour `id` (`None` → cube
+    /// manquant au rendu).
+    pub fn mob_model_counts(&self, id: &str) -> Option<(u32, u32)> {
+        self.mobs.model_counts(id)
+    }
+
+    /// `reloadMobModel(id)` (`loadMob`, §5.2, §14.2) avec les racines actives : l'ancien modèle
+    /// n'est remplacé que si un nouveau est construit. Retourne `true` si remplacé.
+    pub fn reload_mob_model(&mut self, desc: &MobModelDesc) -> Result<bool> {
+        let Some(m) = load_mob_model(desc, self.mobs.roots()) else {
+            return Ok(false);
+        };
+        self.install_mob_model(&desc.id, &m)?;
+        Ok(true)
+    }
+
+    /// Installe un modèle déjà construit (remplace l'ancien).
+    pub fn install_mob_model(&mut self, id: &str, model: &MobModelCpu) -> Result<()> {
+        // Les frames en vol peuvent encore lire l'ancien modèle (rechargement rare).
+        self.ctx.wait_idle();
+        self.mobs.replace(&self.ctx, id, model)
+    }
+
+    /// Changement de pack : détruit tous les modèles puis `loadAll(roots)` (§5.2 étape 4).
+    pub fn reload_mob_models(&mut self, roots: MobRoots, mobs: &[MobModelDesc]) -> Result<()> {
+        let models = load_all_mob_models(mobs, &roots);
+        self.ctx.wait_idle();
+        self.mobs.replace_all(&self.ctx, roots, models)
     }
 
     /// Applique les réglages (qualité d'ombre, bloom, correctif des seuils d'ombre).
@@ -900,7 +980,48 @@ impl SceneRenderer {
                 }
             }
             d.cmd_end_rendering(cmd);
-            // 9–10. Mobs et particules : pas encore portés (hors périmètre de ce lot).
+
+            // 9–10. Scène B2 : mobs (plage opaque avec écriture de profondeur) puis particules
+            // (§14.1, §15, §18.4.4). Profondeur repassée en attachement inscriptible, plus
+            // échantillonnée. Seul `colorBuffer` est attaché : le bright buffer reste inchangé
+            // (§14.1, voir `Pipelines`). Passe sautée si rien à dessiner (résultat identique).
+            if !input.mobs.is_empty() || !input.particles.is_empty() {
+                barrier(
+                    ctx,
+                    cmd,
+                    t.color.raw,
+                    t.color.range(),
+                    Transition::COLOR_ATTACHMENT,
+                    Transition::COLOR_ATTACHMENT,
+                );
+                barrier(
+                    ctx,
+                    cmd,
+                    t.depth.raw,
+                    t.depth.range(),
+                    Transition::DEPTH_READ,
+                    Transition::DEPTH_ATTACHMENT,
+                );
+                let colors = [color_attachment(
+                    t.color.view,
+                    vk::AttachmentLoadOp::LOAD,
+                    clear,
+                )];
+                let depth_att = depth_attachment(t.depth.view, vk::AttachmentLoadOp::LOAD, false);
+                begin_rendering(d, cmd, extent, &colors, Some(&depth_att));
+                set_viewport(d, cmd, extent);
+                self.mobs
+                    .record(ctx, cmd, &self.pipelines, frame_set, &derived.view, input);
+                d.cmd_end_rendering(cmd);
+                barrier(
+                    ctx,
+                    cmd,
+                    t.depth.raw,
+                    t.depth.range(),
+                    Transition::DEPTH_ATTACHMENT,
+                    Transition::DEPTH_READ,
+                );
+            }
             for img in [&t.color, &t.bright] {
                 barrier(
                     ctx,
@@ -1126,6 +1247,7 @@ impl Drop for SceneRenderer {
         }
         self.aabb.destroy(&ctx);
         self.lines.destroy(&ctx);
+        self.mobs.destroy(&ctx);
         self.atlas.destroy(&ctx);
         self.clouds.destroy(&ctx);
         self.noise.destroy(&ctx);
@@ -1161,7 +1283,7 @@ fn create_query_pool(ctx: &GpuContext, capacity: u32) -> Result<(vk::QueryPool, 
 }
 
 /// Upload de l'atlas : chaîne de mips CPU (boîte 2×2) de chaque couche.
-fn upload_atlas(ctx: &GpuContext, a: &TextureArrayCpu) -> Result<Image> {
+pub(super) fn upload_atlas(ctx: &GpuContext, a: &TextureArrayCpu) -> Result<Image> {
     let levels = a.mip_levels();
     let chains: Vec<_> = a
         .layers

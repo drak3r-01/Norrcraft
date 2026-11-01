@@ -23,8 +23,6 @@
 //! Bogues Java conservés : seuils 1000/2000 de `shadow.vert` (correctif derrière
 //! [`GfxSettings::fix_shadow_layer_thresholds`]), bright buffer effacé à la couleur de
 //! brouillard, fluides sans écriture de profondeur, occlusion à une frame (ou plus) de retard.
-//!
-//! Pas encore porté : mobs, particules (passe scène B2, §14–§15).
 
 pub mod atlas;
 pub mod camera;
@@ -40,7 +38,9 @@ pub mod window;
 
 pub use atlas::TextureArrayCpu;
 pub use camera::Camera;
-pub use frame::{EyeFluid, FrameInput, FrameUniforms, GfxSettings, ShadowQuality};
+pub use frame::{
+    EyeFluid, FrameInput, FrameUniforms, GfxSettings, MobInstance, ParticleInstance, ShadowQuality,
+};
 pub use jem::parse_jem;
 pub use mob_model::{
     load_all_mob_models, load_mob_model, ColorBox, MobModelCpu, MobModelDesc, MobRoots, MobVertex,

@@ -78,7 +78,33 @@ impl EyeFluid {
     }
 }
 
-/// Entrées d'une frame. Mobs et particules ne sont pas encore rendus par ce crate.
+/// Mob à dessiner (§14.1). L'appelant ne transmet que les entités dont la config existe.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MobInstance<'a> {
+    /// Id du mob ; modèle absent → cube manquant.
+    pub model_id: &'a str,
+    pub position: Vec3,
+    /// Valeurs brutes de `TransformComponent` (radians).
+    pub yaw_rad: f32,
+    pub pitch_rad: f32,
+    /// `(widthX, height, widthZ)` de la config (échelle du cube manquant).
+    pub missing_scale: Vec3,
+}
+
+/// Particule à dessiner (§15).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ParticleInstance {
+    pub position: Vec3,
+    /// `type.scale` (`particles.json`).
+    pub scale: f32,
+    /// `type.textureLayer` : couche de l'atlas des particules
+    /// ([`crate::vk::SceneRenderer::particle_atlas`]).
+    pub layer: u32,
+    /// `colorTint`.
+    pub color: Vec3,
+}
+
+/// Entrées d'une frame.
 #[derive(Clone, Copy, Debug)]
 pub struct FrameInput<'a> {
     pub camera: &'a Camera,
@@ -88,6 +114,10 @@ pub struct FrameInput<'a> {
     pub eye_fluid: EyeFluid,
     /// §8.2, calculée par l'appelant (`heat_from_nearest_lava_dist_sq`).
     pub heat_intensity: f32,
+    /// Mobs (ordre de la requête ECS, non trié).
+    pub mobs: &'a [MobInstance<'a>],
+    /// Particules (ordre du gestionnaire, non trié).
+    pub particles: &'a [ParticleInstance],
     /// Coin min du bloc visé ; `None` hors PLAYING/PAUSED/INVENTORY.
     pub highlight_block: Option<IVec3>,
 }
@@ -214,6 +244,8 @@ mod tests {
             sky_clock: &clock,
             eye_fluid: EyeFluid::Lava,
             heat_intensity: 0.25,
+            mobs: &[],
+            particles: &[],
             highlight_block: None,
         };
         let d = FrameDerived::new(&input, (800, 400), &GfxSettings::default());

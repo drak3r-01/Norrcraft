@@ -14,6 +14,7 @@ pub use swapchain::{choose_format, choose_present_mode, surface_extent, Swapchai
 
 use crate::atlas::TextureArrayCpu;
 use crate::frame::{FrameInput, GfxSettings};
+use crate::mob_model::{MobModelDesc, MobRoots};
 use crate::packs::{self, ResourcePackMeta};
 use crate::vk::{
     GfxError, GpuContext, OutputTarget, OverlayPass, Result, SceneAssets, SceneRenderer,
@@ -48,11 +49,13 @@ fn semaphore(ctx: &GpuContext) -> Result<vk::Semaphore> {
 }
 
 impl Renderer {
-    /// Crée le contexte Vulkan pour `window`, la swapchain et charge le pack « Default ».
+    /// Crée le contexte Vulkan pour `window`, la swapchain et charge le pack « Default »
+    /// (atlas de blocs et modèles des `mobs`, §5.2 init).
     pub fn new(
         window: &(impl HasWindowHandle + HasDisplayHandle),
         size: (u32, u32),
         packs_root: &Path,
+        mobs: &[MobModelDesc],
         settings: &GfxSettings,
     ) -> Result<Self> {
         let display = window
@@ -69,7 +72,7 @@ impl Renderer {
             Ok(unsafe { ash_window::create_surface(entry, instance, display, handle, None)? })
         })?;
         let ctx = Arc::new(ctx);
-        let (assets, pack_meta) = SceneAssets::load(packs_root, packs::DEFAULT_PACK);
+        let (assets, pack_meta) = SceneAssets::load(packs_root, packs::DEFAULT_PACK, mobs);
         let scene = SceneRenderer::new(ctx.clone(), assets, crate::vk::OUTPUT_FORMAT, settings)?;
         let swapchain = Swapchain::new(&ctx, surface, size, settings.vsync, None)?;
         if let Some(sc) = &swapchain {
@@ -157,19 +160,37 @@ impl Renderer {
         self.scene.block_atlas()
     }
 
+    /// Atlas des particules (couches de [`crate::ParticleInstance::layer`]).
+    pub fn particle_atlas(&self) -> &TextureArrayCpu {
+        self.scene.particle_atlas()
+    }
+
     /// Méta du pack actif.
     pub fn resource_pack(&self) -> &ResourcePackMeta {
         &self.pack_meta
     }
 
-    /// `reloadBlockTextures(nom)` (§5.2) : recharge l'atlas et vide tous les maillages
-    /// (l'appelant doit remailler et régénérer les icônes).
-    pub fn reload_resource_pack(&mut self, name: &str) -> Result<ResourcePackMeta> {
+    /// `reloadBlockTextures(nom)` (§5.2) : recharge l'atlas, vide tous les maillages (l'appelant
+    /// doit remailler et régénérer les icônes) puis recharge tous les modèles de mobs avec
+    /// les racines `(packs_root/nom, packs_root/Default)`.
+    pub fn reload_resource_pack(
+        &mut self,
+        name: &str,
+        mobs: &[MobModelDesc],
+    ) -> Result<ResourcePackMeta> {
         let (dir, meta) = packs::resolve_block_textures(&self.packs_root, name);
         self.scene
             .reload_block_atlas(TextureArrayCpu::from_dir(&dir))?;
+        self.scene
+            .reload_mob_models(MobRoots::for_pack(&self.packs_root, name), mobs)?;
         self.pack_meta = meta.clone();
         Ok(meta)
+    }
+
+    /// `reloadMobModel(id)` : recharge un seul modèle avec les racines actives (l'ancien est
+    /// gardé si rien ne peut être construit). Retourne `true` si remplacé.
+    pub fn reload_mob_model(&mut self, desc: &MobModelDesc) -> Result<bool> {
+        self.scene.reload_mob_model(desc)
     }
 
     pub fn upload_chunk_mesh(&mut self, pos: ChunkPos, vertices: &[ChunkVertex]) -> Result<()> {

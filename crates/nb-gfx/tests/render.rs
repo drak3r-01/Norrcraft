@@ -15,8 +15,9 @@ use image::RgbaImage;
 use nb_data::BlockRegistry;
 use nb_gfx::vk::validation_error_count;
 use nb_gfx::{
-    sky_params, Camera, ChunkPos, ChunkVertex, EyeFluid, FrameInput, GfxSettings, GpuContext,
-    OffscreenRenderer, SceneAssets, ShadowQuality, SkyClock, TextureArrayCpu,
+    sky_params, Camera, ChunkPos, ChunkVertex, ColorBox, EyeFluid, FrameInput, GfxSettings,
+    GpuContext, MobInstance, MobModelDesc, OffscreenRenderer, ParticleInstance, SceneAssets,
+    ShadowQuality, SkyClock, TextureArrayCpu,
 };
 use nb_mesh::{mesh_chunk, BlockTable, ChunkVoxels, Neighborhood, UniformBiome};
 
@@ -51,7 +52,7 @@ fn crate_dir() -> PathBuf {
 }
 
 fn assets() -> SceneAssets {
-    SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default").0
+    SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default", &[]).0
 }
 
 fn save(name: &str, img: &RgbaImage) {
@@ -203,6 +204,8 @@ fn frame<'a>(camera: &'a Camera, clock: &'a SkyClock) -> FrameInput<'a> {
         sky_clock: clock,
         eye_fluid: EyeFluid::None,
         heat_intensity: 0.0,
+        mobs: &[],
+        particles: &[],
         highlight_block: None,
     }
 }
@@ -613,5 +616,404 @@ fn resize_and_atlas_reload() {
     // Projection suivant l'extent : la matrice reste finie (pas de NaN) même en 1×1.
     r.resize(1, 1).unwrap();
     r.render(&frame(&cam, &clock)).unwrap();
+    assert_no_validation_errors();
+}
+
+// ------------------------------------------------------------------ mobs et particules
+
+fn no_bloom_no_shadow() -> GfxSettings {
+    GfxSettings {
+        shadow_quality: ShadowQuality::Off,
+        bloom: false,
+        ..GfxSettings::default()
+    }
+}
+
+/// Caméra à (0, 70, 0) regardant vers −Z (horizontale).
+fn mob_camera() -> Camera {
+    Camera {
+        position: Vec3::new(0.0, 70.0, 0.0),
+        pitch_deg: 0.0,
+        yaw_deg: 0.0,
+        ..Camera::default()
+    }
+}
+
+fn mob_at(id: &str, position: Vec3) -> MobInstance<'_> {
+    MobInstance {
+        model_id: id,
+        position,
+        yaw_rad: 0.0,
+        pitch_rad: 0.0,
+        missing_scale: Vec3::new(2.0, 2.0, 2.0),
+    }
+}
+
+fn color_box(min: [f32; 3], size: [f32; 3], rgba: [f32; 4]) -> ColorBox {
+    ColorBox {
+        min_px: min,
+        size_px: size,
+        rgba,
+    }
+}
+
+/// Couleur attendue au centre de l'écran pour une surface HDR `hdr` à `dist` (regard
+/// horizontal à midi : ciel = mix(horizon, zenith, 0.05^0.6), pas de halo ni de nuages).
+fn expected_center(hdr: Vec3, dist: f32) -> Vec3 {
+    let sky = sky_params(900.0);
+    let g = 0.05f32.powf(0.6);
+    let fog_col = sky.horizon.lerp(sky.zenith, g);
+    let fog = (-(dist * 0.002f32).powf(1.8)).exp();
+    aces_gamma(fog_col.lerp(hdr, fog) * Vec3::new(1.15, 1.05, 0.95))
+}
+
+fn assert_pixel(img: &RgbaImage, x: u32, y: u32, expect: Vec3, what: &str) {
+    let p = img.get_pixel(x, y);
+    for k in 0..3 {
+        assert!(
+            (f32::from(p[k]) - expect[k]).abs() <= 2.0,
+            "{what} canal {k} : {:?} vs {expect}",
+            p.0
+        );
+    }
+}
+
+/// Mob en mode couleur : `texture(blanc) · teinte · luminosité`, sans éclairage ni gamma
+/// (§9.6), plage opaque avec écriture de profondeur puis plage transparente mélangée (§14.1).
+#[test]
+fn color_mobs_match_cpu_reference() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &no_bloom_no_shadow()).unwrap();
+    let solid = nb_gfx::mob_model::build_geometry(&[color_box(
+        [-16.0, 0.0, -16.0],
+        [32.0, 32.0, 32.0],
+        [0.6, 0.3, 0.1, 1.0],
+    )])
+    .unwrap();
+    r.scene.install_mob_model("solid", &solid).unwrap();
+    // Boîte opaque verte au fond, boîte rouge à 50 % devant (plage transparente en fin de
+    // tampon).
+    let glass = nb_gfx::mob_model::build_geometry(&[
+        color_box([-16.0, 0.0, -8.0], [32.0, 32.0, 16.0], [1.0, 0.0, 0.0, 0.5]),
+        color_box(
+            [-16.0, 0.0, -32.0],
+            [32.0, 32.0, 16.0],
+            [0.0, 0.8, 0.0, 1.0],
+        ),
+    ])
+    .unwrap();
+    assert_eq!((glass.opaque_count, glass.transparent_count), (36, 36));
+    r.scene.install_mob_model("glass", &glass).unwrap();
+    assert_eq!(r.scene.mob_model_counts("glass"), Some((36, 36)));
+
+    let cam = mob_camera();
+    let clock = SkyClock::new();
+    let mobs = [mob_at("solid", Vec3::new(0.0, 69.0, -5.0))];
+    let mut input = frame(&cam, &clock);
+    input.mobs = &mobs;
+    let img = r.render(&input).unwrap();
+    save("mob_solid", &img);
+    // Face +Z (luminosité 0.85) à 4 blocs.
+    let expect = expected_center(Vec3::new(0.6, 0.3, 0.1) * 0.85, 4.0);
+    assert_pixel(&img, W / 2, H / 2, expect, "mob opaque");
+
+    let mobs = [mob_at("glass", Vec3::new(0.0, 69.0, -5.0))];
+    input.mobs = &mobs;
+    let img = r.render(&input).unwrap();
+    save("mob_glass", &img);
+    // Rouge à 50 % sur vert ; profondeur = boîte opaque (la transparente n'écrit pas).
+    let hdr = Vec3::new(1.0, 0.0, 0.0) * 0.85 * 0.5 + Vec3::new(0.0, 0.8, 0.0) * 0.85 * 0.5;
+    assert_pixel(
+        &img,
+        W / 2,
+        H / 2,
+        expected_center(hdr, 6.0),
+        "mob transparent",
+    );
+
+    // Rotation : yaw = π (la face −Z, même luminosité, fait face à la caméra) ; un second
+    // mob derrière la caméra ne change rien.
+    let mut turned = mob_at("solid", Vec3::new(0.0, 69.0, -5.0));
+    turned.yaw_rad = std::f32::consts::PI;
+    let away = mob_at("solid", Vec3::new(0.0, 69.0, 50.0));
+    let mobs = [turned, away];
+    input.mobs = &mobs;
+    let img = r.render(&input).unwrap();
+    assert_pixel(&img, W / 2, H / 2, expect, "mob tourné");
+    assert_no_validation_errors();
+}
+
+/// Écrit un PNG RGBA uni.
+fn write_png(path: &std::path::Path, w: u32, h: u32, rgba: [u8; 4]) {
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    RgbaImage::from_pixel(w, h, image::Rgba(rgba))
+        .save(path)
+        .unwrap();
+}
+
+/// Cube manquant (damier magenta/noir mis à l'échelle de la config), forme vanilla texturée
+/// depuis un pack, puis `reload_mob_model` (JEM ajouté au pack) et changement de pack.
+#[test]
+fn missing_vanilla_and_reloaded_mobs() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let tmp = std::env::temp_dir().join(format!("nb-gfx-mobs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    let entity = tmp.join("Default/assets/minecraft/textures/entity");
+    write_png(&entity.join("pig/pig.png"), 64, 32, [20, 40, 230, 255]);
+    let pig = MobModelDesc {
+        id: "pig".into(),
+        built_in: false,
+        geometry: None,
+    };
+    let (a, _) = SceneAssets::load(&tmp, "Default", std::slice::from_ref(&pig));
+    assert_eq!(a.mob_models["pig"].vertices.len(), 216);
+    let mut r = OffscreenRenderer::new(ctx, a, W, H, &no_bloom_no_shadow()).unwrap();
+    assert_eq!(r.scene.mob_model_counts("pig"), Some((216, 0)));
+    assert_eq!(r.scene.mob_model_counts("inconnu"), None);
+    let cam = mob_camera();
+    let clock = SkyClock::new();
+
+    // Cube manquant 2×2×2 à 3 blocs : damier magenta / noir.
+    let mobs = [mob_at("inconnu", Vec3::new(0.0, 69.0, -4.0))];
+    let mut input = frame(&cam, &clock);
+    input.mobs = &mobs;
+    let img = r.render(&input).unwrap();
+    save("mob_missing", &img);
+    let count = |img: &RgbaImage, f: &dyn Fn(&image::Rgba<u8>) -> bool| {
+        img.pixels().filter(|p| f(p)).count()
+    };
+    let magenta = count(&img, &|p| p[0] > 150 && p[2] > 150 && p[1] < 80);
+    let black = count(&img, &|p| p[0] < 40 && p[1] < 40 && p[2] < 40);
+    assert!(
+        magenta > 1000 && black > 1000,
+        "damier : {magenta} / {black}"
+    );
+
+    // Cochon vanilla, texture bleue du pack (corps entre 7 et 15 px de haut, vu de face).
+    let mobs = [mob_at("pig", Vec3::new(0.0, 69.4, -3.0))];
+    input.mobs = &mobs;
+    let img = r.render(&input).unwrap();
+    save("mob_pig", &img);
+    let c = img.get_pixel(W / 2, H / 2);
+    assert!(c[2] > 150 && c[0] < 100, "cochon bleu : {c:?}");
+
+    // JEM rouge ajouté au pack puis rechargement d'un seul modèle.
+    let cem = tmp.join("Default/assets/minecraft/optifine/cem");
+    std::fs::create_dir_all(&cem).unwrap();
+    std::fs::write(
+        cem.join("pig.jem"),
+        r#"{"textureSize": [64, 32], "models": [{"boxes": [{"coordinates": [-16, 0, -16, 32, 32, 32], "color": [0.9, 0.1, 0.1, 1]}]}]}"#,
+    )
+    .unwrap();
+    assert!(r.scene.reload_mob_model(&pig).unwrap());
+    assert_eq!(r.scene.mob_model_counts("pig"), Some((36, 0)));
+    let img = r.render(&input).unwrap();
+    save("mob_pig_jem", &img);
+    let c = img.get_pixel(W / 2, H / 2);
+    assert!(c[0] > 150 && c[2] < 100, "JEM rouge : {c:?}");
+    // Rien ne peut être construit (intégré sans géométrie) : rien n'est remplacé.
+    let orca = MobModelDesc {
+        id: "orca".into(),
+        built_in: true,
+        geometry: None,
+    };
+    assert!(!r.scene.reload_mob_model(&orca).unwrap());
+    assert_eq!(r.scene.mob_model_counts("orca"), None);
+    // Changement de pack : tous les modèles rechargés (plus de JEM ni de texture → damier).
+    std::fs::remove_file(cem.join("pig.jem")).unwrap();
+    std::fs::remove_dir_all(&entity).unwrap();
+    r.scene
+        .reload_mob_models(nb_gfx::MobRoots::for_pack(&tmp, "Autre"), &[pig])
+        .unwrap();
+    assert_eq!(r.scene.mob_model_counts("pig"), Some((216, 0)));
+    assert_eq!(r.scene.mob_roots().pack_root, tmp.join("Autre"));
+    let img = r.render(&input).unwrap();
+    let c = img.get_pixel(W / 2, H / 2);
+    assert!(c[1] < 40, "cochon en damier : {c:?}");
+    drop(r);
+    let _ = std::fs::remove_dir_all(&tmp);
+    assert_no_validation_errors();
+}
+
+/// PNG 16×16 : moitié haute rouge, moitié basse verte.
+fn red_over_green_png() -> Vec<u8> {
+    let mut img = RgbaImage::from_pixel(16, 16, image::Rgba([0, 255, 0, 255]));
+    for y in 0..8 {
+        for x in 0..16 {
+            img.put_pixel(x, y, image::Rgba([255, 0, 0, 255]));
+        }
+    }
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+    out.into_inner()
+}
+
+/// Billboard face à la caméra, image **tête en bas** (UV inversées, §15), sans écriture de
+/// profondeur : sur le ciel, le brouillard du composite l'efface (comportement Java).
+#[test]
+fn particles_billboard_upside_down() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let png = red_over_green_png();
+    let mut a = assets();
+    a.particle_atlas = TextureArrayCpu::from_named(&[("test", Some(&png))]);
+    let mut r = OffscreenRenderer::new(ctx, a, W, H, &no_bloom_no_shadow()).unwrap();
+    assert_eq!(r.scene.particle_atlas().layer("test"), 0);
+    let wall = nb_gfx::mob_model::build_geometry(&[color_box(
+        [-160.0, -160.0, -16.0],
+        [320.0, 320.0, 16.0],
+        [0.2, 0.2, 0.2, 1.0],
+    )])
+    .unwrap();
+    r.scene.install_mob_model("wall", &wall).unwrap();
+    let cam = mob_camera();
+    let clock = SkyClock::new();
+    let particles = [ParticleInstance {
+        position: Vec3::new(0.0, 70.0, -3.0),
+        scale: 1.0,
+        layer: 0,
+        color: Vec3::ONE,
+    }];
+    let mut input = frame(&cam, &clock);
+    input.particles = &particles;
+    let sky_only = r.render(&frame(&cam, &clock)).unwrap();
+    let over_sky = r.render(&input).unwrap();
+    assert_eq!(
+        sky_only, over_sky,
+        "particule sur le ciel effacée par le brouillard"
+    );
+
+    let mobs = [mob_at("wall", Vec3::new(0.0, 70.0, -8.0))];
+    input.mobs = &mobs;
+    let img = r.render(&input).unwrap();
+    save("particle_upside_down", &img);
+    // Particule de 1 bloc à 3 blocs : ±15 px. Bas de l'écran = haut du PNG (rouge).
+    let low = img.get_pixel(W / 2, H / 2 + 8);
+    let high = img.get_pixel(W / 2, H / 2 - 8);
+    assert!(low[0] > 150 && low[1] < 80, "bas : {low:?}");
+    assert!(high[1] > 150 && high[0] < 80, "haut : {high:?}");
+    // Teinte bleue pure : les deux moitiés deviennent noires.
+    let tinted = [ParticleInstance {
+        color: Vec3::new(0.0, 0.0, 1.0),
+        ..particles[0]
+    }];
+    input.particles = &tinted;
+    let img = r.render(&input).unwrap();
+    let p = img.get_pixel(W / 2, H / 2 + 8);
+    assert!(p[0] < 40 && p[1] < 40, "teinte : {p:?}");
+    // Couche manquante (damier) : rendu sans erreur.
+    let missing = [ParticleInstance {
+        layer: r.scene.particle_atlas().missing_layer,
+        ..particles[0]
+    }];
+    input.particles = &missing;
+    r.render(&input).unwrap();
+    assert_no_validation_errors();
+}
+
+/// Mobs et particules intégrés dans le monde de démonstration (inspection visuelle :
+/// `renders/demo_mobs.png`), avec ombres et bloom, sans erreur de validation.
+#[test]
+fn demo_world_with_builtin_mobs_and_particles() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let reg = nb_data::MobRegistry::builtin();
+    let descs = MobModelDesc::from_registry(&reg);
+    let (a, _) = SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default", &descs);
+    let mut r = OffscreenRenderer::new(ctx, a, W, H, &GfxSettings::default()).unwrap();
+    demo_world(&mut r);
+    for id in ["reindeer", "fish", "orca"] {
+        assert!(r.scene.mob_model_counts(id).is_some(), "{id}");
+    }
+    let cam = Camera {
+        position: Vec3::new(4.0, 63.5, 12.0),
+        pitch_deg: 10.0,
+        yaw_deg: 10.0,
+        ..Camera::default()
+    };
+    let clock = SkyClock::new();
+    let at = |id, x: f32, y: f32, z: f32, yaw: f32| {
+        let c = reg.get(id).unwrap();
+        MobInstance {
+            model_id: id,
+            position: Vec3::new(x, y, z),
+            yaw_rad: yaw,
+            pitch_rad: 0.0,
+            missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
+        }
+    };
+    let mobs = [
+        at("reindeer", 4.0, 61.0, 4.0, 0.8),
+        at("fish", 5.0, 60.3, -8.0, 0.0),
+        at("orca", 3.0, 60.0, -10.0, 1.2),
+        MobInstance {
+            model_id: "inconnu",
+            ..at("reindeer", 7.5, 61.0, 6.0, 0.0)
+        },
+    ];
+    let preg = nb_data::ParticleRegistry::builtin();
+    let patlas = r.scene.particle_atlas().clone();
+    assert_eq!(patlas.layer("leaf"), 0);
+    assert_eq!(patlas.layer("lava_drop"), 1);
+    let particles: Vec<_> = (0..30)
+        .map(|i| {
+            let ty = if i % 3 == 0 {
+                preg.get("lava").unwrap()
+            } else {
+                preg.get("leaf").unwrap()
+            };
+            ParticleInstance {
+                position: Vec3::new(1.0 + (i % 6) as f32 * 0.4, 62.0 + (i / 6) as f32 * 0.4, 7.0),
+                scale: ty.scale,
+                layer: patlas.layer(&ty.texture),
+                color: Vec3::ONE,
+            }
+        })
+        .collect();
+    let mut input = frame(&cam, &clock);
+    input.mobs = &mobs;
+    input.particles = &particles;
+    let base = render_settled(&mut r, &frame(&cam, &clock));
+    let img = render_settled(&mut r, &input);
+    save("demo_mobs", &img);
+    // Bright buffer inchangé par la passe B2 (bloom actif) : de grosses particules devant le
+    // ciel sont effacées par le brouillard et ne laissent aucun halo.
+    let sky_particles: Vec<_> = particles
+        .iter()
+        .map(|p| ParticleInstance {
+            position: p.position + Vec3::new(0.0, 4.0, 0.0),
+            scale: 1.0,
+            ..*p
+        })
+        .collect();
+    let mut in_sky = frame(&cam, &clock);
+    in_sky.particles = &sky_particles;
+    assert_eq!(render_settled(&mut r, &in_sky), base, "halo parasite");
+    let changed = base
+        .pixels()
+        .zip(img.pixels())
+        .filter(|(a, b)| a != b)
+        .count();
+    assert!(changed > 1000, "mobs invisibles ({changed} pixels changés)");
+
+    // Renne vu de profil (caméra vers −X : la tête, côté +Z du modèle, est à gauche).
+    let side = Camera {
+        position: Vec3::new(8.0, 62.5, 4.0),
+        pitch_deg: 5.0,
+        yaw_deg: -90.0,
+        ..Camera::default()
+    };
+    let mobs = [at("reindeer", 4.0, 61.0, 4.0, 0.0)];
+    let mut input = frame(&side, &clock);
+    input.mobs = &mobs;
+    let img = render_settled(&mut r, &input);
+    save("mob_reindeer_side", &img);
+    let base = render_settled(&mut r, &frame(&side, &clock));
+    let diff_x: Vec<u32> = (0..W)
+        .filter(|&x| (0..H).any(|y| img.get_pixel(x, y) != base.get_pixel(x, y)))
+        .collect();
+    let (min_x, max_x) = (diff_x[0], *diff_x.last().unwrap());
+    // Bois (y ≥ 31 px) au-dessus de la tête : pixels modifiés en haut de la moitié gauche.
+    let top_left = (0..H / 3)
+        .any(|y| (min_x..(min_x + max_x) / 2).any(|x| img.get_pixel(x, y) != base.get_pixel(x, y)));
+    assert!(top_left, "tête / bois du renne attendus à gauche");
     assert_no_validation_errors();
 }
