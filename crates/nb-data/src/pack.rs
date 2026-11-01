@@ -32,7 +32,11 @@ impl PackMeta {
 
     /// Dossier des textures de blocs d'un pack : `assets/minecraft/textures/block`.
     pub fn block_texture_dir(pack_dir: &Path) -> std::path::PathBuf {
-        pack_dir.join("assets").join("minecraft").join("textures").join("block")
+        pack_dir
+            .join("assets")
+            .join("minecraft")
+            .join("textures")
+            .join("block")
     }
 }
 

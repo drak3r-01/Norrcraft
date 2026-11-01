@@ -30,3 +30,11 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
+
+### Sans installer Rust (Docker)
+
+```bash
+scripts/cargo-docker.sh fmt --all -- --check
+scripts/cargo-docker.sh clippy --workspace --all-targets -- -D warnings
+scripts/cargo-docker.sh test --workspace
+```

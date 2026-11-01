@@ -20,10 +20,16 @@ pub enum Error {
 
 impl Error {
     pub fn io(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
-        Self::Io { path: path.into(), source }
+        Self::Io {
+            path: path.into(),
+            source,
+        }
     }
 
     pub fn data(context: impl Into<String>, message: impl ToString) -> Self {
-        Self::Data { context: context.into(), message: message.to_string() }
+        Self::Data {
+            context: context.into(),
+            message: message.to_string(),
+        }
     }
 }

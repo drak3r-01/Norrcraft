@@ -126,7 +126,8 @@ impl Default for GameSettings {
 impl GameSettings {
     /// Lit un `settings.json`. Comme en Java, tout champ absent ou mal typé garde son défaut.
     pub fn from_json(json: &str) -> Result<Self> {
-        let root: Value = serde_json::from_str(json).map_err(|e| Error::data("settings.json", e))?;
+        let root: Value =
+            serde_json::from_str(json).map_err(|e| Error::data("settings.json", e))?;
         let mut s = Self::default();
         let int = |k: &str| root.get(k).and_then(Value::as_i64).map(|v| v as i32);
         let float = |k: &str| root.get(k).and_then(Value::as_f64).map(|v| v as f32);
@@ -200,7 +201,8 @@ fn float_value(v: f32) -> Value {
     if !text.contains(['.', 'e']) {
         text.push_str(".0");
     }
-    text.parse::<serde_json::Number>().map_or(Value::Null, Value::Number)
+    text.parse::<serde_json::Number>()
+        .map_or(Value::Null, Value::Number)
 }
 
 #[cfg(test)]
@@ -246,8 +248,10 @@ mod tests {
 
     #[test]
     fn roundtrip_and_float_formatting() {
-        let mut s = GameSettings::default();
-        s.shadow_quality = ShadowQuality::Off;
+        let mut s = GameSettings {
+            shadow_quality: ShadowQuality::Off,
+            ..Default::default()
+        };
         s.key_bindings.insert(Action::Jump, 70);
         let json = s.to_json();
         assert!(json.contains("\"sensitivity\": 0.1"), "{json}");

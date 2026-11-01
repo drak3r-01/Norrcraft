@@ -11,10 +11,11 @@ pub const CHUNK_SIZE_Z: usize = 16;
 /// Nombre de blocs par chunk.
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z;
 
-/// Index linéaire d'un bloc local : `x + 16 z + 256 y` (identique au Java).
+/// Index linéaire d'un bloc local : `x + 16 y + 2048 z` (identique à `Chunk.java` ; la doc Java
+/// qui annonce `x + 16 z + 256 y` est inexacte).
 #[inline]
 pub const fn block_index(x: usize, y: usize, z: usize) -> usize {
-    x + CHUNK_SIZE_X * z + CHUNK_SIZE_X * CHUNK_SIZE_Z * y
+    x + CHUNK_SIZE_X * y + CHUNK_SIZE_X * CHUNK_SIZE_Y * z
 }
 
 /// Division entière arrondie vers le bas (équivalent de `Math.floorDiv`, diviseur > 0).
@@ -44,7 +45,10 @@ impl ChunkPos {
     /// Chunk contenant le bloc monde `(wx, wz)`.
     #[inline]
     pub const fn from_block(wx: i32, wz: i32) -> Self {
-        Self { x: wx.div_euclid(CHUNK_SIZE_X as i32), z: wz.div_euclid(CHUNK_SIZE_Z as i32) }
+        Self {
+            x: wx.div_euclid(CHUNK_SIZE_X as i32),
+            z: wz.div_euclid(CHUNK_SIZE_Z as i32),
+        }
     }
 
     /// Coin minimal (monde) du chunk en X.
@@ -101,8 +105,8 @@ mod tests {
     fn index_matches_java_layout() {
         assert_eq!(block_index(0, 0, 0), 0);
         assert_eq!(block_index(1, 0, 0), 1);
-        assert_eq!(block_index(0, 0, 1), 16);
-        assert_eq!(block_index(0, 1, 0), 256);
+        assert_eq!(block_index(0, 1, 0), 16);
+        assert_eq!(block_index(0, 0, 1), 2048);
         assert_eq!(block_index(15, 127, 15), CHUNK_VOLUME - 1);
     }
 

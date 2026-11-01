@@ -33,7 +33,11 @@ impl ParticleRegistry {
     pub fn from_json(json: &str) -> Result<Self> {
         let particles: Vec<ParticleType> =
             serde_json::from_str(json).map_err(|e| Error::data("particles.json", e))?;
-        let by_id = particles.iter().enumerate().map(|(i, p)| (p.id.clone(), i)).collect();
+        let by_id = particles
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.id.clone(), i))
+            .collect();
         let reg = Self { particles, by_id };
         for required in ["leaf", "lava"] {
             if reg.get(required).is_none() {

@@ -132,11 +132,15 @@ impl MobConfig {
             "groupSizeMin" => group_size_min, "groupSizeMax" => group_size_max,
             "spawnScatterRadius" => spawn_scatter_radius,
         }
-        if let Some(m) = obj.get("medium").and_then(|v| serde_json::from_value(v.clone()).ok()) {
+        if let Some(m) = obj
+            .get("medium")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
             self.medium = m;
         }
-        if let Some(b) =
-            obj.get("behaviorType").and_then(|v| serde_json::from_value(v.clone()).ok())
+        if let Some(b) = obj
+            .get("behaviorType")
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
         {
             self.behavior_type = b;
         }
@@ -155,7 +159,9 @@ pub struct MobRegistry {
 impl MobRegistry {
     /// Les trois mobs intégrés, sans surcharge utilisateur.
     pub fn builtin() -> Self {
-        Self { configs: builtin_configs().expect("données de mobs intégrées invalides") }
+        Self {
+            configs: builtin_configs().expect("données de mobs intégrées invalides"),
+        }
     }
 
     /// `MobRegistry.load()` : intégrés puis surcharges de `mobs.json` (si fourni).
@@ -177,17 +183,20 @@ impl MobRegistry {
             return Ok(());
         };
         for obj in list {
-            let Some(id) = obj.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()) else {
+            let Some(id) = obj
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|s| !s.is_empty())
+            else {
                 continue;
             };
             if let Some(existing) = self.configs.iter_mut().find(|c| c.id == id) {
                 existing.apply_json(obj);
             } else {
                 // Nouveau mob : on part des valeurs du renne pour les champs physiques.
-                let mut cfg = self.configs[0].clone();
+                let mut cfg = builtin_configs()?.remove(0);
                 cfg.id = id.to_owned();
                 cfg.display_name = id.to_owned();
-                cfg.geometry = None;
                 cfg.apply_json(obj);
                 self.configs.push(cfg);
             }
@@ -226,7 +235,10 @@ impl MobRegistry {
         struct File<'a> {
             mobs: &'a [MobConfig],
         }
-        serde_json::to_string_pretty(&File { mobs: &self.configs }).expect("sérialisation mobs")
+        serde_json::to_string_pretty(&File {
+            mobs: &self.configs,
+        })
+        .expect("sérialisation mobs")
     }
 }
 
@@ -247,10 +259,9 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
             .find(|c| c.id == id)
             .cloned()
             .ok_or_else(|| Error::data("mobs_defaults.json", format!("mob manquant: {id}")))?;
-        let boxes = geometry
-            .get(id)
-            .cloned()
-            .ok_or_else(|| Error::data("mob_geometry.json", format!("géométrie manquante: {id}")))?;
+        let boxes = geometry.get(id).cloned().ok_or_else(|| {
+            Error::data("mob_geometry.json", format!("géométrie manquante: {id}"))
+        })?;
         cfg.geometry = Some(MobGeometry { boxes });
         configs.push(cfg);
     }
@@ -270,7 +281,14 @@ mod tests {
         assert_eq!(reindeer.max_health, 5.0);
         assert_eq!(reindeer.medium, MobMedium::Land);
         assert_eq!(reindeer.player_flee_speed, 4.317);
-        assert_eq!(reindeer.geometry.as_ref().unwrap().boxes.len(), 16);
+        assert_eq!(
+            (
+                reindeer.aggressor_detect_range,
+                reindeer.aggressor_flee_speed
+            ),
+            (10.0, 3.0)
+        );
+        assert_eq!(reindeer.geometry.as_ref().unwrap().boxes.len(), 17);
         let orca = reg.get("orca").unwrap();
         assert_eq!(orca.behavior_type, MobBehaviorType::Aggressive);
         assert_eq!(orca.aggro_player_range, 200.0);
@@ -295,7 +313,7 @@ mod tests {
         let z = reg.get("zombie").unwrap();
         assert_eq!(z.behavior_type, MobBehaviorType::Aggressive);
         assert_eq!(z.width_z, 1.375); // hérité du renne
-        assert!(z.geometry.is_none());
+        assert!(z.geometry.is_some()); // hérité du renne intégré
         assert!(!MobRegistry::is_built_in("zombie"));
     }
 
@@ -311,7 +329,8 @@ mod tests {
     #[test]
     fn reset_removes_custom_mobs() {
         let mut reg = MobRegistry::builtin();
-        reg.apply_overrides(r#"{ "mobs": [ { "id": "zombie" } ] }"#).unwrap();
+        reg.apply_overrides(r#"{ "mobs": [ { "id": "zombie" } ] }"#)
+            .unwrap();
         assert!(reg.id_exists("zombie"));
         reg.reset_to_defaults();
         assert!(!reg.id_exists("zombie"));

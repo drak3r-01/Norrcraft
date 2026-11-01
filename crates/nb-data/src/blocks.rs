@@ -228,7 +228,11 @@ impl BlockRegistry {
             lava: v[33],
             sandstone: v[34],
         };
-        Ok(Self { by_id, by_name, ids })
+        Ok(Self {
+            by_id,
+            by_name,
+            ids,
+        })
     }
 
     /// Identifiants des blocs connus (`air`, `stone`, …).

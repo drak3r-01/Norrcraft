@@ -16,7 +16,12 @@ fn every_block_texture_exists_in_default_pack() {
     for block in registry.iter().filter(|b| b.id != 0) {
         for name in block.texture_names.iter().filter(|n| !n.is_empty()) {
             let file = dir.join(format!("{name}.png"));
-            assert!(file.is_file(), "texture manquante pour {}: {}", block.name, file.display());
+            assert!(
+                file.is_file(),
+                "texture manquante pour {}: {}",
+                block.name,
+                file.display()
+            );
         }
     }
 }
@@ -32,6 +37,10 @@ fn every_particle_texture_exists() {
     let dir = repo_root().join("assets/textures/particle");
     for p in ParticleRegistry::builtin().iter() {
         let file = dir.join(format!("{}.png", p.texture));
-        assert!(file.is_file(), "texture de particule manquante: {}", file.display());
+        assert!(
+            file.is_file(),
+            "texture de particule manquante: {}",
+            file.display()
+        );
     }
 }
