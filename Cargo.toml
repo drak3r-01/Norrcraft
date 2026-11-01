@@ -29,6 +29,7 @@ anyhow = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 # Concurrence
 crossbeam-channel = "0.5"
+bytemuck = { version = "1", features = ["derive"] }
 rayon = "1"
 # Fenêtre / GPU (utilisés à partir de la phase 4)
 winit = "0.30"
