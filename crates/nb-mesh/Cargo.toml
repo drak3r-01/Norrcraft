@@ -7,6 +7,9 @@ license.workspace = true
 [dependencies]
 nb-core.workspace = true
 nb-data.workspace = true
+crossbeam-channel.workspace = true
+# Absent de [workspace.dependencies] : déclaré ici pour ne modifier que ce crate.
+bytemuck = { version = "1", features = ["derive"] }
 
 [lints]
 workspace = true
