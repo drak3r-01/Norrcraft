@@ -68,7 +68,9 @@ struct Shared {
 
 impl Shared {
     fn in_flight(&self) -> MutexGuard<'_, HashSet<ChunkPos>> {
-        self.in_flight.lock().unwrap_or_else(PoisonError::into_inner)
+        self.in_flight
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -384,7 +386,10 @@ mod tests {
         assert_eq!(actions.len(), 1);
         assert!(matches!(&actions[0], MeshAction::Upload(p, m) if *p == center && !m.is_empty()));
         assert!(!w.mesh_dirty(center));
-        assert!(w.mesh_dirty(edge), "reste sale tant que le voisinage manque");
+        assert!(
+            w.mesh_dirty(edge),
+            "reste sale tant que le voisinage manque"
+        );
         assert!(s.has_mesh(center));
 
         // Lumière sale chez un voisin : abandon pour cette frame.
@@ -423,7 +428,9 @@ mod tests {
         pump(&mut s, &mut w, &[center], &b, &bi);
         w.set_mesh_dirty(center, true);
         // Soumission puis invalidation avant de lire le résultat.
-        assert!(s.update(&mut w, &[center], b.clone(), bi.clone()).is_empty());
+        assert!(s
+            .update(&mut w, &[center], b.clone(), bi.clone())
+            .is_empty());
         let loaded: Vec<ChunkPos> = w.chunks.keys().copied().collect();
         let actions = s.invalidate_all(&mut w, &loaded);
         assert_eq!(actions, vec![MeshAction::Remove(center)]);

@@ -201,12 +201,32 @@ fn terrain_matches_java() {
 
 #[test]
 fn terrain_negative_chunk_matches_java() {
-    check("terrain_neg", -3, 5, 0, 5, 0x0, 2, 140400, 0x2c692ad902b8d4ee);
+    check(
+        "terrain_neg",
+        -3,
+        5,
+        0,
+        5,
+        0x0,
+        2,
+        140400,
+        0x2c692ad902b8d4ee,
+    );
 }
 
 #[test]
 fn terrain_missing_neighbours_matches_java() {
-    check("terrain_missing", 7, -2, 0, -1, 0x12a, 3, 135000, 0x52a57b3d6b801f3b);
+    check(
+        "terrain_missing",
+        7,
+        -2,
+        0,
+        -1,
+        0x12a,
+        3,
+        135000,
+        0x52a57b3d6b801f3b,
+    );
 }
 
 #[test]
@@ -216,7 +236,17 @@ fn noise_matches_java() {
 
 #[test]
 fn noise_center_only_matches_java() {
-    check("noise_center_only", -1, -1, 1, 2, 0x1ef, 5, 3292272, 0x8fa4e2c18b08b0d3);
+    check(
+        "noise_center_only",
+        -1,
+        -1,
+        1,
+        2,
+        0x1ef,
+        5,
+        3292272,
+        0x8fa4e2c18b08b0d3,
+    );
 }
 
 #[test]

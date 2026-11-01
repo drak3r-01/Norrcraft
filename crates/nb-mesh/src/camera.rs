@@ -35,7 +35,7 @@ fn cos_from_sin(sin: f32, angle: f32) -> f32 {
     let a = angle + PI_HALF_F;
     let mut b = a - ((a / PI2_F) as i32) as f32 * PI2_F;
     if b < 0.0 {
-        b = PI2_F + b;
+        b += PI2_F;
     }
     if b >= PI_F {
         -cos
@@ -46,7 +46,7 @@ fn cos_from_sin(sin: f32, angle: f32) -> f32 {
 
 /// `clamp` du pitch de `Camera.rotate` : `max(-89, min(89, p))`.
 pub fn clamp_pitch(p: f32) -> f32 {
-    f32::max(-89.0, f32::min(89.0, p))
+    p.clamp(-89.0, 89.0)
 }
 
 /// `Camera.getViewMatrix` : `identity().rotateX(rad(pitch)).rotateY(rad(yaw)).translate(-pos)`.
@@ -139,8 +139,7 @@ pub fn mul_mat4(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
             let b1 = b[c * 4 + 1];
             let b2 = b[c * 4 + 2];
             let b3 = b[c * 4 + 3];
-            r[c * 4 + row] =
-                a[row] * b0 + (a[4 + row] * b1 + (a[8 + row] * b2 + a[12 + row] * b3));
+            r[c * 4 + row] = a[row] * b0 + (a[4 + row] * b1 + (a[8 + row] * b2 + a[12 + row] * b3));
         }
     }
     r

@@ -65,7 +65,11 @@ impl<'a> Neighborhood<'a> {
     /// Si une tranche n'a pas `CHUNK_VOLUME` éléments.
     pub fn new(chunks: [Option<&'a [u8]>; 9]) -> Self {
         for c in chunks.iter().flatten() {
-            assert_eq!(c.len(), CHUNK_VOLUME, "Neighborhood: tranche de taille invalide");
+            assert_eq!(
+                c.len(),
+                CHUNK_VOLUME,
+                "Neighborhood: tranche de taille invalide"
+            );
         }
         Self { chunks }
     }
@@ -190,7 +194,13 @@ mod tests {
         assert_eq!(n.block(&table, 1, -1, 1), 0);
         assert_eq!(n.block(&table, 17, 5, 5), 0); // chunk absent
         let cache = BlockCache::new(n, &table);
-        for (x, y, z) in [(-1, 10, 3), (4, 20, 16), (1, 127, 1), (-2, 0, 17), (40, 3, 3)] {
+        for (x, y, z) in [
+            (-1, 10, 3),
+            (4, 20, 16),
+            (1, 127, 1),
+            (-2, 0, 17),
+            (40, 3, 3),
+        ] {
             assert_eq!(cache.get(x, y, z), n.block(&table, x, y, z));
         }
     }

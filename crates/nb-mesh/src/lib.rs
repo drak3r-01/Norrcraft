@@ -34,5 +34,7 @@ pub use neighborhood::{ChunkVoxels, Neighborhood};
 pub use scheduler::{default_threads, ChunkSource, MeshAction, MeshResult, MeshScheduler};
 pub use vertex::{ChunkVertex, LayerCode, LAYER_CROSS_OFFSET, LAYER_LEAVES_OFFSET};
 
-pub use nb_core::math::{CHUNK_SIZE_X as CHUNK_SX, CHUNK_SIZE_Y as CHUNK_SY, CHUNK_SIZE_Z as CHUNK_SZ};
+pub use nb_core::math::{
+    CHUNK_SIZE_X as CHUNK_SX, CHUNK_SIZE_Y as CHUNK_SY, CHUNK_SIZE_Z as CHUNK_SZ,
+};
 pub use nb_core::ChunkPos;

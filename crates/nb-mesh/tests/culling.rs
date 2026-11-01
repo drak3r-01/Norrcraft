@@ -119,9 +119,18 @@ fn box_matrix(lo: [f32; 3], hi: [f32; 3]) -> [f32; 16] {
 fn test_aab_inside_outside_and_touching() {
     let f = Frustum::from_gl_matrix(&box_matrix([0.0, 0.0, 0.0], [10.0, 10.0, 10.0]));
     assert!(f.test_aab([1.0, 1.0, 1.0], [2.0, 2.0, 2.0]), "contenue");
-    assert!(f.test_aab([-5.0, -5.0, -5.0], [20.0, 20.0, 20.0]), "englobante");
-    assert!(f.test_aab([9.0, 9.0, 9.0], [12.0, 12.0, 12.0]), "chevauchante");
-    assert!(f.test_aab([10.0, 0.0, 0.0], [11.0, 1.0, 1.0]), "contact (>=)");
+    assert!(
+        f.test_aab([-5.0, -5.0, -5.0], [20.0, 20.0, 20.0]),
+        "englobante"
+    );
+    assert!(
+        f.test_aab([9.0, 9.0, 9.0], [12.0, 12.0, 12.0]),
+        "chevauchante"
+    );
+    assert!(
+        f.test_aab([10.0, 0.0, 0.0], [11.0, 1.0, 1.0]),
+        "contact (>=)"
+    );
     assert!(!f.test_aab([10.5, 0.0, 0.0], [11.0, 1.0, 1.0]), "à droite");
     assert!(!f.test_aab([0.0, -3.0, 0.0], [1.0, -1.0, 1.0]), "dessous");
     assert!(!f.test_aab([0.0, 0.0, 11.0], [1.0, 1.0, 12.0]), "au-delà");
@@ -184,10 +193,7 @@ fn quadtree_build_is_order_independent() {
         shuffled.swap(i, j);
     }
     shuffled.extend_from_slice(&chunks[..10]); // doublons ignorés
-    let f = Frustum::from_gl_matrix(&box_matrix(
-        [-40.0, 0.0, -70.0],
-        [60.0, 128.0, 30.0],
-    ));
+    let f = Frustum::from_gl_matrix(&box_matrix([-40.0, 0.0, -70.0], [60.0, 128.0, 30.0]));
     let (mut a, mut b) = (ChunkQuadtree::new(), ChunkQuadtree::new());
     a.build(chunks.iter().copied());
     b.build(shuffled);
