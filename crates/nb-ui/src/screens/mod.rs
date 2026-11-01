@@ -5,11 +5,13 @@
 
 pub mod common;
 pub mod menus;
+pub mod mobs;
 pub mod resource_packs;
 pub mod settings;
 pub mod world_select;
 
 pub use menus::{MainMenu, MenuAction, PauseMenu};
+pub use mobs::{MobAction, MobSettingsScreen};
 pub use resource_packs::{PackAction, PackEntry, ResourcePackScreen};
 pub use settings::{SettingsAction, SettingsScreen, SettingsTab};
 pub use world_select::{WorldAction, WorldEntry, WorldGenParams, WorldSelectScreen, WorldType};
