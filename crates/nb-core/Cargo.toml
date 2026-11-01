@@ -1,0 +1,13 @@
+[package]
+name = "nb-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,15 @@
+[package]
+name = "nb-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "norrblock"
+path = "src/main.rs"
+
+[dependencies]
+nb-game.workspace = true
+
+[lints]
+workspace = true
