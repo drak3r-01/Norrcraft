@@ -29,6 +29,8 @@
 pub mod atlas;
 pub mod camera;
 pub mod frame;
+pub mod jem;
+pub mod mob_model;
 pub mod packs;
 pub mod shaders;
 pub mod sky;
@@ -39,6 +41,10 @@ pub mod window;
 pub use atlas::TextureArrayCpu;
 pub use camera::Camera;
 pub use frame::{EyeFluid, FrameInput, FrameUniforms, GfxSettings, ShadowQuality};
+pub use jem::parse_jem;
+pub use mob_model::{
+    load_all_mob_models, load_mob_model, ColorBox, MobModelCpu, MobModelDesc, MobRoots, MobVertex,
+};
 pub use nb_core::ChunkPos;
 pub use nb_mesh::ChunkVertex;
 pub use packs::{find_packs_root, list_resource_packs, ResourcePackMeta};
