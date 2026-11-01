@@ -26,7 +26,10 @@ fn passive_land_mob_wanders_and_pauses() {
     h.tick();
     let ai = h.sim.entities.copy::<PassiveAi>(m).unwrap();
     let v = h.v(m);
-    assert!(ai.moving, "un mob neuf choisit une direction dès son premier tick");
+    assert!(
+        ai.moving,
+        "un mob neuf choisit une direction dès son premier tick"
+    );
     let s = horiz(v.target);
     assert!((1.2..=1.8).contains(&s), "vitesse d'errance {s}");
     assert_eq!(v.target.y, 0.0);
@@ -181,9 +184,19 @@ fn orca_chases_and_bites_fish_with_cooldown() {
     let next = h.spawn_mob("fish", 0.5, 50.0, 3.0);
     h.take_events();
     h.tick();
-    assert!(!h.sim.entities.contains(near), "mordu et détruit dans le même tick");
-    assert!(h.take_events().contains(&EcsEvent::MobDied { entity: near }));
-    let cd = h.sim.entities.copy::<AggressiveAi>(orca).unwrap().attack_cooldown;
+    assert!(
+        !h.sim.entities.contains(near),
+        "mordu et détruit dans le même tick"
+    );
+    assert!(h
+        .take_events()
+        .contains(&EcsEvent::MobDied { entity: near }));
+    let cd = h
+        .sim
+        .entities
+        .copy::<AggressiveAi>(orca)
+        .unwrap()
+        .attack_cooldown;
     assert_eq!(cd, 2.5);
     h.ticks(60);
     assert!(h.sim.entities.contains(next), "recharge de 2.5 s");
@@ -214,9 +227,15 @@ fn orca_targets_only_survival_players_in_water() {
     let (_, _, s) = setup(GameMode::Survival, 50.0);
     assert!((s - 3.5).abs() < 1e-3, "poursuite du joueur : {s}");
     let (_, _, s) = setup(GameMode::Creative, 50.0);
-    assert!((0.8..=1.4 + 1e-5).contains(&s), "créatif ignoré → errance : {s}");
+    assert!(
+        (0.8..=1.4 + 1e-5).contains(&s),
+        "créatif ignoré → errance : {s}"
+    );
     let (_, _, s) = setup(GameMode::Survival, 70.0);
-    assert!((0.8..=1.4 + 1e-5).contains(&s), "joueur hors de l'eau ignoré : {s}");
+    assert!(
+        (0.8..=1.4 + 1e-5).contains(&s),
+        "joueur hors de l'eau ignoré : {s}"
+    );
 
     // Morsure du joueur : −5 PV, recul vertical 5.
     let mut h = Harness::new();
@@ -274,7 +293,13 @@ fn water_mobs_spawn_mid_column() {
     h.ticks(61);
     assert!(h.count_mobs("fish") > 0 && h.count_mobs("orca") > 0);
     for id in h.sim.entities.query_ids::<&nb_ecs::MobType>() {
-        let mt = h.sim.entities.get::<nb_ecs::MobType>(id).unwrap().mob_id.clone();
+        let mt = h
+            .sim
+            .entities
+            .get::<nb_ecs::MobType>(id)
+            .unwrap()
+            .mob_id
+            .clone();
         let y = h.t(id).pos.y;
         match mt.as_str() {
             "fish" => assert_eq!(y, 43.5),
@@ -294,7 +319,9 @@ fn far_mobs_despawn_and_degenerate_configs_do_not_panic() {
     h.ticks(61);
     assert!(!h.sim.entities.contains(far));
     assert!(h.sim.entities.contains(near));
-    assert!(h.take_events().contains(&EcsEvent::MobDespawned { entity: far }));
+    assert!(h
+        .take_events()
+        .contains(&EcsEvent::MobDespawned { entity: far }));
 
     // Rayon de spawn nul et groupes incohérents : « aucun spawn » au lieu de l'exception Java.
     let mut h = Harness::new();

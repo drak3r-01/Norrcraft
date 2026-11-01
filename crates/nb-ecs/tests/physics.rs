@@ -23,7 +23,11 @@ fn player_falls_and_rests_on_the_floor() {
     let t = h.t(id);
     let v = h.v(id);
     assert!(v.grounded);
-    assert!(t.pos.y >= FLOOR_TOP && t.pos.y < FLOOR_TOP + 0.05, "y = {}", t.pos.y);
+    assert!(
+        t.pos.y >= FLOOR_TOP && t.pos.y < FLOOR_TOP + 0.05,
+        "y = {}",
+        t.pos.y
+    );
     assert_eq!(h.h(id).health, 10.0, "petite chute : pas de dégâts");
     // Caméra aux yeux.
     let cam = h.p().camera;
@@ -53,7 +57,10 @@ fn jump_height_is_about_one_block_and_repeats_while_held() {
     // Apex discret ≈ 1.03 ; sans recalage au sol, un saut peut partir jusqu'à un pas (≈ 0.13)
     // au-dessus du sol (B4), d'où la marge.
     assert!(gain > 1.0 && gain < 1.2, "hauteur de saut {gain}");
-    assert!(landings >= 3, "sauts répétés tant que JUMP est maintenu (B17)");
+    assert!(
+        landings >= 3,
+        "sauts répétés tant que JUMP est maintenu (B17)"
+    );
 }
 
 #[test]
@@ -69,7 +76,7 @@ fn walls_block_horizontal_movement() {
     h.ticks(120);
     let z = h.t(h.player()).pos.z;
     // Contact quand floor(z − 0.3) = −3, soit z < −1.7 : approche par petits pas (B4).
-    assert!(z >= -1.7 && z < -1.65, "z = {z}");
+    assert!((-1.7..-1.65).contains(&z), "z = {z}");
 }
 
 #[test]
@@ -288,7 +295,11 @@ fn land_mob_gravity_and_asymptotic_landing() {
     let t = h.t(id);
     let v = h.v(id);
     assert!(v.grounded);
-    assert!(t.pos.y >= FLOOR_TOP && t.pos.y < FLOOR_TOP + 0.01, "y = {}", t.pos.y);
+    assert!(
+        t.pos.y >= FLOOR_TOP && t.pos.y < FLOOR_TOP + 0.01,
+        "y = {}",
+        t.pos.y
+    );
 }
 
 #[test]
@@ -297,11 +308,20 @@ fn land_mob_auto_jumps_over_one_block() {
     h.stone_floor();
     let stone = h.ids().stone;
     h.slab(3, 20, 65, -5, 5, stone); // marche d'un bloc
-    let id = dummy(&mut h, DVec3::new(0.5, FLOOR_TOP, 0.5), Vec3::new(2.0, 0.0, 0.0), None);
+    let id = dummy(
+        &mut h,
+        DVec3::new(0.5, FLOOR_TOP, 0.5),
+        Vec3::new(2.0, 0.0, 0.0),
+        None,
+    );
     h.ticks(180);
     let t = h.t(id);
     assert!(t.pos.x > 3.5, "x = {}", t.pos.x);
-    assert!(t.pos.y >= 66.0 - 1e-9, "a sauté sur le bloc : y = {}", t.pos.y);
+    assert!(
+        t.pos.y >= 66.0 - 1e-9,
+        "a sauté sur le bloc : y = {}",
+        t.pos.y
+    );
 }
 
 #[test]
@@ -334,7 +354,10 @@ fn push_apart_splits_overlap_and_player_is_immovable() {
     push_apart_entities(&mut h.sim.entities, &h.mobs);
     let (ta, tb) = (h.t(a), h.t(b));
     assert_eq!(ta.pos.x, 0.5);
-    assert!(((ta.pos.z - tb.pos.z) - 0.6).abs() < 1e-6, "égalité → axe Z, 50/50");
+    assert!(
+        ((ta.pos.z - tb.pos.z) - 0.6).abs() < 1e-6,
+        "égalité → axe Z, 50/50"
+    );
     assert!((ta.pos.z - 0.8).abs() < 1e-6);
 
     // Joueur immobile : le mob prend toute la séparation.

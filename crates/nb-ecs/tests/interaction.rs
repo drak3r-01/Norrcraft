@@ -66,12 +66,18 @@ fn slab_ray_aabb() {
     let d = Vec3::new(1.0, 0.0, 0.0);
     let t = ray_aabb(o, d, Vec3::new(2.0, -1.0, -1.0), Vec3::new(3.0, 1.0, 1.0));
     assert_eq!(t, 2.0);
-    assert_eq!(ray_aabb(o, -d, Vec3::new(2.0, -1.0, -1.0), Vec3::new(3.0, 1.0, 1.0)), -1.0);
+    assert_eq!(
+        ray_aabb(o, -d, Vec3::new(2.0, -1.0, -1.0), Vec3::new(3.0, 1.0, 1.0)),
+        -1.0
+    );
     // Origine dans la boîte : t de sortie.
     let t = ray_aabb(o, d, Vec3::splat(-1.0), Vec3::splat(1.0));
     assert_eq!(t, 1.0);
     // Composante nulle hors de la tranche.
-    assert_eq!(ray_aabb(o, d, Vec3::new(2.0, 1.0, -1.0), Vec3::new(3.0, 2.0, 1.0)), -1.0);
+    assert_eq!(
+        ray_aabb(o, d, Vec3::new(2.0, 1.0, -1.0), Vec3::new(3.0, 2.0, 1.0)),
+        -1.0
+    );
 }
 
 #[test]
@@ -162,7 +168,10 @@ fn unlocked_mouse_disables_rotation_and_actions() {
     h.input.mouse_delta = Vec2::new(100.0, 50.0);
     h.tick();
     let cam = h.p().camera;
-    assert!((cam.yaw_deg - 10.0).abs() < 1e-5, "sensibilité par défaut 0.1");
+    assert!(
+        (cam.yaw_deg - 10.0).abs() < 1e-5,
+        "sensibilité par défaut 0.1"
+    );
     assert!((cam.pitch_deg - 5.0).abs() < 1e-5);
 
     h.p_mut().camera.yaw_deg = 0.0;
@@ -182,7 +191,11 @@ fn hitting_a_passive_mob_damages_flees_and_knocks_back() {
     // AABB en z ∈ [−1.69, −0.31] : hors des cellules du mur (sinon tout mouvement collisionne).
     let mob = h.spawn_mob("reindeer", 0.5, 65.0, -1.0);
     h.press(GameAction::Primary);
-    assert_eq!(h.block(0, 66, -3), h.ids().stone, "le mob est prioritaire sur le bloc");
+    assert_eq!(
+        h.block(0, 66, -3),
+        h.ids().stone,
+        "le mob est prioritaire sur le bloc"
+    );
     assert_eq!(h.h(mob).health, 4.0);
     let ai = h.sim.entities.copy::<PassiveAi>(mob).unwrap();
     assert!(ai.flee_timer > 2.9 && ai.moving);
@@ -222,7 +235,10 @@ fn mob_raycast_ignores_walls_and_range() {
 #[test]
 fn killing_blow_destroys_mob_in_same_tick_and_aggressors_do_not_flee() {
     let mut h = arena(GameMode::Survival);
-    assert_eq!(h.cmd("/player damage 10").unwrap(), "Attack damage set to 10.0.");
+    assert_eq!(
+        h.cmd("/player damage 10").unwrap(),
+        "Attack damage set to 10.0."
+    );
     let mob = h.spawn_mob("reindeer", 0.5, 65.0, -1.5);
     h.take_events();
     h.press(GameAction::Primary);

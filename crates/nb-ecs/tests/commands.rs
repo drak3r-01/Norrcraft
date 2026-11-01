@@ -15,7 +15,8 @@ fn with_player(mode: GameMode) -> Harness {
 }
 
 fn say(h: &mut Harness, cmd: &str) -> String {
-    h.cmd(cmd).unwrap_or_else(|| panic!("pas de réponse à {cmd:?}"))
+    h.cmd(cmd)
+        .unwrap_or_else(|| panic!("pas de réponse à {cmd:?}"))
 }
 
 #[test]
@@ -56,8 +57,14 @@ fn help_and_dispatch() {
 fn cheats_disabled_blocks_everything_but_help() {
     let mut h = with_player(GameMode::Survival);
     let mut run = |c: &str| execute_command(c, &mut h.sim, &mut h.cfg, &mut h.time, false);
-    assert_eq!(run("/kill").unwrap(), "Cheats are not enabled in this world.");
-    assert_eq!(run("/whatever").unwrap(), "Cheats are not enabled in this world.");
+    assert_eq!(
+        run("/kill").unwrap(),
+        "Cheats are not enabled in this world."
+    );
+    assert_eq!(
+        run("/whatever").unwrap(),
+        "Cheats are not enabled in this world."
+    );
     assert!(run("/help").unwrap().starts_with("Commands:"));
     assert!(run("/help kill").unwrap().starts_with("/kill"));
 }
@@ -73,7 +80,10 @@ fn time_commands() {
         ("midnight", 300.0),
         ("sunrise", 600.0),
     ] {
-        assert_eq!(say(&mut h, &format!("/time set {name}")), format!("Time set to {name}."));
+        assert_eq!(
+            say(&mut h, &format!("/time set {name}")),
+            format!("Time set to {name}.")
+        );
         assert_eq!(h.time.time, Some(t));
     }
     assert_eq!(say(&mut h, "/time set NOON"), "Time set to noon.");
@@ -85,12 +95,21 @@ fn time_commands() {
         say(&mut h, "/time set"),
         "Usage: /time set <value|day|night|...> | /time speed <seconds>"
     );
-    assert_eq!(say(&mut h, "/time speed 600"), "Day length set to 600.0s per cycle.");
+    assert_eq!(
+        say(&mut h, "/time speed 600"),
+        "Day length set to 600.0s per cycle."
+    );
     assert_eq!(h.time.day_length, Some(600.0));
     assert_eq!(h.cfg.day_length_seconds, 600.0);
-    assert_eq!(say(&mut h, "/time speed 0.5"), "Day length must be at least 1 second.");
+    assert_eq!(
+        say(&mut h, "/time speed 0.5"),
+        "Day length must be at least 1 second."
+    );
     assert_eq!(say(&mut h, "/time speed x"), "Invalid value: x");
-    assert_eq!(say(&mut h, "/time speed 1.0E-1"), "Day length must be at least 1 second.");
+    assert_eq!(
+        say(&mut h, "/time speed 1.0E-1"),
+        "Day length must be at least 1 second."
+    );
     assert_eq!(
         say(&mut h, "/time speed 12345678"),
         "Day length set to 1.2345678E7s per cycle."
@@ -104,40 +123,68 @@ fn gamemode_commands() {
     assert_eq!(say(&mut h, "/gamemode 1"), "Gamemode set to Creative.");
     assert!(h.p().flying, "créatif ne coupe pas le vol");
     let pid = h.player();
-    h.sim.entities.get_mut::<nb_ecs::Health>(pid).unwrap().health = 3.0;
-    assert_eq!(say(&mut h, "/gamemode SURVIVAL"), "Gamemode set to Survival.");
+    h.sim
+        .entities
+        .get_mut::<nb_ecs::Health>(pid)
+        .unwrap()
+        .health = 3.0;
+    assert_eq!(
+        say(&mut h, "/gamemode SURVIVAL"),
+        "Gamemode set to Survival."
+    );
     let p = h.p();
     assert_eq!(p.game_mode, GameMode::Survival);
     assert!(!p.flying);
     assert_eq!(h.h(pid).health, 10.0);
     assert_eq!(say(&mut h, "/gamemode 0"), "Gamemode set to Survival.");
-    assert_eq!(say(&mut h, "/gamemode creative"), "Gamemode set to Creative.");
-    assert_eq!(say(&mut h, "/gamemode adventure"), "Unknown gamemode: adventure");
+    assert_eq!(
+        say(&mut h, "/gamemode creative"),
+        "Gamemode set to Creative."
+    );
+    assert_eq!(
+        say(&mut h, "/gamemode adventure"),
+        "Unknown gamemode: adventure"
+    );
 
     let mut empty = Harness::new();
     assert_eq!(say(&mut empty, "/gamemode 1"), "Player not found.");
     assert_eq!(say(&mut empty, "/setworldspawn"), "Player not found.");
-    assert_eq!(say(&mut empty, "/player health 5"), "Player health not found.");
+    assert_eq!(
+        say(&mut empty, "/player health 5"),
+        "Player health not found."
+    );
 }
 
 #[test]
 fn physics_commands_affect_player_and_mobs() {
     let mut h = with_player(GameMode::Survival);
-    assert_eq!(say(&mut h, "/physics gravity 2"), "Gravity set to 2.00x (-64.0 units/s^2).");
+    assert_eq!(
+        say(&mut h, "/physics gravity 2"),
+        "Gravity set to 2.00x (-64.0 units/s^2)."
+    );
     assert_eq!(h.cfg.gravity, -64.0);
     assert_eq!(
         say(&mut h, "/physics gravity -0.5"),
         "Gravity set to -0.50x (16.0 units/s^2)."
     );
-    assert_eq!(say(&mut h, "/physics gravity NaN"), "Gravity set to NaNx (NaN units/s^2).");
+    assert_eq!(
+        say(&mut h, "/physics gravity NaN"),
+        "Gravity set to NaNx (NaN units/s^2)."
+    );
     assert!(h.cfg.gravity.is_nan());
     assert_eq!(
         say(&mut h, "/physics gravity x"),
         "Invalid value. Usage: /physics gravity <multiplier>  (1.0 = default, -1.0 = antigravity)"
     );
-    assert_eq!(say(&mut h, "/physics falldamage OFF"), "Fall damage disabled.");
+    assert_eq!(
+        say(&mut h, "/physics falldamage OFF"),
+        "Fall damage disabled."
+    );
     assert!(!h.cfg.fall_damage_enabled);
-    assert_eq!(say(&mut h, "/physics falldamage true"), "Fall damage enabled.");
+    assert_eq!(
+        say(&mut h, "/physics falldamage true"),
+        "Fall damage enabled."
+    );
     assert_eq!(
         say(&mut h, "/physics falldamage maybe"),
         "Usage: /physics falldamage on|off"
@@ -157,7 +204,11 @@ fn physics_commands_affect_player_and_mobs() {
 fn player_commands() {
     let mut h = with_player(GameMode::Survival);
     let pid = h.player();
-    h.sim.entities.get_mut::<nb_ecs::Health>(pid).unwrap().health = 5.0;
+    h.sim
+        .entities
+        .get_mut::<nb_ecs::Health>(pid)
+        .unwrap()
+        .health = 5.0;
     assert_eq!(say(&mut h, "/player health 20"), "Max health set to 20.0.");
     let hp = h.h(pid);
     assert_eq!((hp.health, hp.max_health), (10.0, 20.0), "ratio conservé");
@@ -166,13 +217,25 @@ fn player_commands() {
         say(&mut h, "/player health lots"),
         "Invalid value. Usage: /player health <amount>"
     );
-    assert_eq!(say(&mut h, "/player damage 2.5"), "Attack damage set to 2.5.");
+    assert_eq!(
+        say(&mut h, "/player damage 2.5"),
+        "Attack damage set to 2.5."
+    );
     assert_eq!(h.cfg.attack_damage, 2.5);
     assert_eq!(say(&mut h, "/player damage -1"), "Damage must be >= 0.");
-    assert_eq!(say(&mut h, "/player walkspeed 4.317"), "Walk speed set to 4.317.");
-    assert_eq!(say(&mut h, "/player sprintspeed 7"), "Sprint speed set to 7.000.");
+    assert_eq!(
+        say(&mut h, "/player walkspeed 4.317"),
+        "Walk speed set to 4.317."
+    );
+    assert_eq!(
+        say(&mut h, "/player sprintspeed 7"),
+        "Sprint speed set to 7.000."
+    );
     assert_eq!(h.cfg.sprint_speed, 7.0);
-    assert_eq!(say(&mut h, "/player flyspeed 0.0005"), "Fly speed set to 0.001.");
+    assert_eq!(
+        say(&mut h, "/player flyspeed 0.0005"),
+        "Fly speed set to 0.001."
+    );
     assert_eq!(say(&mut h, "/player flyspeed -2"), "Speed must be >= 0.");
     assert_eq!(
         say(&mut h, "/player flyspeed fast"),
@@ -217,7 +280,12 @@ fn default_resets_gameplay_values_but_not_renderer_day_length() {
     assert_eq!(say(&mut h, "/default"), "All values reset to defaults.");
     let c = &h.cfg;
     assert_eq!(
-        (c.gravity, c.jump_force, c.fall_damage_enabled, c.day_length_seconds),
+        (
+            c.gravity,
+            c.jump_force,
+            c.fall_damage_enabled,
+            c.day_length_seconds
+        ),
         (-32.0, 8.4, true, 1200.0)
     );
     assert_eq!(
@@ -225,7 +293,11 @@ fn default_resets_gameplay_values_but_not_renderer_day_length() {
         (4.317, 5.612, 20.0, 1.0)
     );
     assert_eq!(c.mob_spawn_radius, 12, "rayons de spawn non touchés");
-    assert_eq!(h.time.day_length, Some(99.0), "renderer non remis à jour (B13)");
+    assert_eq!(
+        h.time.day_length,
+        Some(99.0),
+        "renderer non remis à jour (B13)"
+    );
     let hp = h.h(h.player());
     assert_eq!((hp.health, hp.max_health), (10.0, 10.0));
 }
@@ -234,7 +306,11 @@ fn default_resets_gameplay_values_but_not_renderer_day_length() {
 fn setworldspawn_and_kill() {
     let mut h = with_player(GameMode::Survival);
     let pid = h.player();
-    h.sim.entities.get_mut::<nb_ecs::Transform>(pid).unwrap().pos = DVec3::new(-3.25, 65.0, 7.75);
+    h.sim
+        .entities
+        .get_mut::<nb_ecs::Transform>(pid)
+        .unwrap()
+        .pos = DVec3::new(-3.25, 65.0, 7.75);
     assert_eq!(
         say(&mut h, "/setworldspawn"),
         "World spawn point set to (-3.3, 65.0, 7.8)."
@@ -243,7 +319,11 @@ fn setworldspawn_and_kill() {
 
     let dirt: BlockId = h.ids().dirt;
     h.inv_mut().set_slot(27, Some(ItemStack::new(dirt, 5)));
-    h.sim.entities.get_mut::<nb_ecs::Transform>(pid).unwrap().pos = DVec3::new(10.0, 70.0, 10.0);
+    h.sim
+        .entities
+        .get_mut::<nb_ecs::Transform>(pid)
+        .unwrap()
+        .pos = DVec3::new(10.0, 70.0, 10.0);
     h.p_mut().flying = true;
     h.p_mut().camera.yaw_deg = 45.0;
     assert_eq!(say(&mut h, "/kill"), "Respawned at world spawn.");

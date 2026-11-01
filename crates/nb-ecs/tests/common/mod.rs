@@ -5,8 +5,8 @@ use nb_core::glam::{DVec3, IVec3, Vec3};
 use nb_data::{BlockId, BlockIds, BlockRegistry, MobRegistry, ParticleRegistry};
 use nb_ecs::{
     execute_command, CameraState, EcsEvent, EcsRngs, EntityId, GameAction, GameMode, Health,
-    InventoryComp, MemoryBlocks, Player, PlayerInput, Simulation, TickCtx, TimeControl,
-    Transform, Velocity, TICK_DT,
+    InventoryComp, MemoryBlocks, Player, PlayerInput, Simulation, TickCtx, TimeControl, Transform,
+    Velocity, TICK_DT,
 };
 use nb_world::WorldConfig;
 
@@ -195,7 +195,12 @@ impl Harness {
 
     pub fn inv(&self) -> nb_ecs::Inventory {
         let id = self.player();
-        self.sim.entities.get::<InventoryComp>(id).unwrap().0.clone()
+        self.sim
+            .entities
+            .get::<InventoryComp>(id)
+            .unwrap()
+            .0
+            .clone()
     }
 
     /// Fait apparaître un mob du registre en `(x, y, z)` (pieds).
