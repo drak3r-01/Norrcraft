@@ -11,7 +11,9 @@ nb-world.workspace = true
 nb-mesh.workspace = true
 nb-ecs.workspace = true
 # Parties pures de nb-gfx seulement (caméra, horloge jour/nuit, FrameInput) : pas de fenêtre.
-nb-gfx = { workspace = true, default-features = false }
+# Chemin direct : `default-features = false` est ignoré sur une dépendance `workspace = true`
+# dont l'entrée de workspace ne le précise pas (et le Cargo.toml racine n'est pas à ce crate).
+nb-gfx = { path = "../nb-gfx", default-features = false }
 
 [lints]
 workspace = true
