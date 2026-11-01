@@ -2,6 +2,23 @@
 //! monde ↔ maillage, sauvegardes. Aucune fenêtre ni GPU : tout est testable en headless.
 //!
 //! Spécification : `docs/spec/nb-game.md`.
+//!
+//! Usage : la plateforme (nb-app) pousse les événements dans [`Game::input`], appelle
+//! [`Game::update`] autant de fois que [`FixedStep::advance`] l'indique, puis applique
+//! [`Game::take_requests`] / [`Game::take_mesh_actions`] et rend [`Game::render_view`].
+//! L'interface est branchée par [`Game::set_ui`] (trait [`Ui`], implémenté par nb-ui).
+//!
+//! # Écarts volontaires par rapport au Java
+//!
+//! 1. Durée de frame bornée à 0,25 s avant l'accumulateur ([`FixedStep::java`] pour l'original).
+//! 2. Chunks actifs triés par (x, z) avant le remaillage (le Java itère un `HashMap`).
+//! 3. Changement de monde : génération de maillage incrémentée, aucun maillage en vol de
+//!    l'ancien monde ne peut être affiché.
+//! 4. Sauvegarde dont le `world.json` est illisible : la graine du monde est conservée (le Java
+//!    repartait d'un `new WorldMetadata()`, graine 0).
+//!
+//! Bogue Java conservé : PAUSED → MAIN MENU laisse le monde chargé ; le renommer puis en
+//! charger un autre le resauvegarde sous l'ancien nom (dossier recréé).
 
 pub mod chat;
 pub mod chunks;

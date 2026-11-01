@@ -498,3 +498,47 @@ fn seeds_parse_like_java() {
     let v = nb_game::parse_seed("", &mut r);
     assert!(v >= 0);
 }
+
+#[test]
+fn fixed_step_drives_game_ticks() {
+    let dir = TempDir::new("loop");
+    let mut g = game(&dir);
+    let mut l = nb_game::FixedStep::new();
+    // 2,5 pas puis 0,6 pas : 2 puis 1 tick ; une frame énorme est bornée.
+    for (frame, expected) in [(TIME_STEP * 2.5, 2), (TIME_STEP * 0.6, 1)] {
+        let before = g.ticks();
+        l.run(frame, |dt| g.update(dt));
+        assert_eq!(g.ticks() - before, expected);
+    }
+    let before = g.ticks();
+    l.run(30.0, |dt| g.update(dt));
+    assert!(g.ticks() - before <= 15);
+    g.shutdown();
+}
+
+#[test]
+fn edited_mobs_are_despawned_when_leaving_mob_settings() {
+    let dir = TempDir::new("mobs");
+    let mut g = game(&dir);
+    let e = &mut g.session_mut().sim.entities;
+    let mob = e.create();
+    e.insert(mob, nb_ecs::MobType::new("reindeer"));
+    e.insert(mob, Transform::new(0.0, 80.0, 0.0));
+    assert_eq!(g.render_view().mobs.len(), 1);
+    g.command(UiCommand::OpenSettings);
+    g.command(UiCommand::SwitchState(GameState::MobSettings));
+    // Sans modification : rien n'est supprimé.
+    g.command(UiCommand::LeaveMobSettings);
+    assert!(g.session().sim.entities.contains(mob));
+    g.command(UiCommand::SwitchState(GameState::MobSettings));
+    let reg = g.regs.mobs.clone();
+    g.command(UiCommand::SetMobRegistry(Box::new(reg)));
+    assert!(dir.0.join("mobs.json").is_file());
+    g.command(UiCommand::LeaveMobSettings);
+    assert_eq!(g.state(), GameState::Settings);
+    assert!(!g.session().sim.entities.contains(mob));
+    assert!(g
+        .take_requests()
+        .contains(&PlatformRequest::ReloadMobModels));
+    g.shutdown();
+}

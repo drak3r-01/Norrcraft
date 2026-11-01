@@ -117,3 +117,9 @@ du joueur (§6) → PLAYING.
 3. Changement de monde : génération de maillage incrémentée (`invalidate_all`) au lieu d'un
    simple `chunkMeshes.clear()` — un maillage en vol de l'ancien monde ne peut plus être affiché.
 4. Graines des RNG de l'ECS : `EcsRngs::from_entropy()` (Java : `new Random()`), injectables.
+5. Sauvegarde dont le `world.json` est illisible : la graine du monde est conservée (Java :
+   `new WorldMetadata()`, graine 0).
+
+Bogue Java conservé : PAUSED → MAIN MENU laisse le monde chargé (`currentWorldName` reste
+posé) ; renommer ce monde puis en charger un autre le resauvegarde sous l'ancien nom, ce qui
+recrée son dossier.
