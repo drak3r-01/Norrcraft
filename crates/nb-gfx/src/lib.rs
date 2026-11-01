@@ -11,6 +11,20 @@
 //!
 //! Les shaders GLSL 450 (`shaders/glsl450`) sont précompilés en SPIR-V (`shaders/spv`, script
 //! `scripts/compile-shaders.sh`).
+//!
+//! Écarts appliqués par rapport au Java (tous prévus par la spec) :
+//! - shadow map effacée à 1.0 au démarrage et au passage à OFF (§10, décision 2026-11-01) ;
+//! - `LESS_OR_EQUAL` pour toutes les pipelines 3D (§6.2) ; surbrillance sans écriture de
+//!   profondeur (profondeur HDR attachée en lecture seule, §18.4.7) ;
+//! - nuages échantillonnés en `(cellule + 0.25) / 256` (§5.3) ; bruit à graine fixe ;
+//! - mips de l'atlas calculés sur CPU (boîte 2×2) ; redimensionnement Catmull-Rom (§5.1) ;
+//! - rendu sauté pour un extent nul, cibles recréées dès que l'extent change (§3.3).
+//!
+//! Bogues Java conservés : seuils 1000/2000 de `shadow.vert` (correctif derrière
+//! [`GfxSettings::fix_shadow_layer_thresholds`]), bright buffer effacé à la couleur de
+//! brouillard, fluides sans écriture de profondeur, occlusion à une frame (ou plus) de retard.
+//!
+//! Pas encore porté : mobs, particules (passe scène B2, §14–§15).
 
 pub mod atlas;
 pub mod camera;
