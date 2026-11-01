@@ -3,7 +3,8 @@
 //! Organisation :
 //! - parties pures, testables sans GPU : [`sky`] (cycle jour/nuit), [`camera`], [`atlas`]
 //!   (tableaux de textures CPU), [`packs`] (packs de ressources), [`frame`] (réglages, entrées
-//!   de frame, bloc d'uniformes) ;
+//!   de frame, bloc d'uniformes), [`mob_model`] et [`jem`] (modèles de mobs : boîtes, formes
+//!   vanilla, parseur JEM, textures d'entité, matrices modèle et billboard) ;
 //! - [`vk`] : contexte Vulkan (`ash` + `gpu-allocator`), ressources et [`vk::SceneRenderer`],
 //!   qui enregistre une frame complète dans n'importe quelle image couleur ;
 //!   [`vk::OffscreenRenderer`] l'utilise sans fenêtre (tests headless, lavapipe) ;
@@ -18,11 +19,20 @@
 //!   profondeur (profondeur HDR attachée en lecture seule, §18.4.7) ;
 //! - nuages échantillonnés en `(cellule + 0.25) / 256` (§5.3) ; bruit à graine fixe ;
 //! - mips de l'atlas calculés sur CPU (boîte 2×2) ; redimensionnement Catmull-Rom (§5.1) ;
-//! - rendu sauté pour un extent nul, cibles recréées dès que l'extent change (§3.3).
+//! - rendu sauté pour un extent nul, cibles recréées dès que l'extent change (§3.3) ;
+//! - passe B2 (mobs, particules) : seul `colorBuffer` est attaché, le bright buffer reste
+//!   inchangé (§14.1 ; équivalent du `colorWriteMask = 0` prescrit, sans sortie indéfinie) ;
+//!   passe sautée sans mob ni particule ;
+//! - rechargement d'un modèle de mob ou d'un pack : attente du GPU avant destruction ;
+//! - textures d'entité : repli « premier `.png` du dossier » trié sans casse (ordre Windows) ;
+//!   `Float.parseFloat` du parseur JEM sans flottants hexadécimaux.
 //!
 //! Bogues Java conservés : seuils 1000/2000 de `shadow.vert` (correctif derrière
 //! [`GfxSettings::fix_shadow_layer_thresholds`]), bright buffer effacé à la couleur de
-//! brouillard, fluides sans écriture de profondeur, occlusion à une frame (ou plus) de retard.
+//! brouillard, fluides sans écriture de profondeur, occlusion à une frame (ou plus) de retard,
+//! mobs non éclairés et sans gamma, particules tête en bas et effacées par le brouillard devant
+//! le ciel (pas d'écriture de profondeur), sous-chaînes JEM débordant sur la boîte suivante,
+//! boîte texturée de dernier recours en UV non normalisées (texture répétée 16 fois).
 
 pub mod atlas;
 pub mod camera;
