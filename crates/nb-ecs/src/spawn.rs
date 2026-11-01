@@ -119,16 +119,18 @@ impl Spawner<'_> {
             let group = cfg.group_size_min + extra;
             let scatter = cfg.spawn_scatter_radius;
             for _ in 0..group {
-                let gx = cx + if scatter > 0 {
-                    rng.next_int_bound(scatter * 2 + 1) - scatter
-                } else {
-                    0
-                };
-                let gz = cz + if scatter > 0 {
-                    rng.next_int_bound(scatter * 2 + 1) - scatter
-                } else {
-                    0
-                };
+                let gx = cx
+                    + if scatter > 0 {
+                        rng.next_int_bound(scatter * 2 + 1) - scatter
+                    } else {
+                        0
+                    };
+                let gz = cz
+                    + if scatter > 0 {
+                        rng.next_int_bound(scatter * 2 + 1) - scatter
+                    } else {
+                        0
+                    };
                 let gy = self.find_spawn_y(cfg, gx, gz);
                 if gy < 0 {
                     continue;
@@ -148,7 +150,9 @@ impl Spawner<'_> {
     fn find_spawn_y(&self, cfg: &MobConfig, x: i32, z: i32) -> i32 {
         match cfg.medium {
             MobMedium::Land => find_surface_y(self.blocks, self.reg, x, z),
-            MobMedium::Water => find_water_y(self.blocks, self.reg, x, z, cfg.spawn_min_water_depth),
+            MobMedium::Water => {
+                find_water_y(self.blocks, self.reg, x, z, cfg.spawn_min_water_depth)
+            }
             MobMedium::Air => -1,
         }
     }

@@ -153,7 +153,10 @@ mod tests {
         assert_eq!(m.len(), 2);
         m.update(1.0);
         assert!(m.particles()[0].position.y < 0.0, "la feuille tombe");
-        assert!(m.particles()[1].position.y > 0.0, "la lave monte (gravité négative)");
+        assert!(
+            m.particles()[1].position.y > 0.0,
+            "la lave monte (gravité négative)"
+        );
         m.update(1.5); // lave : vie 2.0 → morte
         assert_eq!(m.len(), 1);
         assert_eq!(m.particles()[0].kind.id, "leaf");

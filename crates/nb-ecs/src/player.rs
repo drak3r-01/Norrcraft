@@ -83,11 +83,7 @@ pub fn respawn_player(world: &mut EntityWorld, id: EntityId, cfg: &WorldConfig) 
         inv.0.clear();
     }
     if let Some(p) = world.get_mut::<Player>(id) {
-        p.camera.position = Vec3::new(
-            rx as f32,
-            (ry + f64::from(EYE_OFFSET)) as f32,
-            rz as f32,
-        );
+        p.camera.position = Vec3::new(rx as f32, (ry + f64::from(EYE_OFFSET)) as f32, rz as f32);
     }
 }
 
@@ -281,7 +277,11 @@ impl System for PlayerInputSystem {
             let sprint_fov = base_fov + to_radians_f(FOV_SPRINT_OFFSET_DEG);
             let h_speed = (v.v.x * v.v.x + v.v.z * v.v.z).sqrt();
             let max_speed = if p.flying { fly_speed } else { sprint_speed };
-            let fov_target = lerp(base_fov, sprint_fov, jmax(0.0, jmin(h_speed / max_speed, 1.0)));
+            let fov_target = lerp(
+                base_fov,
+                sprint_fov,
+                jmax(0.0, jmin(h_speed / max_speed, 1.0)),
+            );
             p.current_fov = lerp(
                 p.current_fov,
                 fov_target,
@@ -296,7 +296,7 @@ impl System for PlayerInputSystem {
             {
                 p.lava_timer += dt;
                 if p.lava_timer >= LAVA_DAMAGE_INTERVAL {
-                    if let Some(h) = health.as_deref_mut() {
+                    if let Some(h) = health {
                         damage_clamped(h, LAVA_DAMAGE_AMOUNT);
                     }
                     p.lava_timer -= LAVA_DAMAGE_INTERVAL;

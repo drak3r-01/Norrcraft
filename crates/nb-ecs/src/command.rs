@@ -37,9 +37,7 @@ pub fn execute_command(
         return None;
     }
     if command == "/help" {
-        return Some(format!(
-            "{HELP}  (type /help <command> for details)"
-        ));
+        return Some(format!("{HELP}  (type /help <command> for details)"));
     }
     if let Some(rest) = command.strip_prefix("/help ") {
         return Some(help(&java_trim(rest).to_lowercase()));
@@ -68,7 +66,7 @@ pub fn execute_command(
     Some(reply)
 }
 
-fn player_component<'a, C: hecs::Component>(sim: &'a mut Simulation) -> Option<&'a mut C> {
+fn player_component<C: hecs::Component>(sim: &mut Simulation) -> Option<&mut C> {
     let p = sim.player?;
     sim.entities.get_mut::<C>(p)
 }

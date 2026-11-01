@@ -109,9 +109,10 @@ impl MemoryBlocks {
     }
 
     fn chunk_loaded(&self, x: i32, z: i32) -> bool {
-        self.loaded
-            .as_ref()
-            .map_or(true, |s| s.contains(&(floor_div(x, 16), floor_div(z, 16))))
+        match &self.loaded {
+            None => true,
+            Some(s) => s.contains(&(floor_div(x, 16), floor_div(z, 16))),
+        }
     }
 }
 

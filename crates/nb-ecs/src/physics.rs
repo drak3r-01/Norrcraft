@@ -306,11 +306,7 @@ impl<'a> BlockEnv<'a> {
 
 /// `isAABBIntersectingBlock` (inégalités strictes).
 pub fn aabb_intersects_block(block: IVec3, cx: f64, cy: f64, cz: f64, c: &Collider) -> bool {
-    let (bx, by, bz) = (
-        f64::from(block.x),
-        f64::from(block.y),
-        f64::from(block.z),
-    );
+    let (bx, by, bz) = (f64::from(block.x), f64::from(block.y), f64::from(block.z));
     let (hx, hz) = (f64::from(c.half_x()), f64::from(c.half_z()));
     cx - hx < bx + 1.0
         && cx + hx > bx
@@ -383,7 +379,11 @@ pub fn raycast_mob(world: &EntityWorld, origin: Vec3, dir: Vec3) -> Option<Entit
     nearest
 }
 
-fn mob_kind(world: &EntityWorld, mobs: &MobRegistry, id: EntityId) -> Option<(MobMedium, MobBehaviorType)> {
+fn mob_kind(
+    world: &EntityWorld,
+    mobs: &MobRegistry,
+    id: EntityId,
+) -> Option<(MobMedium, MobBehaviorType)> {
     let mt = world.get::<MobType>(id)?;
     mobs.get(&mt.mob_id).map(|c| (c.medium, c.behavior_type))
 }
@@ -443,7 +443,7 @@ impl System for PhysicsSystem {
                 let d = v.v.z * dt;
                 env.move_axis(t, v, c, h.as_deref_mut(), 0.0, 0.0, d, jf, fd);
                 let d = v.v.y * dt;
-                env.move_axis(t, v, c, h.as_deref_mut(), 0.0, d, 0.0, jf, fd);
+                env.move_axis(t, v, c, h, 0.0, d, 0.0, jf, fd);
             }
         }
         push_apart_entities(world, ctx.mobs);
@@ -477,8 +477,7 @@ pub fn push_apart_entities(world: &mut EntityWorld, mobs: &MobRegistry) {
     for i in 0..list.len() {
         let a = &list[i];
         for b in &list[i + 1..] {
-            if (a.aggressive_water && b.passive_water) || (a.passive_water && b.aggressive_water)
-            {
+            if (a.aggressive_water && b.passive_water) || (a.passive_water && b.aggressive_water) {
                 continue;
             }
             let Some((ta, tb)) = world.query_pair_mut::<&mut Transform>(a.id, b.id) else {

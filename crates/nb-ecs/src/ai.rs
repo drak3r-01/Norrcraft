@@ -35,7 +35,14 @@ fn yaw_from_heading(h: f32) -> f32 {
 }
 
 /// Consignes pour un cap `h` et une vitesse : terrestre en 2D, sinon en 3D avec l'angle `v`.
-fn set_heading(v: &mut Velocity, t: &mut Transform, medium: MobMedium, h: f32, vang: f32, speed: f32) {
+fn set_heading(
+    v: &mut Velocity,
+    t: &mut Transform,
+    medium: MobMedium,
+    h: f32,
+    vang: f32,
+    speed: f32,
+) {
     if medium == MobMedium::Land {
         v.target.x = (f64::from(h).cos() as f32) * speed;
         v.target.z = (f64::from(h).sin() as f32) * speed;
@@ -76,8 +83,7 @@ impl System for PassiveAiSystem {
     }
 
     fn run(&mut self, world: &mut EntityWorld, ctx: &mut TickCtx<'_>, dt: f32) {
-        let passives =
-            world.query_ids::<(&PassiveAi, &Velocity, &Transform, &MobType)>();
+        let passives = world.query_ids::<(&PassiveAi, &Velocity, &Transform, &MobType)>();
         if passives.is_empty() {
             return;
         }
@@ -327,8 +333,7 @@ impl System for AggressiveAiSystem {
     }
 
     fn run(&mut self, world: &mut EntityWorld, ctx: &mut TickCtx<'_>, dt: f32) {
-        let aggressors =
-            world.query_ids::<(&AggressiveAi, &Velocity, &Transform, &MobType)>();
+        let aggressors = world.query_ids::<(&AggressiveAi, &Velocity, &Transform, &MobType)>();
         if aggressors.is_empty() {
             return;
         }
@@ -424,7 +429,8 @@ impl System for AggressiveAiSystem {
 /// `tickChase` (§12.2) : morsure si à portée et cooldown écoulé, puis poursuite. Les branches
 /// joueur / proie du Java sont identiques.
 fn tick_chase(world: &mut EntityWorld, id: EntityId, target: EntityId, dist: f64, cfg: &MobConfig) {
-    let (Some(self_t), Some(target_t)) = (world.copy::<Transform>(id), world.copy::<Transform>(target))
+    let (Some(self_t), Some(target_t)) =
+        (world.copy::<Transform>(id), world.copy::<Transform>(target))
     else {
         return;
     };

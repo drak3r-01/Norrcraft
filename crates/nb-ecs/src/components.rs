@@ -247,7 +247,12 @@ mod tests {
     fn defaults() {
         let h = Health::new(5.0);
         assert_eq!((h.health, h.max_health, h.alive), (5.0, 5.0, true));
-        let p = Player::new(CameraState::new(Vec3::ZERO, 1.2), GameMode::Survival, 1.2, 0);
+        let p = Player::new(
+            CameraState::new(Vec3::ZERO, 1.2),
+            GameMode::Survival,
+            1.2,
+            0,
+        );
         assert_eq!(p.double_tap_timer, f32::MAX);
         assert!(!p.flying);
         assert_eq!(Collider::new(0.6, 1.0, 1.8, 1.62).half_z(), 0.5);

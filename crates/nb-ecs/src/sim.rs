@@ -6,9 +6,9 @@ use nb_data::BlockId;
 use nb_world::WorldConfig;
 
 use crate::components::{CameraState, EntityId, GameMode, MobType, Player};
+use crate::particles::ParticleManager;
 use crate::player::{init_player, respawn_player};
 use crate::schedule::{Schedule, TickCtx};
-use crate::particles::ParticleManager;
 use crate::world::EntityWorld;
 
 /// Pas de temps fixe de la boucle de jeu (`(float) (1.0 / 60.0)`).

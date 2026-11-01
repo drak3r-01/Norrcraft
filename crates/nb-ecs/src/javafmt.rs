@@ -188,7 +188,7 @@ pub fn java_float_to_string(v: f32) -> String {
             let int_len = exp as usize + 1;
             if ds.len() <= int_len {
                 out.push_str(&ds);
-                out.extend(std::iter::repeat('0').take(int_len - ds.len()));
+                out.push_str(&"0".repeat(int_len - ds.len()));
                 out.push_str(".0");
             } else {
                 out.push_str(&ds[..int_len]);
@@ -197,7 +197,7 @@ pub fn java_float_to_string(v: f32) -> String {
             }
         } else {
             out.push_str("0.");
-            out.extend(std::iter::repeat('0').take((-exp - 1) as usize));
+            out.push_str(&"0".repeat((-exp - 1) as usize));
             out.push_str(&ds);
         }
     } else {
