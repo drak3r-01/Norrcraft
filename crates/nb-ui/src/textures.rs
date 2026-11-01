@@ -140,7 +140,11 @@ fn icon(mask: &[u8; 256], full: [u8; 3], empty: [u8; 3], split: bool) -> RgbaIma
             let c = if split && col >= S / 2 { empty } else { full };
             let shade = if edge { 0.55f32 } else { 1.0 };
             let px = c.map(|v| (v as f32 * shade) as u8);
-            img.put_pixel(col as u32, row as u32, image::Rgba([px[0], px[1], px[2], 255]));
+            img.put_pixel(
+                col as u32,
+                row as u32,
+                image::Rgba([px[0], px[1], px[2], 255]),
+            );
         }
     }
     img
