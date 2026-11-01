@@ -21,6 +21,10 @@ pub const HL_FRAG: &[u8] = spv!("hl.frag");
 pub const QUAD_VERT: &[u8] = spv!("quad.vert");
 pub const BLUR_FRAG: &[u8] = spv!("blur.frag");
 pub const PP_FRAG: &[u8] = spv!("pp.frag");
+pub const MOB_VERT: &[u8] = spv!("mob.vert");
+pub const MOB_FRAG: &[u8] = spv!("mob.frag");
+pub const PARTICLE_VERT: &[u8] = spv!("particle.vert");
+pub const PARTICLE_FRAG: &[u8] = spv!("particle.frag");
 
 /// Convertit un binaire SPIR-V en mots (copie alignée).
 pub fn words(bytes: &[u8]) -> Vec<u32> {
@@ -46,6 +50,10 @@ mod tests {
             QUAD_VERT,
             BLUR_FRAG,
             PP_FRAG,
+            MOB_VERT,
+            MOB_FRAG,
+            PARTICLE_VERT,
+            PARTICLE_FRAG,
         ] {
             assert_eq!(words(s)[0], 0x0723_0203);
         }
