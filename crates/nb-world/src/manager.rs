@@ -1,0 +1,545 @@
+//! Gestionnaire de chunks asynchrone (`ChunkManager.java`, spec §11).
+//!
+//! Génération et lumière tournent sur des threads dédiés (`max(1, cœurs/2)` chacun) alimentés
+//! par des canaux crossbeam ; chaque thread de génération possède son propre
+//! [`WorldGenerator`] (comme le `ThreadLocal` Java), chaque thread de lumière ses tampons.
+
+use std::collections::{HashMap, HashSet};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
+use std::thread::JoinHandle;
+
+use crossbeam_channel::{unbounded, Receiver, Sender};
+use nb_core::glam::Vec3;
+use nb_core::{ChunkPos, Result};
+use nb_data::{BlockId, BlockRegistry};
+
+use crate::chunk::{Chunk, ChunkEntry, SharedChunk, CHUNK_SIZE_X, CHUNK_SIZE_Z};
+use crate::config::WorldConfig;
+use crate::generator::WorldGenerator;
+use crate::light::{LightContext, LightTable};
+use crate::storage::ChunkStorage;
+
+/// Distance de rendu par défaut (en chunks).
+pub const DEFAULT_RENDER_DISTANCE: i32 = 12;
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// `(int) Math.floor((float) v / 16)` : chunk d'une coordonnée monde (calcul en `f32` du Java).
+#[inline]
+pub fn chunk_coord(v: i32) -> i32 {
+    (v as f32 / CHUNK_SIZE_X as f32).floor() as i32
+}
+
+struct Inner {
+    render_distance: AtomicI32,
+    active: RwLock<HashMap<ChunkPos, SharedChunk>>,
+    generating: Mutex<HashSet<ChunkPos>>,
+    lighting: Mutex<HashSet<ChunkPos>>,
+    storage: Arc<dyn ChunkStorage>,
+    /// Équivalent du `synchronized (storage)`.
+    storage_lock: Mutex<()>,
+    player_chunk_x: AtomicI32,
+    player_chunk_z: AtomicI32,
+    shutdown: AtomicBool,
+    light_table: LightTable,
+}
+
+impl Inner {
+    fn active_get(&self, pos: ChunkPos) -> Option<SharedChunk> {
+        self.active
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&pos)
+            .cloned()
+    }
+
+    fn is_active(&self, pos: ChunkPos) -> bool {
+        self.active
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains_key(&pos)
+    }
+
+    fn mark_mesh_dirty(&self, pos: ChunkPos) {
+        if let Some(c) = self.active_get(pos) {
+            c.flags.set_mesh_dirty(true);
+        }
+    }
+
+    fn mark_neighbors_mesh_dirty(&self, pos: ChunkPos) {
+        self.mark_mesh_dirty(ChunkPos::new(pos.x - 1, pos.z));
+        self.mark_mesh_dirty(ChunkPos::new(pos.x + 1, pos.z));
+        self.mark_mesh_dirty(ChunkPos::new(pos.x, pos.z - 1));
+        self.mark_mesh_dirty(ChunkPos::new(pos.x, pos.z + 1));
+    }
+
+    /// Tâche périmée : le joueur s'est éloigné de plus de `r + 1` chunks.
+    fn is_stale(&self, pos: ChunkPos) -> bool {
+        let r = self.render_distance.load(Ordering::Relaxed);
+        let px = self.player_chunk_x.load(Ordering::Relaxed);
+        let pz = self.player_chunk_z.load(Ordering::Relaxed);
+        (i64::from(pos.x) - i64::from(px)).abs() > i64::from(r) + 1
+            || (i64::from(pos.z) - i64::from(pz)).abs() > i64::from(r) + 1
+    }
+
+    fn save(&self, entry: &ChunkEntry) -> Result<()> {
+        let chunk = entry.read();
+        {
+            let _guard = lock(&self.storage_lock);
+            self.storage.save_chunk(chunk.pos(), chunk.voxels())?;
+        }
+        entry.flags.set_dirty(false);
+        Ok(())
+    }
+
+    fn load_job(&self, pos: ChunkPos, generator: &WorldGenerator) {
+        if self.is_stale(pos) {
+            return;
+        }
+        let stored = {
+            let _g = lock(&self.storage_lock);
+            if self.storage.has_chunk(pos) {
+                match self.storage.load_chunk(pos) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("chunk {pos:?} illisible, régénéré : {e}");
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        };
+        let chunk = match stored {
+            Some(v) => Chunk::from_voxels(pos, v.as_slice()),
+            None => {
+                let mut c = Chunk::new(pos);
+                generator.generate_chunk(&mut c);
+                c
+            }
+        };
+        let entry = Arc::new(ChunkEntry::new(chunk));
+        entry.flags.set_light_dirty(true);
+        self.active
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(pos, entry);
+        self.mark_neighbors_mesh_dirty(pos);
+    }
+
+    fn light_job(&self, pos: ChunkPos, ctx: &mut LightContext) {
+        if self.is_stale(pos) {
+            return;
+        }
+        let Some(target) = self.active_get(pos) else {
+            return;
+        };
+        let edits_before = target.edit_count();
+        // Copie des 9 chunks un par un (jamais deux verrous tenus à la fois).
+        let mut copies: Vec<Option<Chunk>> = Vec::with_capacity(9);
+        for dz in -1..=1 {
+            for dx in -1..=1 {
+                let p = ChunkPos::new(pos.x + dx, pos.z + dz);
+                copies.push(self.active_get(p).map(|e| e.read().clone()));
+            }
+        }
+        let mut cache: [Option<&Chunk>; 9] = [None; 9];
+        for (slot, c) in cache.iter_mut().zip(&copies) {
+            *slot = c.as_ref();
+        }
+        let light = ctx.compute(&cache, &self.light_table);
+        {
+            let mut c = target.write();
+            c.set_light_map(&light);
+            // Correction de la course du Java : si un bloc a changé pendant le calcul, la
+            // lumière reste à recalculer.
+            if target.edit_count() == edits_before {
+                target.flags.set_light_dirty(false);
+            }
+        }
+        self.mark_mesh_dirty(pos);
+        self.mark_neighbors_mesh_dirty(pos);
+    }
+}
+
+/// Gestionnaire des chunks actifs autour du joueur.
+pub struct ChunkManager {
+    inner: Arc<Inner>,
+    generator: Arc<WorldGenerator>,
+    registry: Arc<BlockRegistry>,
+    gen_tx: Mutex<Option<Sender<ChunkPos>>>,
+    light_tx: Mutex<Option<Sender<ChunkPos>>>,
+    workers: Mutex<Vec<JoinHandle<()>>>,
+}
+
+impl std::fmt::Debug for ChunkManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChunkManager")
+            .field("active", &self.active_positions().len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl ChunkManager {
+    /// Pools de `max(1, cœurs / 2)` threads pour la génération et pour la lumière.
+    pub fn new(
+        storage: Arc<dyn ChunkStorage>,
+        seed: i64,
+        cfg: Arc<WorldConfig>,
+        registry: Arc<BlockRegistry>,
+    ) -> Self {
+        let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+        let n = (cores / 2).max(1);
+        Self::with_threads(storage, seed, cfg, registry, n, n)
+    }
+
+    pub fn with_threads(
+        storage: Arc<dyn ChunkStorage>,
+        seed: i64,
+        cfg: Arc<WorldConfig>,
+        registry: Arc<BlockRegistry>,
+        gen_threads: usize,
+        light_threads: usize,
+    ) -> Self {
+        Self::build(
+            storage,
+            Arc::new(WorldGenerator::new(seed, cfg, registry.ids())),
+            registry,
+            gen_threads,
+            light_threads,
+        )
+    }
+
+    /// Construit à partir d'un générateur existant (cloné pour chaque thread).
+    pub fn with_generator(
+        storage: Arc<dyn ChunkStorage>,
+        generator: WorldGenerator,
+        registry: Arc<BlockRegistry>,
+        gen_threads: usize,
+        light_threads: usize,
+    ) -> Self {
+        Self::build(
+            storage,
+            Arc::new(generator),
+            registry,
+            gen_threads,
+            light_threads,
+        )
+    }
+
+    fn build(
+        storage: Arc<dyn ChunkStorage>,
+        generator: Arc<WorldGenerator>,
+        registry: Arc<BlockRegistry>,
+        gen_threads: usize,
+        light_threads: usize,
+    ) -> Self {
+        let inner = Arc::new(Inner {
+            render_distance: AtomicI32::new(DEFAULT_RENDER_DISTANCE),
+            active: RwLock::new(HashMap::new()),
+            generating: Mutex::new(HashSet::new()),
+            lighting: Mutex::new(HashSet::new()),
+            storage,
+            storage_lock: Mutex::new(()),
+            player_chunk_x: AtomicI32::new(0),
+            player_chunk_z: AtomicI32::new(0),
+            shutdown: AtomicBool::new(false),
+            light_table: LightTable::new(&registry),
+        });
+        let (gen_tx, gen_rx) = unbounded::<ChunkPos>();
+        let (light_tx, light_rx) = unbounded::<ChunkPos>();
+        let mut workers = Vec::new();
+        for i in 0..gen_threads.max(1) {
+            let inner = inner.clone();
+            let rx: Receiver<ChunkPos> = gen_rx.clone();
+            // Un générateur par thread (copie indépendante, résultat identique).
+            let generator = WorldGenerator::clone(&generator);
+            workers.push(
+                std::thread::Builder::new()
+                    .name(format!("nb-chunkgen-{i}"))
+                    .spawn(move || {
+                        for pos in rx.iter() {
+                            if inner.shutdown.load(Ordering::Acquire) {
+                                break;
+                            }
+                            let r = catch_unwind(AssertUnwindSafe(|| {
+                                inner.load_job(pos, &generator);
+                            }));
+                            if r.is_err() {
+                                eprintln!("échec de génération du chunk {pos:?}");
+                            }
+                            lock(&inner.generating).remove(&pos);
+                        }
+                    })
+                    .expect("thread de génération"),
+            );
+        }
+        for i in 0..light_threads.max(1) {
+            let inner = inner.clone();
+            let rx: Receiver<ChunkPos> = light_rx.clone();
+            workers.push(
+                std::thread::Builder::new()
+                    .name(format!("nb-light-{i}"))
+                    .spawn(move || {
+                        let mut ctx = LightContext::default();
+                        for pos in rx.iter() {
+                            if inner.shutdown.load(Ordering::Acquire) {
+                                break;
+                            }
+                            let r = catch_unwind(AssertUnwindSafe(|| {
+                                inner.light_job(pos, &mut ctx);
+                            }));
+                            if r.is_err() {
+                                ctx = LightContext::default();
+                                eprintln!("échec du calcul de lumière du chunk {pos:?}");
+                            }
+                            lock(&inner.lighting).remove(&pos);
+                        }
+                    })
+                    .expect("thread de lumière"),
+            );
+        }
+        Self {
+            inner,
+            generator,
+            registry,
+            gen_tx: Mutex::new(Some(gen_tx)),
+            light_tx: Mutex::new(Some(light_tx)),
+            workers: Mutex::new(workers),
+        }
+    }
+
+    pub fn set_render_distance(&self, r: i32) {
+        self.inner.render_distance.store(r, Ordering::Relaxed);
+    }
+
+    pub fn render_distance(&self) -> i32 {
+        self.inner.render_distance.load(Ordering::Relaxed)
+    }
+
+    /// Chunk du joueur (dernier `update`).
+    pub fn player_chunk(&self) -> ChunkPos {
+        ChunkPos::new(
+            self.inner.player_chunk_x.load(Ordering::Relaxed),
+            self.inner.player_chunk_z.load(Ordering::Relaxed),
+        )
+    }
+
+    /// Appelé chaque frame (spec §11.2) : déchargements, puis chargements et lumière.
+    pub fn update(&self, player_pos: Vec3) {
+        let pcx = (player_pos.x / CHUNK_SIZE_X as f32).floor() as i32;
+        let pcz = (player_pos.z / CHUNK_SIZE_Z as f32).floor() as i32;
+        self.inner.player_chunk_x.store(pcx, Ordering::Relaxed);
+        self.inner.player_chunk_z.store(pcz, Ordering::Relaxed);
+        let r = self.render_distance();
+
+        let mut expected = Vec::new();
+        for x in -r..=r {
+            for z in -r..=r {
+                expected.push(ChunkPos::new(pcx.wrapping_add(x), pcz.wrapping_add(z)));
+            }
+        }
+        let expected_set: HashSet<ChunkPos> = expected.iter().copied().collect();
+
+        let to_unload: Vec<ChunkPos> = self
+            .active_positions()
+            .into_iter()
+            .filter(|p| !expected_set.contains(p))
+            .collect();
+        for pos in to_unload {
+            self.unload_chunk(pos);
+        }
+
+        for pos in expected {
+            match self.inner.active_get(pos) {
+                None => {
+                    if !lock(&self.inner.generating).contains(&pos) {
+                        self.load_chunk_async(pos);
+                    }
+                }
+                Some(chunk) => {
+                    if chunk.flags.is_light_dirty()
+                        && !lock(&self.inner.lighting).contains(&pos)
+                        && self.has_neighbors(pos)
+                    {
+                        self.compute_light_async(pos);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Les 9 chunks du carré 3×3 sont actifs.
+    pub fn has_neighbors(&self, pos: ChunkPos) -> bool {
+        let active = self.inner.active.read().unwrap_or_else(|e| e.into_inner());
+        (-1..=1)
+            .all(|x| (-1..=1).all(|z| active.contains_key(&ChunkPos::new(pos.x + x, pos.z + z))))
+    }
+
+    fn load_chunk_async(&self, pos: ChunkPos) {
+        if let Some(tx) = lock(&self.gen_tx).as_ref() {
+            lock(&self.inner.generating).insert(pos);
+            if tx.send(pos).is_err() {
+                lock(&self.inner.generating).remove(&pos);
+            }
+        }
+    }
+
+    fn compute_light_async(&self, pos: ChunkPos) {
+        if let Some(tx) = lock(&self.light_tx).as_ref() {
+            lock(&self.inner.lighting).insert(pos);
+            if tx.send(pos).is_err() {
+                lock(&self.inner.lighting).remove(&pos);
+            }
+        }
+    }
+
+    /// Retire un chunk et le sauvegarde s'il est `dirty` (E/S sur le thread appelant).
+    pub fn unload_chunk(&self, pos: ChunkPos) {
+        let removed = self
+            .inner
+            .active
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&pos);
+        if let Some(entry) = removed {
+            if entry.flags.is_dirty() {
+                if let Err(e) = self.inner.save(&entry) {
+                    eprintln!("échec de sauvegarde du chunk {pos:?} : {e}");
+                }
+            }
+        }
+    }
+
+    pub fn chunk(&self, pos: ChunkPos) -> Option<SharedChunk> {
+        self.inner.active_get(pos)
+    }
+
+    pub fn active_positions(&self) -> Vec<ChunkPos> {
+        self.inner
+            .active
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .copied()
+            .collect()
+    }
+
+    /// Copie de la table des chunks actifs.
+    pub fn active_chunks(&self) -> Vec<(ChunkPos, SharedChunk)> {
+        self.inner
+            .active
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .map(|(p, c)| (*p, c.clone()))
+            .collect()
+    }
+
+    /// Nombre de chunks en génération / en calcul de lumière.
+    pub fn pending(&self) -> (usize, usize) {
+        (
+            lock(&self.inner.generating).len(),
+            lock(&self.inner.lighting).len(),
+        )
+    }
+
+    /// Bloc en coordonnées monde ; chunk absent, `y` hors limites ou ID inconnu → air.
+    pub fn block(&self, x: i32, y: i32, z: i32) -> BlockId {
+        let (cx, cz) = (chunk_coord(x), chunk_coord(z));
+        match self.inner.active_get(ChunkPos::new(cx, cz)) {
+            Some(c) => {
+                let id = c.read().block(
+                    x.wrapping_sub(cx.wrapping_mul(16)),
+                    y,
+                    z.wrapping_sub(cz.wrapping_mul(16)),
+                );
+                self.registry.from_id(id).id
+            }
+            None => self.registry.ids().air,
+        }
+    }
+
+    /// Écrit un bloc (chunk absent → ignoré) et marque les voisins de bord à remailler.
+    pub fn set_block(&self, x: i32, y: i32, z: i32, id: BlockId) {
+        let (cx, cz) = (chunk_coord(x), chunk_coord(z));
+        let Some(c) = self.inner.active_get(ChunkPos::new(cx, cz)) else {
+            return;
+        };
+        let lx = x.wrapping_sub(cx.wrapping_mul(16));
+        let lz = z.wrapping_sub(cz.wrapping_mul(16));
+        c.set_block(lx, y, lz, id);
+        if lx == 0 {
+            self.inner.mark_mesh_dirty(ChunkPos::new(cx - 1, cz));
+        }
+        if lx == CHUNK_SIZE_X as i32 - 1 {
+            self.inner.mark_mesh_dirty(ChunkPos::new(cx + 1, cz));
+        }
+        if lz == 0 {
+            self.inner.mark_mesh_dirty(ChunkPos::new(cx, cz - 1));
+        }
+        if lz == CHUNK_SIZE_Z as i32 - 1 {
+            self.inner.mark_mesh_dirty(ChunkPos::new(cx, cz + 1));
+        }
+    }
+
+    pub fn mark_mesh_dirty(&self, pos: ChunkPos) {
+        self.inner.mark_mesh_dirty(pos);
+    }
+
+    pub fn is_chunk_loaded(&self, wx: i32, wz: i32) -> bool {
+        self.inner
+            .is_active(ChunkPos::new(chunk_coord(wx), chunk_coord(wz)))
+    }
+
+    pub fn compute_surface_height(&self, wx: i32, wz: i32) -> i32 {
+        self.generator.compute_surface_height(wx, wz)
+    }
+
+    pub fn generator(&self) -> &WorldGenerator {
+        &self.generator
+    }
+
+    pub fn storage(&self) -> &Arc<dyn ChunkStorage> {
+        &self.inner.storage
+    }
+
+    pub fn registry(&self) -> &Arc<BlockRegistry> {
+        &self.registry
+    }
+
+    /// Sauvegarde tous les chunks actifs `dirty` (`WorldSaveManager.flushChunks`).
+    /// Continue après une erreur et renvoie la dernière.
+    pub fn flush_dirty(&self) -> Result<()> {
+        let mut result = Ok(());
+        for (_, entry) in self.active_chunks() {
+            if entry.flags.is_dirty() {
+                if let Err(e) = self.inner.save(&entry) {
+                    result = Err(e);
+                }
+            }
+        }
+        result
+    }
+
+    /// Annule les tâches en attente et arrête les threads (n'écrit rien sur disque).
+    pub fn shutdown(&self) {
+        self.inner.shutdown.store(true, Ordering::Release);
+        lock(&self.gen_tx).take();
+        lock(&self.light_tx).take();
+        let workers: Vec<_> = lock(&self.workers).drain(..).collect();
+        for w in workers {
+            let _ = w.join();
+        }
+    }
+}
+
+impl Drop for ChunkManager {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
