@@ -100,7 +100,10 @@ mod tests {
             if m.active_positions().len() >= n && m.pending() == (0, 0) {
                 return;
             }
-            assert!(t.elapsed() < Duration::from_secs(60), "chargement trop long");
+            assert!(
+                t.elapsed() < Duration::from_secs(60),
+                "chargement trop long"
+            );
             std::thread::sleep(Duration::from_millis(5));
         }
     }
@@ -129,7 +132,9 @@ mod tests {
         assert!(src.mesh_dirty(p));
         src.set_mesh_dirty(ChunkPos::new(50, 50), true); // sans effet, sans panique
         let sorted = sorted_active_positions(&m);
-        assert!(sorted.windows(2).all(|w| (w[0].x, w[0].z) < (w[1].x, w[1].z)));
+        assert!(sorted
+            .windows(2)
+            .all(|w| (w[0].x, w[0].z) < (w[1].x, w[1].z)));
         m.shutdown();
     }
 
@@ -181,7 +186,10 @@ mod tests {
         for (x, z) in [(0, 0), (100, -300), (-5000, 1234)] {
             let id = b.biome_at(x, z);
             assert_eq!(id, sys.biome_at(x, z).ordinal() as u8);
-            assert_eq!(b.tints(id).water, sys.config(sys.biome_at(x, z)).water_color);
+            assert_eq!(
+                b.tints(id).water,
+                sys.config(sys.biome_at(x, z)).water_color
+            );
         }
         assert_eq!(b.tints(200).grass, sys.config(Biome::Plains).grass_tint);
     }

@@ -222,8 +222,7 @@ impl InputManager {
             self.secondary_buffer.push(c);
             return;
         }
-        if !self.suppress_chat_filter && self.command_buffer.is_empty() && (c == 't' || c == 'T')
-        {
+        if !self.suppress_chat_filter && self.command_buffer.is_empty() && (c == 't' || c == 'T') {
             return;
         }
         if self.command_buffer == "/" && c == '/' {
