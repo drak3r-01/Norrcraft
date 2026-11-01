@@ -5,5 +5,5 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 case "$(uname -s)" in MINGW*|MSYS*) ROOT="$(cd "$ROOT" && pwd -W)"; export MSYS_NO_PATHCONV=1 ;; esac
 exec docker run --rm \
-  -v "$ROOT:/w" -v nb-cargo:/usr/local/cargo/registry -v nb-target:/w/target -w /w \
+  -v "$ROOT:/w" -v nb-cargo:/usr/local/cargo/registry -v "${NB_TARGET_VOL:-nb-target}:/w/target" -w /w \
   rust:1 sh -c 'rustup component add rustfmt clippy >/dev/null 2>&1; exec cargo "$@"' sh "$@"
