@@ -102,7 +102,7 @@ impl Spawner<'_> {
                 return;
             };
             let ox = ox - self.radius;
-            let oz = rng.next_int_bound(self.radius * 2) - self.radius;
+            let oz = rng.next_int_bound(self.radius.saturating_mul(2)) - self.radius;
             if ox.abs() < MIN_SPAWN_RADIUS && oz.abs() < MIN_SPAWN_RADIUS {
                 continue;
             }
