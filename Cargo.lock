@@ -128,6 +128,7 @@ dependencies = [
  "hecs",
  "nb-core",
  "nb-data",
+ "nb-world",
 ]
 
 [[package]]
