@@ -1,0 +1,5 @@
+shaders/spv/*.spv binary
+shaders/glsl450/* text eol=lf
+shaders/spv/SOURCES.sha256 text eol=lf
+*.sh text eol=lf
+tests/golden/*.png binary
