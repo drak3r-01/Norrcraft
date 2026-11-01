@@ -14,7 +14,7 @@ pub struct Swapchain {
     pub present_mode: vk::PresentModeKHR,
 }
 
-/// Choix du mode : vsync → FIFO ; sinon IMMEDIATE, à défaut MAILBOX ([DÉVIATION]), repli FIFO.
+/// Choix du mode : vsync → FIFO ; sinon IMMEDIATE, à défaut MAILBOX (déviation), repli FIFO.
 pub fn choose_present_mode(available: &[vk::PresentModeKHR], vsync: bool) -> vk::PresentModeKHR {
     if vsync {
         return vk::PresentModeKHR::FIFO;

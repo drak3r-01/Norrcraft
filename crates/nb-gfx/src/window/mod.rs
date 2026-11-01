@@ -137,7 +137,7 @@ impl Renderer {
         &mut self.scene
     }
 
-    /// Taille du framebuffer (pixels). `0` suspend le rendu (§3.3 [DÉVIATION] obligatoire).
+    /// Taille du framebuffer (pixels). `0` suspend le rendu (§3.3, déviation obligatoire).
     pub fn resize(&mut self, width: u32, height: u32) {
         if self.size != (width, height) {
             self.size = (width, height);
@@ -307,7 +307,7 @@ pub fn load_icon(png: &[u8]) -> Option<winit::window::Icon> {
 }
 
 /// Plein écran exclusif sur le moniteur principal avec le mode vidéo courant ; repli
-/// `Borderless` ([DÉVIATION]). Idempotent. La position/taille fenêtrée est restaurée par winit.
+/// `Borderless` (déviation). Idempotent. La position/taille fenêtrée est restaurée par winit.
 pub fn set_fullscreen(window: &winit::window::Window, on: bool) {
     use winit::window::Fullscreen;
     if window.fullscreen().is_some() == on {

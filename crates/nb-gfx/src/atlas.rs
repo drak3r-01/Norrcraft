@@ -165,7 +165,7 @@ pub fn mip_level_count(w: u32, h: u32) -> u32 {
 }
 
 /// Chaîne de mips RGBA8 par moyenne de boîtes 2×2 (équivalent `glGenerateMipmap`,
-/// [DÉVIATION] mineure acceptée §5.1). `out[0]` = niveau 0 (copie).
+/// déviation mineure acceptée §5.1). `out[0]` = niveau 0 (copie).
 pub fn mip_chain(level0: &[u8], w: u32, h: u32) -> Vec<(u32, u32, Vec<u8>)> {
     let mut out = vec![(w, h, level0.to_vec())];
     let (mut cw, mut ch) = (w, h);
@@ -196,7 +196,7 @@ pub fn mip_chain(level0: &[u8], w: u32, h: u32) -> Vec<(u32, u32, Vec<u8>)> {
 }
 
 /// Texture de bruit 256×256 R8 (§4) : octets `floor(random·255)`.
-/// [DÉVIATION] graine fixe (Java : `Math.random()`, non déterministe) pour des rendus
+/// Déviation : graine fixe (Java : `Math.random()`, non déterministe) pour des rendus
 /// reproductibles.
 pub fn noise_texture(seed: i64) -> Vec<u8> {
     let mut rng = JavaRandom::new(seed);

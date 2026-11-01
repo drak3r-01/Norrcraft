@@ -15,7 +15,7 @@ pub struct GfxSettings {
     pub shadow_quality: ShadowQuality,
     pub bloom: bool,
     pub fov_y_deg: f32,
-    /// [DÉVIATION] désactivée par défaut : seuils 200000/100000 dans `shadow.vert` au lieu des
+    /// Déviation désactivée par défaut : seuils 200000/100000 dans `shadow.vert` au lieu des
     /// 2000/1000 du Java (feuilles et croix projetteraient alors des ombres découpées).
     pub fix_shadow_layer_thresholds: bool,
 }
@@ -110,7 +110,7 @@ pub struct FrameUniforms {
     pub zenith_color: [f32; 4],
     pub horizon_color: [f32; 4],
     pub sun_color: [f32; 4],
-    /// x = P_gl[2][2], y = P_gl[3][2], z = W, w = H.
+    /// x = `P_gl[2][2]`, y = `P_gl[3][2]`, z = W, w = H.
     pub proj_gl: [f32; 4],
     /// x = auroraIntensity, y = auroraPhase, z = heatIntensity.
     pub env: [f32; 4],
