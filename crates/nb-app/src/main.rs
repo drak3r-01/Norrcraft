@@ -241,9 +241,12 @@ struct App {
 
 impl App {
     fn start(&mut self, el: &ActiveEventLoop) -> Result<Running, String> {
-        let icon = std::fs::read("assets/textures/ui/icon.png")
-            .ok()
-            .and_then(|b| load_icon(&b));
+        // Ressource intégrée comme dans le jar Java (`/textures/ui/icon.png`) : l'icône ne
+        // dépend pas du dossier courant.
+        let icon = load_icon(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/textures/ui/icon.png"
+        )));
         let window = el
             .create_window(window_attributes().with_window_icon(icon))
             .map_err(|e| e.to_string())?;

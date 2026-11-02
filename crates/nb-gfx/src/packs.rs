@@ -86,22 +86,30 @@ pub fn parse_description(text: &str) -> String {
 }
 
 /// `packsRoot()` : premier dossier existant parmi `./resource_packs`, `../resource_packs`,
+/// puis, relatifs au binaire, `<dossier_du_binaire>/resource_packs` (paquet `dist/Norrblock/`,
+/// équivalent du mode installé Java `<bundle>/resource_packs`) et
 /// `<dossier_du_binaire>/../resource_packs` ; sinon `resource_packs` (relatif).
 pub fn find_packs_root() -> PathBuf {
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(Path::to_path_buf));
+    packs_root_candidates(exe_dir.as_deref())
+        .into_iter()
+        .find(|p| p.is_dir())
+        .unwrap_or_else(|| PathBuf::from("resource_packs"))
+}
+
+/// Candidats de [`find_packs_root`], dans l'ordre.
+fn packs_root_candidates(exe_dir: Option<&Path>) -> Vec<PathBuf> {
     let mut candidates = vec![
         PathBuf::from("resource_packs"),
         PathBuf::from("../resource_packs"),
     ];
-    if let Some(dir) = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(Path::to_path_buf))
-    {
+    if let Some(dir) = exe_dir {
+        candidates.push(dir.join("resource_packs"));
         candidates.push(dir.join("../resource_packs"));
     }
     candidates
-        .into_iter()
-        .find(|p| p.is_dir())
-        .unwrap_or_else(|| PathBuf::from("resource_packs"))
 }
 
 /// `listResourcePacks()` : « Default » d'abord, puis les autres triés sans casse.
@@ -173,6 +181,21 @@ mod tests {
         );
         assert_eq!(parse_description("{}"), "");
         assert_eq!(parse_description("{\"description\": \"\\u00e9\"}"), "u00e9");
+    }
+
+    #[test]
+    fn packs_root_next_to_binary() {
+        let exe = Path::new("/jeu/Norrblock");
+        assert_eq!(
+            packs_root_candidates(Some(exe)),
+            vec![
+                PathBuf::from("resource_packs"),
+                PathBuf::from("../resource_packs"),
+                exe.join("resource_packs"),
+                exe.join("../resource_packs"),
+            ]
+        );
+        assert_eq!(packs_root_candidates(None).len(), 2);
     }
 
     #[test]
