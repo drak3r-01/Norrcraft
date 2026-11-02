@@ -178,4 +178,5 @@ pu être vérifiés que sous lavapipe/Xvfb.
 | Distorsion sous l'eau / dans la lave, distorsion de chaleur près de la lave | ⚠️ | nb-gfx | `nb-gfx:sky::heat_curve`, `tests/render::day_night_cycle_and_fluids` (couleur moyenne seulement) |
 | Balancement des feuilles et des plantes | ⚠️ | nb-gfx | shader porté ligne à ligne ; pas de test d'animation |
 | Fenêtre : titre, icône, redimensionnement, capture de la souris | ⚠️ | nb-app, nb-gfx | `nb-gfx:swapchain::zero_extent_is_skipped` ; e2e fenêtré sous Xvfb ; non vérifié sous Windows |
-| Rendu sur un vrai GPU (NVIDIA / AMD / Intel) et sous Windows | ⚠️ | nb-gfx | jamais exécuté : seulement lavapipe (Linux, Docker) |
+| Exécutable Windows (`norrblock.exe`, MinGW) | ⚠️ | nb-app | scénario complet hors écran et fenêtré sous **Wine** + lavapipe (`scripts/test-dist-windows-wine.sh`) ; jamais lancé sur un vrai Windows |
+| Rendu sur un vrai GPU (NVIDIA / AMD / Intel) | ⚠️ | nb-gfx | jamais exécuté : seulement lavapipe (rendu logiciel, Docker) |
