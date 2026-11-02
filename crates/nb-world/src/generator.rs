@@ -15,6 +15,12 @@ use crate::noise::{hash_position, Noise};
 const SY: i32 = CHUNK_SIZE_Y as i32;
 const SX: i32 = CHUNK_SIZE_X as i32;
 const SZ: i32 = CHUNK_SIZE_Z as i32;
+const COLUMNS: usize = CHUNK_SIZE_X * CHUNK_SIZE_Z;
+
+#[inline]
+fn col_index(lx: i32, lz: i32) -> usize {
+    (lx * SZ + lz) as usize
+}
 
 /// `(hash % 10000) / 10000.0`.
 #[inline]
@@ -38,7 +44,9 @@ pub struct WorldGenerator {
     java_lava_pass: bool,
 }
 
-/// Données d'une colonne (passe 1).
+/// Données d'une colonne (passe 1), conservées pour les passes arbres et végétation qui
+/// recalculaient le biome (10 évaluations de bruit) et les facteurs rivière/océan à l'identique.
+#[derive(Clone, Copy)]
 struct Column {
     biome: Biome,
     height: i32,
@@ -183,7 +191,7 @@ impl WorldGenerator {
         let pos = chunk.pos();
         let wx0 = pos.x.wrapping_mul(SX);
         let wz0 = pos.z.wrapping_mul(SZ);
-        self.pass_columns(chunk, wx0, wz0);
+        let columns = self.pass_columns(chunk, wx0, wz0);
         if self.cfg.caves_enabled {
             self.pass_caves(chunk, wx0, wz0);
         }
@@ -193,11 +201,18 @@ impl WorldGenerator {
         if self.cfg.caves_enabled || self.java_lava_pass {
             self.pass_lava(chunk);
         }
-        self.pass_trees(chunk, wx0, wz0);
-        self.pass_vegetation(chunk, wx0, wz0);
+        self.pass_trees(chunk, wx0, wz0, &columns);
+        self.pass_vegetation(chunk, wx0, wz0, &columns);
     }
 
-    fn pass_columns(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) {
+    /// Remplit les colonnes et renvoie leurs données, indexées `lx * 16 + lz`.
+    fn pass_columns(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) -> [Column; COLUMNS] {
+        let mut columns = [Column {
+            biome: Biome::Plains,
+            height: 0,
+            ocean: 0.0,
+            river: 0.0,
+        }; COLUMNS];
         let ids = &self.ids;
         let sea = self.cfg.sea_level;
         for lx in 0..SX {
@@ -205,6 +220,7 @@ impl WorldGenerator {
                 let wx = wx0.wrapping_add(lx);
                 let wz = wz0.wrapping_add(lz);
                 let col = self.column(wx, wz);
+                columns[col_index(lx, lz)] = col;
                 let height = col.height;
                 let bc = self.biomes.config(col.biome);
                 let near_river = col.river < 0.6;
@@ -237,6 +253,7 @@ impl WorldGenerator {
                 }
             }
         }
+        columns
     }
 
     fn pass_caves(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) {
@@ -377,14 +394,15 @@ impl WorldGenerator {
             || b == i.dead_bush
     }
 
-    fn pass_trees(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) {
+    fn pass_trees(&self, chunk: &mut Chunk, wx0: i32, wz0: i32, columns: &[Column; COLUMNS]) {
         let ids = &self.ids;
         let c = &*self.cfg;
         for lx in 2..SX - 2 {
             for lz in 2..SZ - 2 {
                 let wx = wx0.wrapping_add(lx);
                 let wz = wz0.wrapping_add(lz);
-                let biome = self.biomes.biome_at(wx, wz);
+                let col = &columns[col_index(lx, lz)];
+                let biome = col.biome;
                 let bc = self.biomes.config(biome);
                 let ov = c.tree_density_overrides[biome.ordinal()];
                 let base = if ov >= 0.0 { ov } else { bc.tree_density };
@@ -395,8 +413,8 @@ impl WorldGenerator {
                 if unit(hash_position(wx, wz)) > d {
                     continue;
                 }
-                let (x, z) = (f64::from(wx), f64::from(wz));
-                if self.river_factor(x, z) < 0.8 || self.ocean_factor(x, z) < 0.7 {
+                // Mêmes valeurs que `river_factor` / `ocean_factor` (calculées en passe 1).
+                if col.river < 0.8 || col.ocean < 0.7 {
                     continue;
                 }
                 let mut surface_y = -1;
@@ -632,14 +650,14 @@ impl WorldGenerator {
         }
     }
 
-    fn pass_vegetation(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) {
+    fn pass_vegetation(&self, chunk: &mut Chunk, wx0: i32, wz0: i32, columns: &[Column; COLUMNS]) {
         let ids = &self.ids;
         let c = &*self.cfg;
         for lx in 0..SX {
             for lz in 0..SZ {
                 let wx = wx0.wrapping_add(lx);
                 let wz = wz0.wrapping_add(lz);
-                let biome = self.biomes.biome_at(wx, wz);
+                let biome = columns[col_index(lx, lz)].biome;
                 let bc = self.biomes.config(biome);
                 let mut y = SY - 1;
                 while y >= c.sea_level.wrapping_sub(1) {
