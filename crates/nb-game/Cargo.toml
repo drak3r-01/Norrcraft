@@ -20,3 +20,7 @@ nb-gfx = { path = "../nb-gfx", default-features = false }
 
 [lints]
 workspace = true
+
+[[bench]]
+name = "pipeline"
+harness = false
