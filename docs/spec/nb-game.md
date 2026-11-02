@@ -145,3 +145,22 @@ du joueur (§6) → PLAYING.
    (comme à l'initialisation : graine `nextInt(1e9)`, stockage en mémoire, CREATIVE, jamais
    sauvegardé). Seul effet visible : le fond du menu principal est ce nouveau monde au lieu du
    monde quitté.
+
+## 9. Câblage et validation (phase 6)
+
+* nb-app : `driver::Driver` (commun à la fenêtre et au rendu hors écran) crée le `Game`, branche
+  `NbUi`, charge les textures de l'UI (`nb_ui::textures::load_all`, index = `UiTexture::index`)
+  dans un `nb_gfx::ui_pass::UiRenderer`, relaie les demandes (réglages, pack : atlas des
+  icônes rechargé, modèles de mobs) et rend chaque frame : scène + UI si
+  `GameState::renders_world()`, sinon UI seule (`render_ui_frame`).
+* Mode scripté (`norrblock --script <fichier> [--headless --capture-dir <dossier>]`, outil de
+  test) : entrées simulées frame par frame, un tick fixe par frame (déroulé reproductible),
+  captures PNG hors écran, `expect-state`, et deux commandes d'outillage (`spawn-mob`,
+  `spawn-particles`) qui créent des entités / particules devant la caméra pour vérifier leur
+  rendu — elles ne sont accessibles que par script, pas en jeu.
+* Scénario `crates/nb-app/scripts/scenario.txt` (`e2e.sh`, Docker : lavapipe + couches de
+  validation + Xvfb) : menu → choix du monde → création (nom, germe, triche) → jeu (HUD, blocs
+  cassés, objet tenu) → mobs et particules → inventaire → chat → pause → réglages / packs /
+  mobs → menu (sauvegarde + déchargement) → rechargement → quitter ; exécuté hors écran avec
+  captures puis en fenêtre réelle (swapchain) sous Xvfb. Échec si un `expect-state` échoue ou
+  si la validation Vulkan signale un message d'erreur.

@@ -56,3 +56,16 @@ demi-résolution, `cloud.vert/frag` jamais compilés.
 3. Ordre d'itération des entités : libre choix ; on prend un ordre **déterministe** (par id
    d'entité croissant) plutôt que d'émuler le `HashMap` Java.
 4. Écarts proposés au §« Décisions » point 4 : **tous appliqués** (au mieux, documentés).
+
+## Décisions de Gabriel (2026-11-02, phase 6 — câblage)
+
+Aucune ne change le gameplay ; chacune est documentée dans la spec du crate et testée.
+
+1. Création de monde : le **germe saisi est utilisé** (`WorldSelectScreen::fix_seed_input`
+   vrai par défaut ; le Java le vidait avant lecture). `nb-ui.md` §5.
+2. PAUSED → MAIN MENU **décharge** le monde après sauvegarde (le Java le laissait chargé et
+   pouvait le resauvegarder sous un nom périmé, recréant le dossier d'un monde renommé ou
+   supprimé). `nb-game.md` §8.6.
+3. Caractères hors ASCII imprimable affichés « ? » : **gardé tel quel**. `nb-ui.md` §5.
+4. `nb-gfx.md` corrigé pour suivre le code : passe B2 sans bright buffer (§14.1, §15, §18.4)
+   et UV 0..64 de la boîte texturée de repli, texture répétée (§14.2 étape 4).
