@@ -430,9 +430,9 @@ pub struct WorldSelectScreen {
     /// `new WorldConfig()` (valeurs remises à chaque « Create New World »).
     pub defaults: WorldGenParams,
     rng: JavaRandom,
-    /// [JAVA-BUG] Faux par défaut (comportement Java) : `closeTyping` vide le tampon du germe
-    /// **avant** sa lecture, le germe saisi est donc ignoré (toujours aléatoire). Vrai =
-    /// germe lu avant la fermeture.
+    /// [JAVA-BUG] corrigé (décision de Gabriel, 2026-11-02) : vrai par défaut, le germe est
+    /// lu avant `closeTyping`. Faux = comportement Java (`closeTyping` vide le tampon du
+    /// germe **avant** sa lecture : germe saisi ignoré, toujours aléatoire).
     pub fix_seed_input: bool,
 }
 
@@ -463,7 +463,7 @@ impl WorldSelectScreen {
             advanced_expanded: false,
             adv: AdvPanel::default(),
             rng: JavaRandom::new(seed),
-            fix_seed_input: false,
+            fix_seed_input: true,
         }
     }
 

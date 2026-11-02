@@ -225,7 +225,7 @@ fn create_flow_keeps_java_seed_bug() {
         panic!("création attendue : {r:?}");
     };
     assert_eq!(name, "My World");
-    assert_eq!(seed_text, "", "[JAVA-BUG] germe effacé avant lecture");
+    assert_eq!(seed_text, "42", "germe saisi conservé (correctif par défaut)");
     assert_eq!(world_type, WorldType::Flat);
     assert_eq!(game_mode, "CREATIVE");
     assert_eq!(params.sea_level, 4);
@@ -236,13 +236,22 @@ fn create_flow_keeps_java_seed_bug() {
 #[test]
 fn seed_fix_flag() {
     let mut h = Harness::new();
-    h.s.fix_seed_input = true;
+    assert!(h.s.fix_seed_input, "correctif actif par défaut");
     h.click(700.0, ROW1);
     h.b.secondary = "1234".into();
     let Some(WorldAction::Create { seed_text, .. }) = h.click(300.0, ROW1) else {
         panic!("création attendue")
     };
     assert_eq!(seed_text, "1234");
+    // Comportement Java d'origine : le germe est vidé avant d'être lu.
+    let mut h = Harness::new();
+    h.s.fix_seed_input = false;
+    h.click(700.0, ROW1);
+    h.b.secondary = "1234".into();
+    let Some(WorldAction::Create { seed_text, .. }) = h.click(300.0, ROW1) else {
+        panic!("création attendue")
+    };
+    assert_eq!(seed_text, "", "[JAVA-BUG] germe effacé avant lecture");
 }
 
 #[test]

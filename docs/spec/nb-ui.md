@@ -60,14 +60,18 @@ scissor). Le rendu GPU est `nb_gfx::ui_pass::UiRenderer`, enregistré dans l'`Ov
 ## 5. Écarts
 
 - Caractères hors ASCII imprimable remplacés par `?` (comportement indéfini en Java/stb).
+  **Décision de Gabriel (2026-11-02) : gardé tel quel** (aucune police étendue ; un nom de
+  monde « Forêt » s'affiche « For?t », le nom saisi et le dossier restent intacts).
 - Date « Last played » formatée en UTC (Java : fuseau local).
 - Le tirage « Random » du germe utilise `JavaRandom` initialisé sur l'horloge.
 - Bogues conservés : clic « traversant » à l'entrée des écrans qui remettent `mouseWasDown` à
   faux, barre de défilement des réglages ancrée sur `listTop`, titres centrés approximativement
   (`w/2 - 80`, `w/2 - 60`, `len × 6`), Échap pendant une réaffectation qui quitte l'écran.
-- [JAVA-BUG] gardé : à la création d'un monde, `closeTyping` vide le tampon du germe avant sa
-  lecture → germe saisi ignoré (toujours aléatoire). Correctif derrière
-  `WorldSelectScreen::fix_seed_input` (faux par défaut), à valider par Gabriel.
+- [JAVA-BUG] **corrigé** (décision de Gabriel, 2026-11-02) : à la création d'un monde, le Java
+  appelle `closeTyping` (qui vide le tampon du germe) avant de le lire → germe saisi ignoré
+  (toujours aléatoire). Le germe est désormais lu avant la fermeture :
+  `WorldSelectScreen::fix_seed_input` vaut **vrai** par défaut (faux = comportement Java,
+  gardé pour les tests).
 - Arbres « Auto » : `(float) -0.001` élargi en double vaut −0,0010000000475, donc le Java
   affiche « -0.0010 » et jamais « Auto » ; reproduit.
 - Formats `%.nf` : HALF_UP Java, toujours avec un point (décision des commandes).
