@@ -148,12 +148,13 @@ fn main() {
         let table = LightTable::new(&reg);
         let inner = interior();
         let mut ctx = LightContext::default();
-        let (times, check) = bench(n, || {
-            inner.iter().fold(0, |h, &p| {
-                let l = ctx.compute(&neighbours(&chunks, p), &table);
-                mix(h, fnv1a(l.as_slice()))
-            })
+        let (times, out) = bench(n, || {
+            inner
+                .iter()
+                .map(|&p| ctx.compute(&neighbours(&chunks, p), &table))
+                .collect::<Vec<_>>()
         });
+        let check = out.iter().fold(0, |h, l| mix(h, fnv1a(l.as_slice())));
         report("light/world", "chunk", inner.len(), times, check);
         // Contrôle : la version autonome donne le même résultat.
         let alone = inner.iter().fold(0, |h, &p| {
@@ -196,32 +197,120 @@ fn main() {
         if !wanted(&filters, name) {
             continue;
         }
-        let (times, (check, verts)) = bench(n, || {
-            hoods.iter().fold((0, 0usize), |(h, nv), (p, refs)| {
-                let m = mesh_chunk(*p, &Neighborhood::from_voxels(*refs), &table, biomes);
-                (mix(h, m.fingerprint()), nv + m.vertex_count())
-            })
+        let (times, out) = bench(n, || {
+            hoods
+                .iter()
+                .map(|(p, refs)| mesh_chunk(*p, &Neighborhood::from_voxels(*refs), &table, biomes))
+                .collect::<Vec<_>>()
         });
+        let check = out.iter().fold(0, |h, m| mix(h, m.fingerprint()));
+        let verts: usize = out.iter().map(|m| m.vertex_count()).sum();
         report(name, "chunk", hoods.len(), times, check);
         println!("{:<28} {verts} sommets", "");
     }
 
     if wanted(&filters, "light/mesh") {
-        let (times, check) = bench(n, || {
-            hoods.iter().fold(0, |h, (_, refs)| {
-                mix(
-                    h,
+        let (times, out) = bench(n, || {
+            hoods
+                .iter()
+                .map(|(_, refs)| {
                     nb_mesh::LightVolume::compute(&Neighborhood::from_voxels(*refs), &table)
-                        .fingerprint(),
-                )
-            })
+                })
+                .collect::<Vec<_>>()
         });
+        let check = out.iter().fold(0, |h, l| mix(h, l.fingerprint()));
         report("light/mesh-volume", "chunk", hoods.len(), times, check);
     }
 
     if wanted(&filters, "manager") {
         manager_bench(&reg, &table, &world_biomes, n.min(3));
     }
+    if wanted(&filters, "frame") {
+        frame_bench(&reg, &table, &world_biomes);
+    }
+}
+
+/// Charge entièrement un monde de rayon `r`, puis renvoie le gestionnaire et le planificateur.
+fn load_world(
+    reg: &Arc<BlockRegistry>,
+    table: &Arc<BlockTable>,
+    biomes: &Arc<dyn BiomeSource>,
+    r: i32,
+) -> (ChunkManager, MeshScheduler, usize) {
+    let m = ChunkManager::new(
+        Arc::new(InMemoryChunkStorage::new()),
+        SEED,
+        Arc::new(WorldConfig::preset(WorldType::Normal)),
+        reg.clone(),
+    );
+    m.set_render_distance(r);
+    let mut s = MeshScheduler::new(nb_mesh::default_threads());
+    let side = (2 * r + 1) as usize;
+    // Maillables : 9 voisins à lumière propre, soit le carré de rayon R − 2 (spec §11.7).
+    let target = (side - 4) * (side - 4);
+    let mut meshed = std::collections::HashSet::new();
+    let deadline = Instant::now() + Duration::from_secs(120);
+    loop {
+        m.update(Vec3::new(8.0, 80.0, 8.0));
+        let mut active = m.active_positions();
+        active.sort_by_key(|p| (p.x, p.z));
+        for a in s.update(&mut WorldChunks(&m), &active, table.clone(), biomes.clone()) {
+            if let MeshAction::Upload(p, _) = a {
+                meshed.insert(p);
+            }
+        }
+        let all_light_clean = active
+            .iter()
+            .all(|p| !WorldChunks(&m).light_dirty(*p) || !m.has_neighbors(*p));
+        if active.len() == side * side
+            && m.pending() == (0, 0)
+            && all_light_clean
+            && meshed.len() >= target
+            && s.in_flight_count() == 0
+        {
+            break;
+        }
+        assert!(Instant::now() < deadline, "chargement trop long");
+        std::thread::sleep(Duration::from_micros(500));
+    }
+    (m, s, meshed.len())
+}
+
+/// Coût par frame, monde chargé et stable (rayon par défaut 12) : `ChunkManager::update` et
+/// `MeshScheduler::update` (rien à faire : coût de pure planification).
+fn frame_bench(reg: &BlockRegistry, table: &BlockTable, biomes: &WorldBiomes) {
+    const FRAMES: usize = 200;
+    let reg = Arc::new(reg.clone());
+    let table = Arc::new(table.clone());
+    let biomes: Arc<dyn BiomeSource> = Arc::new(biomes.clone());
+    let (m, mut s, meshed) = load_world(&reg, &table, &biomes, nb_world::DEFAULT_RENDER_DISTANCE);
+    let player = Vec3::new(8.0, 80.0, 8.0);
+    let mut t_world = Vec::with_capacity(FRAMES);
+    let mut t_mesh = Vec::with_capacity(FRAMES);
+    let mut actions = 0;
+    for _ in 0..FRAMES {
+        let t = Instant::now();
+        m.update(player);
+        t_world.push(t.elapsed());
+        let t = Instant::now();
+        let mut active = m.active_positions();
+        active.sort_by_key(|p| (p.x, p.z));
+        actions += s
+            .update(&mut WorldChunks(&m), &active, table.clone(), biomes.clone())
+            .len();
+        t_mesh.push(t.elapsed());
+    }
+    let n = m.active_positions().len();
+    report("frame/chunk-manager", "frame", 1, t_world, n as u64);
+    report(
+        "frame/mesh-scheduler",
+        "frame",
+        1,
+        t_mesh,
+        (meshed as u64) << 32 | actions as u64,
+    );
+    s.shutdown();
+    m.shutdown();
 }
 
 /// Chargement complet (génération + lumière + maillage) d'un rayon 6 autour de l'origine,
@@ -232,46 +321,11 @@ fn manager_bench(reg: &BlockRegistry, table: &BlockTable, biomes: &WorldBiomes, 
     let table = Arc::new(table.clone());
     let biomes: Arc<dyn BiomeSource> = Arc::new(biomes.clone());
     let (times, (loaded, meshed)) = bench(n, || {
-        let m = ChunkManager::new(
-            Arc::new(InMemoryChunkStorage::new()),
-            SEED,
-            Arc::new(WorldConfig::preset(WorldType::Normal)),
-            reg.clone(),
-        );
-        m.set_render_distance(R);
-        let mut s = MeshScheduler::new(nb_mesh::default_threads());
-        let side = (2 * R + 1) as usize;
-        // Maillables : 9 voisins à lumière propre, soit le carré de rayon R − 2 (spec §11.7).
-        let target = (side - 4) * (side - 4);
-        let mut meshed = std::collections::HashSet::new();
-        let deadline = Instant::now() + Duration::from_secs(120);
-        loop {
-            m.update(Vec3::new(8.0, 80.0, 8.0));
-            let mut active = m.active_positions();
-            active.sort_by_key(|p| (p.x, p.z));
-            for a in s.update(&mut WorldChunks(&m), &active, table.clone(), biomes.clone()) {
-                if let MeshAction::Upload(p, _) = a {
-                    meshed.insert(p);
-                }
-            }
-            let all_light_clean = active
-                .iter()
-                .all(|p| !WorldChunks(&m).light_dirty(*p) || !m.has_neighbors(*p));
-            if active.len() == side * side
-                && m.pending() == (0, 0)
-                && all_light_clean
-                && meshed.len() >= target
-                && s.in_flight_count() == 0
-            {
-                break;
-            }
-            assert!(Instant::now() < deadline, "chargement trop long");
-            std::thread::sleep(Duration::from_micros(500));
-        }
+        let (m, s, meshed) = load_world(&reg, &table, &biomes, R);
         let loaded = m.active_positions().len();
         s.shutdown();
         m.shutdown();
-        (loaded, meshed.len())
+        (loaded, meshed)
     });
     report(
         "manager/load-r6",
