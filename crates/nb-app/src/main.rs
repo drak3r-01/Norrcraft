@@ -87,16 +87,17 @@ impl App {
         window.set_visible(true);
         let size = window.inner_size();
         let packs_root = find_packs_root();
+        let regs = Registries::builtin();
+        let mob_models = nb_gfx::MobModelDesc::from_registry(&regs.mobs);
         let renderer = Renderer::new(
             &window,
             (size.width, size.height),
             &packs_root,
+            &mob_models,
             &GfxSettings::default(),
         )
         .map_err(|e| e.to_string())?;
         println!("GPU : {}", renderer.context().device_name);
-
-        let regs = Registries::builtin();
         let table = block_table(&renderer, &regs);
         let mut opts = GameOptions::new(self.args.saves.clone().unwrap_or_else(|| "saves".into()));
         opts.packs_root = Some(packs_root);
@@ -172,7 +173,11 @@ impl Running {
                     }
                 }
                 PlatformRequest::ReloadResourcePack(name) => {
-                    if let Err(e) = self.renderer.reload_resource_pack(&name) {
+                    let mob_models = {
+                        let g = self.game.as_ref().expect("jeu actif");
+                        nb_gfx::MobModelDesc::from_registry(&g.regs.mobs)
+                    };
+                    if let Err(e) = self.renderer.reload_resource_pack(&name, &mob_models) {
                         eprintln!("pack {name} : {e}");
                     }
                     let table = {

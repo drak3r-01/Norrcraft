@@ -48,6 +48,9 @@ impl RenderView<'_> {
             eye_fluid: self.eye_fluid,
             heat_intensity: self.heat_intensity,
             highlight_block: self.highlight_block,
+            // Conversion `MobInstance`/`Particle` → instances nb-gfx : à brancher à l'intégration.
+            mobs: &[],
+            particles: &[],
         }
     }
 }

@@ -629,6 +629,12 @@ mod tests {
         let assets = SceneAssets {
             block_atlas: atlas.clone(),
             clouds: None,
+            ..SceneAssets::load(
+                &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../resource_packs"),
+                "Default",
+                &[],
+            )
+            .0
         };
         let (w, h) = (64u32, 32u32);
         let mut off =
@@ -711,6 +717,8 @@ mod tests {
             eye_fluid: EyeFluid::None,
             heat_intensity: 0.0,
             highlight_block: None,
+            mobs: &[],
+            particles: &[],
         };
         let mut err = None;
         let img = off
