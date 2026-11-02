@@ -18,7 +18,7 @@ use crate::input::{Action, InputManager};
 use crate::render::{build_view, ParticleLayers, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
-use crate::ui::{NewWorld, NullUi, Ui, UiCommand, UiView};
+use crate::ui::{NewWorld, NullUi, Ui, UiCommand, UiFrame, UiView};
 
 /// Demandes faites à la plateforme (fenêtre, GPU) ; la logique reste sans effet de bord.
 #[derive(Clone, Debug, PartialEq)]
@@ -33,8 +33,11 @@ pub enum PlatformRequest {
     /// `assetManager.reloadBlockTextures(nom)` + icônes ; la plateforme rappelle ensuite
     /// [`Game::set_block_table`] (le maillage est suspendu jusque-là).
     ReloadResourcePack(String),
-    /// Modèles des mobs à recharger (`reloadMobModel` des mobs ajoutés).
+    /// Sortie de l'écran des mobs (`applyAndLeave`) : `reloadMobModel` de chaque mob du
+    /// registre dont le modèle n'est pas chargé.
     ReloadMobModels,
+    /// `reloadMobModel(id)` : mob ajouté dans l'écran des mobs.
+    ReloadMobModel(String),
     /// Fermeture de la fenêtre (`glfwSetWindowShouldClose`).
     Quit,
 }
@@ -141,7 +144,7 @@ pub struct Game {
     requests: Vec<PlatformRequest>,
     events: Vec<EcsEvent>,
     worlds: Vec<WorldMetadata>,
-    packs: Vec<String>,
+    packs: Vec<nb_gfx::ResourcePackMeta>,
     window_size: (u32, u32),
     resized: bool,
     aspect: f32,
@@ -433,6 +436,8 @@ impl Game {
             worlds: &self.worlds,
             resource_packs: &self.packs,
             mobs: &self.regs.mobs,
+            blocks: &self.regs.blocks,
+            block_table: &self.block_table,
             previous_state: self.previous_state,
             settings_tab: self.settings_tab,
             hud: &self.hud,
@@ -584,6 +589,12 @@ impl Game {
             | GameState::ResourcePacks
             | GameState::MobSettings => {}
         }
+        // Écouteur de réaffectation : la touche capturée passe avant la mise à jour de l'écran
+        // (callback GLFW pendant `pollEvents`, avant le tick suivant). Échap y est consommé
+        // puis revu enfoncé par l'écran : il quitte les réglages (bogue Java conservé).
+        if let Some(key) = self.input.take_rebind() {
+            self.ui.key_pressed(self.state, key);
+        }
         let cmds = self.with_ui(|ui, view, input| ui.update(view, input, dt));
         for c in cmds {
             self.command(c);
@@ -641,11 +652,8 @@ impl Game {
             GameState::ResourcePacks => {
                 self.requests.push(PlatformRequest::SetCursorGrab(false));
                 self.packs = match &self.opts.packs_root {
-                    Some(root) => nb_gfx::list_resource_packs(root)
-                        .into_iter()
-                        .map(|m| m.name)
-                        .collect(),
-                    None => vec![nb_gfx::packs::DEFAULT_PACK.to_owned()],
+                    Some(root) => nb_gfx::list_resource_packs(root),
+                    None => vec![nb_gfx::ResourcePackMeta::builtin()],
                 };
             }
             GameState::MobSettings => {
@@ -789,12 +797,33 @@ impl Game {
                     }
                 }
             }
+            UiCommand::ReloadMobModel(id) => {
+                self.requests.push(PlatformRequest::ReloadMobModel(id));
+            }
+            UiCommand::ResetMobRegistry(reg) => {
+                self.command(UiCommand::SetMobRegistry(reg));
+                // `despawnAll` + `clearDirty`.
+                self.despawn_mobs_if_dirty();
+            }
             UiCommand::LeaveMobSettings => {
                 self.requests.push(PlatformRequest::ReloadMobModels);
                 self.despawn_mobs_if_dirty();
                 self.switch_state(GameState::Settings);
             }
         }
+    }
+
+    /// Dessin 2D de la frame (écran de l'état courant puis chat), converti pour nb-gfx.
+    pub fn draw_ui(&mut self) -> UiFrame {
+        let (w, h) = self.window_size;
+        let mut dl = nb_ui::DrawList::new(w, h);
+        let mut ui = std::mem::replace(&mut self.ui, Box::new(NullUi));
+        {
+            let view = self.ui_view();
+            ui.draw(&view, &self.input, &mut dl);
+        }
+        self.ui = ui;
+        UiFrame::from_draw_list(&dl)
     }
 
     fn request_pack_reload(&mut self, name: String) {

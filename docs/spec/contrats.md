@@ -9,6 +9,8 @@ Toute modification passe par l'architecte.
 `nb-core` ← `nb-data` ← `nb-world` ← `nb-mesh`, `nb-ecs` ← `nb-game` ← `nb-app`
 `nb-gfx` dépend de `nb-core`/`nb-data` seulement (reçoit un `FrameInput`, jamais `nb-world`).
 `nb-ui` dépend de `nb-core`/`nb-data`. Seul `nb-gfx` touche `ash`.
+Phase 6 (câblage) : `nb-game` dépend aussi de `nb-ui` (implémentation `NbUi` du trait `Ui`,
+conversion de la `DrawList` pour `nb_gfx::ui_pass`) ; nb-ui reste pur CPU et ignore nb-game.
 
 ## Types partagés (déjà dans le code, phase 1)
 

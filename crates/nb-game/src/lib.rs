@@ -26,6 +26,7 @@ pub mod fixed_step;
 pub mod game;
 pub mod input;
 pub mod render;
+pub mod screens;
 pub mod session;
 pub mod state;
 pub mod ui;
@@ -38,7 +39,8 @@ pub use input::{Action, InputManager};
 pub use render::{MobInstance, ParticleLayers, RenderView};
 pub use session::{Registries, WorldSession};
 pub use state::{GameState, HudState, SettingsTab};
-pub use ui::{NewWorld, NullUi, StubUi, Ui, UiCommand, UiView};
+pub use screens::NbUi;
+pub use ui::{NewWorld, NullUi, StubUi, Ui, UiCommand, UiFrame, UiView};
 
 pub use nb_ecs::GameMode;
 pub use nb_mesh::MeshAction;

@@ -10,6 +10,9 @@ nb-data.workspace = true
 nb-world.workspace = true
 nb-mesh.workspace = true
 nb-ecs.workspace = true
+# Écrans 2D (pur CPU, ne dépend que de nb-core / nb-data) : implémentation de `Ui`.
+nb-ui.workspace = true
+bytemuck.workspace = true
 # Parties pures de nb-gfx seulement (caméra, horloge jour/nuit, FrameInput) : pas de fenêtre.
 # Chemin direct : `default-features = false` est ignoré sur une dépendance `workspace = true`
 # dont l'entrée de workspace ne le précise pas (et le Cargo.toml racine n'est pas à ce crate).

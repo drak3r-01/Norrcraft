@@ -103,10 +103,27 @@ du joueur (§6) → PLAYING.
 ## 7. Façades (intégration)
 
 * **UI** (`nb_game::ui::Ui`) : à chaque tick d'un état, l'UI reçoit l'état, une vue en lecture et
-  les entrées, et renvoie des `UiCommand` (boutons) que `nb-game` exécute. nb-ui l'implémentera ;
-  `StubUi` (clavier, sans rendu) sert en attendant.
+  les entrées, et renvoie des `UiCommand` (boutons) que `nb-game` exécute ; à chaque frame
+  `Game::draw_ui()` lui fait remplir une `nb_ui::DrawList` (écran puis chat), convertie en
+  `UiFrame` (`UiVertex` par `bytemuck`, lots → `UiDraw`) pour `nb_gfx::ui_pass::UiRenderer`.
+  Implémentation du jeu : `nb_game::NbUi` (module `screens`, phase 6) — tampons de saisie
+  recopiés depuis / vers l'`InputManager`, actions nb-ui → `UiCommand`, `WorldGenParams` ↔
+  `WorldConfig` (`preset(type)` puis champs édités), icônes = couche `texture_layers[0]` de la
+  table de maillage. Réaffectation : la touche capturée par `InputManager::start_rebind` est
+  livrée par `Ui::key_pressed` **avant** `Ui::update` du même tick (callback GLFW du Java) ;
+  Échap y est consommé puis revu enfoncé par l'écran, qui quitte (bogue Java conservé).
+  `StubUi` (clavier, sans rendu) reste pour les tests et outils. nb-game dépend donc de nb-ui
+  (pur CPU), voir `contrats.md`.
 * **Rendu** : `Game::render_view()` fournit caméra, horloge, fluide à l'œil, chaleur, bloc visé,
-  et la liste des mobs (`MobInstance`) et particules pour le futur rendu de nb-gfx.
+  mobs (`MobInstance`) et particules ; `RenderView::frame_input` les convertit pour nb-gfx
+  (`missing_scale` = `(widthX, height, widthZ)` de la config, mob sans config ignoré ; couche
+  de particule = `particle_atlas().layer(type.texture)`, `Game::set_particle_layers`).
+  `GameState::renders_world()` faux (WORLD_SELECT, SETTINGS, RESOURCE_PACKS, MOB_SETTINGS) :
+  la plateforme ne rend que l'UI (`render_ui_frame`, image effacée en noir puis fond de terre
+  plein écran, comme le Java qui n'appelle pas `MasterRenderer.render` dans ces états).
+* **Plateforme** : `PlatformRequest::ReloadMobModels` (sortie de l'écran des mobs : modèle
+  rechargé pour chaque mob du registre qui n'en a pas) et `ReloadMobModel(id)` (mob ajouté) ;
+  au démarrage, les modèles sont rechargés depuis le `mobs.json` lu par `Game`.
 * **Maillage** : `WorldChunks` implémente `nb_mesh::ChunkSource` sur le `ChunkManager` ;
   `WorldBiomes` implémente `BiomeSource`. Les `MeshAction` sont relayées à la plateforme.
 

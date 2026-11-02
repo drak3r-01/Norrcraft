@@ -1,11 +1,16 @@
-//! Façade d'interface : nb-game ne connaît pas nb-ui. À chaque tick, l'écran de l'état courant
-//! reçoit une vue en lecture ([`UiView`]) et les entrées, et renvoie des [`UiCommand`] que le
-//! jeu exécute (les clics de boutons du Java). nb-ui implémentera [`Ui`] à l'intégration ;
-//! [`StubUi`] (clavier, sans rendu) permet de jouer en attendant.
+//! Façade d'interface. À chaque tick, l'écran de l'état courant reçoit une vue en lecture
+//! ([`UiView`]) et les entrées, et renvoie des [`UiCommand`] que le jeu exécute (les clics de
+//! boutons du Java) ; à chaque frame il remplit une liste de dessin 2D ([`Ui::draw`]).
+//! Implémentations : [`crate::screens::NbUi`] (les écrans de nb-ui, celle du jeu), [`NullUi`]
+//! (rien) et [`StubUi`] (clavier, sans rendu : tests et outils).
 
 use nb_data::keys;
-use nb_data::{GameSettings, MobRegistry};
+use nb_data::{BlockRegistry, GameSettings, MobRegistry};
 use nb_ecs::{GameMode, Inventory, ItemStack};
+use nb_gfx::ui_pass::{UiDraw, UiTextureSlot, UiVertex};
+use nb_gfx::ResourcePackMeta;
+use nb_mesh::BlockTable;
+use nb_ui::{DrawList, TextureRef};
 use nb_world::save::WorldMetadata;
 use nb_world::WorldConfig;
 
@@ -68,6 +73,11 @@ pub enum UiCommand {
     ApplyResourcePack(String),
     /// Registre de mobs modifié et sauvegardé (`MobRegistry.save()` : `dirty = true`).
     SetMobRegistry(Box<MobRegistry>),
+    /// Mob ajouté : `assetManager.reloadMobModel(id)` (relayé à la plateforme).
+    ReloadMobModel(String),
+    /// « Reset to Defaults » confirmé : registre intégré sauvegardé, tous les mobs supprimés,
+    /// `clearDirty`.
+    ResetMobRegistry(Box<MobRegistry>),
     /// Sortie de l'écran des mobs (`applyAndLeave`) → SETTINGS.
     LeaveMobSettings,
 }
@@ -81,8 +91,12 @@ pub struct UiView<'a> {
     /// Mondes sauvegardés (relus à l'entrée de WORLD_SELECT et après chaque modification).
     pub worlds: &'a [WorldMetadata],
     /// Packs disponibles (« Default » d'abord), relus à l'entrée de RESOURCE_PACKS.
-    pub resource_packs: &'a [String],
+    pub resource_packs: &'a [ResourcePackMeta],
     pub mobs: &'a MobRegistry,
+    /// Noms des blocs (`formatBlockName`).
+    pub blocks: &'a BlockRegistry,
+    /// Couches de texture des blocs (icônes : `getTextureIndex(0)`).
+    pub block_table: &'a BlockTable,
     pub previous_state: GameState,
     /// Onglet à l'entrée de SETTINGS.
     pub settings_tab: SettingsTab,
@@ -109,6 +123,10 @@ pub trait Ui {
     fn enter(&mut self, _state: GameState, _view: &UiView<'_>, _input: &mut InputManager) {}
     /// `State.exit` côté interface (fermer la saisie, oublier un glisser…).
     fn exit(&mut self, _state: GameState, _input: &mut InputManager) {}
+    /// Écouteur de réaffectation (`setRebindListener`) : touche capturée par
+    /// [`InputManager::start_rebind`], livrée par le jeu **avant** [`Ui::update`] du même tick
+    /// (le callback GLFW du Java passe avant la mise à jour de l'état).
+    fn key_pressed(&mut self, _state: GameState, _key: i32) {}
     /// Une fois par tick dans l'état courant, après la logique clavier du jeu.
     fn update(
         &mut self,
@@ -117,6 +135,49 @@ pub trait Ui {
         _dt: f64,
     ) -> Vec<UiCommand> {
         Vec::new()
+    }
+    /// Dessin 2D de la frame (après la scène 3D) : écran de l'état puis chat.
+    fn draw(&mut self, _view: &UiView<'_>, _input: &InputManager, _dl: &mut DrawList) {}
+}
+
+/// Liste de dessin 2D convertie pour `nb_gfx::ui_pass::UiRenderer::record`.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct UiFrame {
+    /// Taille logique (fenêtre) de la liste.
+    pub width: u32,
+    pub height: u32,
+    pub vertices: Vec<UiVertex>,
+    pub draws: Vec<UiDraw>,
+}
+
+impl UiFrame {
+    /// `nb_ui::Vertex` → [`UiVertex`] (même disposition, `bytemuck`) ; `Batch` → [`UiDraw`]
+    /// (texture UI = index de `nb_ui::textures::load_all`).
+    pub fn from_draw_list(dl: &DrawList) -> Self {
+        let vertices: &[UiVertex] = bytemuck::cast_slice(dl.vertices());
+        let draws = dl
+            .batches()
+            .iter()
+            .map(|b| UiDraw {
+                texture: match b.texture {
+                    TextureRef::Ui(t) => UiTextureSlot::Image(t.index()),
+                    TextureRef::BlockLayer(l) => UiTextureSlot::BlockLayer(l),
+                },
+                scissor: b.scissor.map(|s| [s.x, s.y, s.w, s.h]),
+                first: b.first,
+                count: b.count,
+            })
+            .collect();
+        Self {
+            width: dl.width,
+            height: dl.height,
+            vertices: vertices.to_vec(),
+            draws,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.vertices.is_empty()
     }
 }
 

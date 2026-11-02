@@ -376,6 +376,14 @@ impl InputManager {
         self.suppress_chat_filter = v;
     }
 
+    pub fn is_chat_filter_suppressed(&self) -> bool {
+        self.suppress_chat_filter
+    }
+
+    pub fn is_using_secondary_buffer(&self) -> bool {
+        self.use_secondary_buffer
+    }
+
     pub fn command_buffer(&self) -> &str {
         &self.command_buffer
     }
