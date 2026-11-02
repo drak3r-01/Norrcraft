@@ -105,7 +105,7 @@ fn interior() -> Vec<ChunkPos> {
         .collect()
 }
 
-fn neighbours<'a>(chunks: &'a [Chunk], p: ChunkPos) -> [Option<&'a Chunk>; 9] {
+fn neighbours(chunks: &[Chunk], p: ChunkPos) -> [Option<&Chunk>; 9] {
     std::array::from_fn(|i| {
         let (dx, dz) = (i as i32 % 3 - 1, i as i32 / 3 - 1);
         find(chunks, ChunkPos::new(p.x + dx, p.z + dz))
