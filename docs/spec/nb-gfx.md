@@ -784,6 +784,10 @@ impl Renderer {
 
     // Frame
     pub fn render_frame(&mut self, f: &FrameInput, overlay: &mut dyn FnMut(&mut OverlayPass)) -> Result<()>;
+    // Phase 6 : frame d'interface seule (états sans `MasterRenderer.render` : choix du monde,
+    // réglages, packs, mobs) — sortie effacée à `clear`, puis la passe overlay seule
+    // (`SceneRenderer::record_ui_frame`, `OffscreenRenderer::render_ui_only`).
+    pub fn render_ui_frame(&mut self, clear: [f32; 4], overlay: &mut dyn FnMut(&mut OverlayPass)) -> Result<()>;
 }
 
 pub struct FrameInput<'a> {

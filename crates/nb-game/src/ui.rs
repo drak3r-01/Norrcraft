@@ -187,7 +187,7 @@ pub struct NullUi;
 
 impl Ui for NullUi {}
 
-/// Écrans provisoires au clavier, sans rendu, en attendant nb-ui :
+/// Écrans au clavier, sans rendu (tests, outils ; le jeu utilise [`crate::NbUi`]) :
 /// MAIN_MENU : Entrée → choix du monde, S → réglages, F10 → quitter ;
 /// WORLD_SELECT : Entrée → premier monde (ou création de « My World »), ÉCHAP → menu ;
 /// PAUSED : Entrée → reprendre, M → sauvegarder et menu, S → réglages ;

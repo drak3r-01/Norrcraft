@@ -38,3 +38,18 @@ scripts/cargo-docker.sh fmt --all -- --check
 scripts/cargo-docker.sh clippy --workspace --all-targets -- -D warnings
 scripts/cargo-docker.sh test --workspace
 ```
+
+### Lancer le jeu
+
+```bash
+cargo run -p nb-app --release            # fenêtre (Vulkan 1.3)
+cargo run -p nb-app -- --headless --script crates/nb-app/scripts/scenario.txt --capture-dir captures
+```
+
+### Scénario de bout en bout (Docker, Vulkan logiciel lavapipe + Xvfb)
+
+```bash
+NB_E2E_OUT=/chemin/captures crates/nb-app/scripts/e2e.sh   # hors écran (PNG) puis fenêtré
+crates/nb-gfx/scripts/smoke-window.sh                      # visionneuse nb-gfx sous Xvfb
+NB_GFX_REQUIRE_GPU=1 crates/nb-gfx/scripts/vk-docker.sh test --workspace
+```

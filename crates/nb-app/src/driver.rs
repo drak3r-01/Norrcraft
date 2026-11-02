@@ -295,12 +295,39 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("settings.json"), r#"{ "renderDistance": 2 }"#).unwrap();
+        // `mobs.json` avec un mob personnalisé : son modèle doit être chargé au démarrage
+        // (le renderer a été créé avec le registre intégré).
+        let custom = |id: &str| {
+            let mut c = nb_data::MobRegistry::builtin()
+                .get("reindeer")
+                .unwrap()
+                .clone();
+            c.id = id.into();
+            c
+        };
+        let mut reg = nb_data::MobRegistry::builtin();
+        reg.all_mut().push(custom("elan"));
+        std::fs::write(dir.join("mobs.json"), reg.to_json()).unwrap();
+        assert!(b.scene().mob_model_counts("elan").is_none());
         let mut opts = GameOptions::new(&dir);
         opts.window_size = size;
         opts.menu_seed = Some(7);
         opts.rng_seed = Some(7);
         opts.packs_root = Some(dir.clone());
         let mut d = Driver::new(&mut b, opts).unwrap();
+        assert!(d.game.regs.mobs.get("elan").is_some(), "mobs.json lu");
+        assert!(b.scene().mob_model_counts("elan").is_some(), "modèle chargé");
+        // Sortie de l'écran des mobs : modèle chargé pour chaque mob qui n'en a pas.
+        let mut reg = d.game.regs.mobs.clone();
+        reg.all_mut().push(custom("cerf"));
+        d.game.command(UiCommand::OpenSettings);
+        d.game
+            .command(UiCommand::SwitchState(GameState::MobSettings));
+        d.game.command(UiCommand::SetMobRegistry(Box::new(reg)));
+        d.game.command(UiCommand::LeaveMobSettings);
+        d.apply_requests(&mut b);
+        assert!(b.scene().mob_model_counts("cerf").is_some(), "ReloadMobModels");
+        d.game.command(UiCommand::SettingsBack);
         let frame = |d: &mut Driver, b: &mut Headless| {
             d.game.update(TIME_STEP);
             d.apply_requests(b);
