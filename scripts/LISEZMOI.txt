@@ -1,0 +1,47 @@
+Norrblock (version Rust / Vulkan)
+=================================
+
+Lancer le jeu
+-------------
+Double-cliquer sur norrblock.exe (ou, dans un terminal ouvert dans ce dossier :
+.\norrblock.exe). Une console s'ouvre à côté de la fenêtre : elle affiche le GPU utilisé, le
+dossier de packs trouvé et les éventuels messages d'erreur.
+
+Le jeu lit et écrit ses sauvegardes relativement au dossier courant (saves\) : lancez-le
+depuis ce dossier (c'est le cas avec un double-clic). Un raccourci doit avoir
+« Démarrer dans » = ce dossier.
+
+Prérequis : une carte graphique et un pilote à jour compatibles Vulkan 1.3 (NVIDIA, AMD ou
+Intel récents ; vulkan-1.dll est installée par le pilote). Message « aucun GPU compatible » :
+mettre à jour le pilote graphique.
+
+Contrôles par défaut (modifiables dans Settings > Controls)
+-----------------------------------------------------------
+Les touches sont des positions physiques du clavier QWERTY (comme le jeu Java) : sur un
+clavier AZERTY, W = Z, A = Q, Q = A.
+
+  Avancer / reculer / gauche / droite   W / S / A / D
+  Sauter (double appui en créatif : vol) Espace
+  Sprint                                Ctrl gauche
+  Descendre (en vol)                    Maj gauche
+  Inventaire                            E
+  Jeter (détruit un objet de la case)   Q
+  Casser / frapper                      clic gauche
+  Poser                                 clic droit
+  Case de la barre                      1 à 9 ou molette
+  Chat / commande                       T ou /   (Entrée : valider, Échap : annuler)
+  Pause                                 Échap
+Commandes (monde créé avec « Allow Cheats ») : /help.
+
+Fichiers
+--------
+  saves\settings.json       réglages (graphismes, sensibilité, touches : codes GLFW)
+  saves\mobs.json           réglages des mobs (écrit par l'écran Settings > Mobs)
+  saves\mobs_defaults.json  valeurs de référence des mobs (ne pas modifier)
+  saves\<monde>\            mondes sauvegardés (world.json + chunks\)
+  resource_packs\           packs de textures (Default fourni) ; ajouter un dossier de pack
+                            ici puis le choisir dans Settings > Resource Packs
+  assets\                   données de référence (blocs, mobs, particules)
+
+Supprimer saves\settings.json rétablit les réglages par défaut.
+Licence : voir LICENSE.

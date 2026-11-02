@@ -119,11 +119,20 @@ fn report(frames: u64, failures: usize) -> bool {
     validation == 0 && failures == 0
 }
 
+/// [`find_packs_root`], affiché au démarrage (diagnostic d'un paquet mal assemblé : sans
+/// dossier de packs, les blocs prennent la texture de repli).
+fn packs_root() -> PathBuf {
+    let root = find_packs_root();
+    let found = if root.is_dir() { "" } else { " (introuvable)" };
+    println!("packs de ressources : {}{found}", root.display());
+    root
+}
+
 // ───────────────────────────────────────────────────────────────── hors écran
 
 fn run_headless(args: &Args) -> bool {
     let size = args.size.unwrap_or((1280, 720));
-    let packs_root = find_packs_root();
+    let packs_root = packs_root();
     let mobs = MobModelDesc::from_registry(&nb_data::MobRegistry::builtin());
     let mut b = match Headless::new(&packs_root, size, &mobs) {
         Ok(b) => b,
@@ -253,7 +262,7 @@ impl App {
         center_on_monitor(&window);
         window.set_visible(true);
         let size = window.inner_size();
-        let packs_root = find_packs_root();
+        let packs_root = packs_root();
         let mob_models = MobModelDesc::from_registry(&nb_data::MobRegistry::builtin());
         let mut renderer = Renderer::new(
             &window,
