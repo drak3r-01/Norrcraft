@@ -316,7 +316,10 @@ mod tests {
         opts.packs_root = Some(dir.clone());
         let mut d = Driver::new(&mut b, opts).unwrap();
         assert!(d.game.regs.mobs.get("elan").is_some(), "mobs.json lu");
-        assert!(b.scene().mob_model_counts("elan").is_some(), "modèle chargé");
+        assert!(
+            b.scene().mob_model_counts("elan").is_some(),
+            "modèle chargé"
+        );
         // Sortie de l'écran des mobs : modèle chargé pour chaque mob qui n'en a pas.
         let mut reg = d.game.regs.mobs.clone();
         reg.all_mut().push(custom("cerf"));
@@ -326,7 +329,10 @@ mod tests {
         d.game.command(UiCommand::SetMobRegistry(Box::new(reg)));
         d.game.command(UiCommand::LeaveMobSettings);
         d.apply_requests(&mut b);
-        assert!(b.scene().mob_model_counts("cerf").is_some(), "ReloadMobModels");
+        assert!(
+            b.scene().mob_model_counts("cerf").is_some(),
+            "ReloadMobModels"
+        );
         d.game.command(UiCommand::SettingsBack);
         let frame = |d: &mut Driver, b: &mut Headless| {
             d.game.update(TIME_STEP);

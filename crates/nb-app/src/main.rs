@@ -132,7 +132,11 @@ fn run_headless(args: &Args) -> bool {
             return false;
         }
     };
-    println!("GPU : {}", b.off.scene.context().device_name);
+    let ctx = b.off.scene.context();
+    println!(
+        "GPU : {} (validation : {})",
+        ctx.device_name, ctx.validation_enabled
+    );
     let mut d = match Driver::new(&mut b, args.game_options(packs_root, size)) {
         Ok(d) => d,
         Err(e) => {
@@ -256,7 +260,11 @@ impl App {
             &GfxSettings::default(),
         )
         .map_err(|e| e.to_string())?;
-        println!("GPU : {}", renderer.context().device_name);
+        let ctx = renderer.context();
+        println!(
+            "GPU : {} (validation : {})",
+            ctx.device_name, ctx.validation_enabled
+        );
         let opts = self
             .args
             .game_options(packs_root, (size.width, size.height));
