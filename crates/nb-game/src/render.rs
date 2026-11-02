@@ -1,13 +1,18 @@
 //! Données de rendu d'une frame, calculées sans GPU : caméra, horloge, environnement
 //! (`MasterRenderer.render` §8), bloc visé, mobs et particules.
 //!
-//! Les mobs et particules ne sont pas encore dessinés par nb-gfx : [`RenderView::mobs`] et
-//! [`RenderView::particles`] sont la façade que le futur rendu consommera.
+//! [`RenderView::mobs`] / [`RenderView::particles`] gardent les données de l'ECS ;
+//! [`RenderView::frame_input`] les passe à nb-gfx converties ([`gfx_mobs`], [`gfx_particles`]).
+
+use std::collections::HashMap;
 
 use nb_core::glam::{DVec3, IVec3, Vec3};
-use nb_data::BlockRegistry;
+use nb_data::{BlockRegistry, MobRegistry};
 use nb_ecs::{CameraState, EntityId, MobType, Particle, Player, Simulation, Transform};
-use nb_gfx::{heat_from_nearest_lava_dist_sq, Camera, EyeFluid, FrameInput, SkyClock};
+use nb_gfx::{
+    heat_from_nearest_lava_dist_sq, Camera, EyeFluid, FrameInput, ParticleInstance, SkyClock,
+    TextureArrayCpu,
+};
 use nb_world::World;
 
 use crate::state::GameState;
@@ -36,6 +41,10 @@ pub struct RenderView<'a> {
     pub highlight_block: Option<IVec3>,
     pub mobs: Vec<MobInstance>,
     pub particles: &'a [Particle],
+    /// [`Self::mobs`] convertis pour nb-gfx (config introuvable → ignoré).
+    pub gfx_mobs: Vec<nb_gfx::MobInstance<'a>>,
+    /// [`Self::particles`] converties pour nb-gfx.
+    pub gfx_particles: Vec<ParticleInstance>,
 }
 
 impl RenderView<'_> {
@@ -48,11 +57,69 @@ impl RenderView<'_> {
             eye_fluid: self.eye_fluid,
             heat_intensity: self.heat_intensity,
             highlight_block: self.highlight_block,
-            // Conversion `MobInstance`/`Particle` → instances nb-gfx : à brancher à l'intégration.
-            mobs: &[],
-            particles: &[],
+            mobs: &self.gfx_mobs,
+            particles: &self.gfx_particles,
         }
     }
+}
+
+/// Couches de l'atlas des particules (`TextureRegistry.getLayer` : insensible à la casse,
+/// absent → couche manquante).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParticleLayers {
+    names: HashMap<String, u32>,
+    missing: u32,
+}
+
+impl ParticleLayers {
+    pub fn from_atlas(atlas: &TextureArrayCpu) -> Self {
+        Self {
+            names: atlas.names.clone(),
+            missing: atlas.missing_layer,
+        }
+    }
+
+    /// Atlas intégré du renderer (`loadFromClasspath("/textures/particle", …)`).
+    pub fn builtin() -> Self {
+        Self::from_atlas(&nb_gfx::SceneAssets::builtin_particle_atlas())
+    }
+
+    pub fn layer(&self, texture: &str) -> u32 {
+        self.names
+            .get(&texture.to_lowercase())
+            .copied()
+            .unwrap_or(self.missing)
+    }
+}
+
+/// `MobRenderer.render` : mobs dont la config existe, modèle = id de la config, échelle du
+/// cube manquant `(widthX, height, widthZ)`.
+pub fn gfx_mobs<'a>(mobs: &[MobInstance], reg: &'a MobRegistry) -> Vec<nb_gfx::MobInstance<'a>> {
+    mobs.iter()
+        .filter_map(|m| {
+            let c = reg.get(&m.mob_id)?;
+            Some(nb_gfx::MobInstance {
+                model_id: &c.id,
+                position: m.position.as_vec3(),
+                yaw_rad: m.yaw,
+                pitch_rad: m.pitch,
+                missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
+            })
+        })
+        .collect()
+}
+
+/// `ParticleRenderer.render` : position, `type.scale`, `type.textureLayer`, teinte.
+pub fn gfx_particles(particles: &[Particle], layers: &ParticleLayers) -> Vec<ParticleInstance> {
+    particles
+        .iter()
+        .map(|p| ParticleInstance {
+            position: p.position,
+            scale: p.kind.scale,
+            layer: layers.layer(&p.kind.texture),
+            color: p.color,
+        })
+        .collect()
 }
 
 /// Caméra de rendu depuis l'état ECS.
@@ -132,11 +199,14 @@ pub fn mob_instances(sim: &Simulation) -> Vec<MobInstance> {
 }
 
 /// Construit la vue de rendu.
+#[allow(clippy::too_many_arguments)]
 pub fn build_view<'a>(
     state: GameState,
     world: &World,
     sim: &'a Simulation,
     reg: &BlockRegistry,
+    mob_reg: &'a MobRegistry,
+    particle_layers: &ParticleLayers,
     sky: &SkyClock,
     aspect: f32,
 ) -> RenderView<'a> {
@@ -156,6 +226,8 @@ pub fn build_view<'a>(
     } else {
         None
     };
+    let mobs = mob_instances(sim);
+    let particles = sim.particles.particles();
     RenderView {
         state,
         camera,
@@ -163,7 +235,65 @@ pub fn build_view<'a>(
         eye_fluid: eye_fluid(world, reg, fluid, cam.position),
         heat_intensity: heat,
         highlight_block: highlight,
-        mobs: mob_instances(sim),
-        particles: sim.particles.particles(),
+        gfx_mobs: gfx_mobs(&mobs, mob_reg),
+        gfx_particles: gfx_particles(particles, particle_layers),
+        mobs,
+        particles,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nb_data::ParticleRegistry;
+
+    #[test]
+    fn mobs_and_particles_convert_for_gfx() {
+        let reg = MobRegistry::builtin();
+        let rein = reg.get("reindeer").expect("renne intégré");
+        let mobs = [
+            MobInstance {
+                entity: EntityId(1),
+                mob_id: "reindeer".into(),
+                position: DVec3::new(1.5, 70.25, -3.0),
+                yaw: 0.5,
+                pitch: -0.25,
+            },
+            MobInstance {
+                entity: EntityId(2),
+                mob_id: "inconnu".into(),
+                position: DVec3::ZERO,
+                yaw: 0.0,
+                pitch: 0.0,
+            },
+        ];
+        let g = gfx_mobs(&mobs, &reg);
+        assert_eq!(g.len(), 1, "config introuvable → ignoré");
+        assert_eq!(g[0].model_id, "reindeer");
+        assert_eq!(g[0].position, Vec3::new(1.5, 70.25, -3.0));
+        assert_eq!((g[0].yaw_rad, g[0].pitch_rad), (0.5, -0.25));
+        assert_eq!(
+            g[0].missing_scale,
+            Vec3::new(rein.width_x, rein.height, rein.width_z)
+        );
+
+        let preg = ParticleRegistry::builtin();
+        let layers = ParticleLayers::builtin();
+        let leaf = preg.get("leaf").unwrap();
+        let lava = preg.get("lava").unwrap();
+        let ps = [
+            Particle::new(leaf, Vec3::new(1.0, 2.0, 3.0), Vec3::ZERO, Vec3::splat(0.5)),
+            Particle::new(lava, Vec3::ZERO, Vec3::ZERO, Vec3::X),
+        ];
+        let g = gfx_particles(&ps, &layers);
+        assert_eq!(g[0].position, Vec3::new(1.0, 2.0, 3.0));
+        assert_eq!(g[0].scale, leaf.scale);
+        assert_eq!(g[0].color, Vec3::splat(0.5));
+        let atlas = nb_gfx::SceneAssets::builtin_particle_atlas();
+        assert_eq!(g[0].layer, atlas.layer(&leaf.texture));
+        assert_eq!(g[1].layer, atlas.layer(&lava.texture));
+        assert_ne!(g[0].layer, g[1].layer);
+        assert_ne!(g[1].layer, atlas.missing_layer, "texture de lave connue");
+        assert_eq!(layers.layer("absente"), atlas.missing_layer);
     }
 }

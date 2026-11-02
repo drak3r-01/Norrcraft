@@ -35,7 +35,7 @@ pub use chunks::{WorldBiomes, WorldChunks};
 pub use fixed_step::{FixedStep, TIME_STEP};
 pub use game::{parse_seed, Game, GameOptions, PlatformRequest, Step};
 pub use input::{Action, InputManager};
-pub use render::{MobInstance, RenderView};
+pub use render::{MobInstance, ParticleLayers, RenderView};
 pub use session::{Registries, WorldSession};
 pub use state::{GameState, HudState, SettingsTab};
 pub use ui::{NewWorld, NullUi, StubUi, Ui, UiCommand, UiView};

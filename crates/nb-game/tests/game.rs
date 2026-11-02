@@ -535,6 +535,11 @@ fn edited_mobs_are_despawned_when_leaving_mob_settings() {
     e.insert(mob, nb_ecs::MobType::new("reindeer"));
     e.insert(mob, Transform::new(0.0, 80.0, 0.0));
     assert_eq!(g.render_view().mobs.len(), 1);
+    let view = g.render_view();
+    let fi = view.frame_input(0.0);
+    assert_eq!(fi.mobs.len(), 1, "mob transmis à nb-gfx");
+    assert_eq!(fi.mobs[0].model_id, "reindeer");
+    drop(view);
     g.command(UiCommand::OpenSettings);
     g.command(UiCommand::SwitchState(GameState::MobSettings));
     // Sans modification : rien n'est supprimé.

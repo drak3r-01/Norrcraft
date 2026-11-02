@@ -15,7 +15,7 @@ use nb_world::{FileChunkStorage, InMemoryChunkStorage, World, WorldConfig};
 use crate::chat::Chat;
 use crate::chunks::{sorted_active_positions, WorldChunks};
 use crate::input::{Action, InputManager};
-use crate::render::{build_view, RenderView};
+use crate::render::{build_view, ParticleLayers, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
 use crate::ui::{NewWorld, NullUi, Ui, UiCommand, UiView};
@@ -151,6 +151,7 @@ pub struct Game {
     ticks: u64,
     trace: Option<Vec<Step>>,
     last_error: Option<String>,
+    particle_layers: ParticleLayers,
 }
 
 impl std::fmt::Debug for Game {
@@ -231,6 +232,7 @@ impl Game {
             ticks: 0,
             trace: None,
             last_error: None,
+            particle_layers: ParticleLayers::builtin(),
             opts,
         };
         g.apply_initial_settings();
@@ -382,6 +384,16 @@ impl Game {
         self.awaiting_block_table = false;
     }
 
+    /// Table de maillage courante (couches de texture : icônes de blocs de l'interface).
+    pub fn block_table(&self) -> &Arc<BlockTable> {
+        &self.block_table
+    }
+
+    /// Couches de l'atlas des particules du renderer (par défaut : atlas intégré).
+    pub fn set_particle_layers(&mut self, atlas: &nb_gfx::TextureArrayCpu) {
+        self.particle_layers = ParticleLayers::from_atlas(atlas);
+    }
+
     /// Taille du framebuffer (callback de redimensionnement) ; traitée au prochain tick.
     pub fn resize(&mut self, w: u32, h: u32) {
         if (w, h) != self.window_size {
@@ -401,6 +413,8 @@ impl Game {
             &self.session.world,
             &self.session.sim,
             &self.regs.blocks,
+            &self.regs.mobs,
+            &self.particle_layers,
             &self.sky,
             self.aspect,
         )
