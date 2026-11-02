@@ -32,6 +32,7 @@ pub mod frame;
 pub mod packs;
 pub mod shaders;
 pub mod sky;
+pub mod ui_pass;
 pub mod vk;
 #[cfg(feature = "window")]
 pub mod window;
