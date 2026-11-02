@@ -151,12 +151,17 @@ fn state_transitions_follow_java() {
     g.command(UiCommand::Resume);
     assert_eq!(g.state(), GameState::Playing);
 
-    // Pause → menu : sauvegarde, le monde reste chargé.
+    // Pause → menu : sauvegarde puis déchargement (correctif ; le Java le laissait chargé).
     press(&mut g, keys::KEY_ESCAPE);
     g.command(UiCommand::SaveAndMainMenu);
     assert_eq!(g.state(), GameState::MainMenu);
-    assert_eq!(g.session().name.as_deref(), Some("Alpha"));
     assert!(dir.0.join("Alpha").join("world.json").is_file());
+    assert!(g.session().name.is_none(), "monde déchargé");
+    assert_eq!(g.session().world.seed(), 1234, "monde de menu neuf");
+    // Le monde de menu n'est jamais sauvegardé : le dossier « Alpha » peut disparaître.
+    std::fs::remove_dir_all(dir.0.join("Alpha")).unwrap();
+    g.save_current();
+    assert!(!dir.0.join("Alpha").exists());
 
     g.command(UiCommand::Quit);
     assert!(g.quit_requested());
@@ -338,14 +343,19 @@ fn world_list_edit_delete_recreate() {
     press(&mut g, keys::KEY_ESCAPE);
     g.command(UiCommand::SaveAndMainMenu);
     g.command(UiCommand::SwitchState(GameState::WorldSelect));
-    // Bogue Java reproduit : « One » était encore le monde chargé (la pause ramène au menu
-    // sans décharger) ; `loadAndPlay` l'a sauvegardé sous son ancien nom, ce qui recrée
-    // `One/world.json` à côté de « Uno ».
+    // Correctif (décision de Gabriel) : la pause ramène au menu en déchargeant le monde, donc
+    // « One » renommé en « Uno » n'est plus resauvegardé sous son ancien nom par
+    // `loadAndPlay` (le Java recréait `One/world.json` à côté de « Uno »).
     let mut names: Vec<_> = g.worlds().iter().map(|m| m.name.clone()).collect();
     names.sort();
-    assert_eq!(names, ["Dos", "One", "Uno"]);
+    assert_eq!(names, ["Dos", "Uno"]);
+    assert!(!dir.0.join("One").exists());
+    // Supprimer un monde déjà quitté ne le fait pas renaître.
     g.command(UiCommand::DeleteWorld("Uno".into()));
-    g.command(UiCommand::DeleteWorld("One".into()));
+    g.command(UiCommand::SwitchState(GameState::MainMenu));
+    g.command(UiCommand::Quit);
+    assert!(!dir.0.join("Uno").exists());
+    g.command(UiCommand::SwitchState(GameState::WorldSelect));
     assert_eq!(g.worlds().len(), 1);
     assert_eq!(g.worlds()[0].name, "Dos");
     g.shutdown();

@@ -78,7 +78,7 @@ d'affichage 5 s (décrémentée seulement chat fermé). Le chat tourne dans **to
 | MAIN_MENU | souris libre | `menuRotation += dt·10` ; caméra (0,150,0), tangage 20, lacet = rotation ; PLAY → WORLD_SELECT ; SETTINGS (`previous = MAIN_MENU`) ; QUIT | caméra rot 0, pos (0,100,0) |
 | WORLD_SELECT | curseur normal ; caméra rot 0, pos (0,100,0) ; liste des mondes | jouer / créer / éditer / supprimer / recréer / annuler → MAIN_MENU | fin de saisie |
 | PLAYING | souris capturée (`resetMouse`) | voir §2 | — |
-| PAUSED | souris libre | ÉCHAP → PLAYING ; RESUME ; SETTINGS (`previous = PAUSED`) ; MAIN MENU = sauvegarde puis MAIN_MENU (le monde reste chargé) | — |
+| PAUSED | souris libre | ÉCHAP → PLAYING ; RESUME ; SETTINGS (`previous = PAUSED`) ; MAIN MENU = sauvegarde, déchargement du monde (monde de menu neuf) puis MAIN_MENU — correctif, §8 | — |
 | INVENTORY | souris libre ; curseur vidé | E ou ÉCHAP → objet tenu reposé, PLAYING ; clic → `InventoryCursor::left_click` | objet tenu reposé |
 | SETTINGS | onglet CONTROLS si demandé, sinon GRAPHICS | ÉCHAP / Retour → `previous` ; Appliquer : réglages copiés, appliqués (distance, FOV, vsync, plein écran, ombres, bloom, touches, taille), sauvegardés, mobs supprimés si le registre est modifié, → `previous` ; onglets → RESOURCE_PACKS / MOB_SETTINGS | fin de réaffectation |
 | RESOURCE_PACKS | liste des packs | Appliquer : si pack ≠ courant, rechargement de l'atlas, icônes, invalidation de tous les maillages, réglage sauvegardé ; → SETTINGS ; onglets | — |
@@ -120,6 +120,11 @@ du joueur (§6) → PLAYING.
 5. Sauvegarde dont le `world.json` est illisible : la graine du monde est conservée (Java :
    `new WorldMetadata()`, graine 0).
 
-Bogue Java conservé : PAUSED → MAIN MENU laisse le monde chargé (`currentWorldName` reste
-posé) ; renommer ce monde puis en charger un autre le resauvegarde sous l'ancien nom, ce qui
-recrée son dossier.
+6. **Bogue Java corrigé** (décision de Gabriel, 2026-11-02) : en Java, PAUSED → MAIN MENU
+   laisse le monde chargé (`currentWorldName` reste posé) ; renommer ce monde puis en charger
+   un autre le resauvegarde sous l'ancien nom, ce qui recrée son dossier (idem après une
+   suppression, ou à la fermeture). Désormais `Game::unload_to_menu_world` sauvegarde le monde,
+   arrête son gestionnaire de chunks, libère ses maillages et installe un monde de menu neuf
+   (comme à l'initialisation : graine `nextInt(1e9)`, stockage en mémoire, CREATIVE, jamais
+   sauvegardé). Seul effet visible : le fond du menu principal est ce nouveau monde au lieu du
+   monde quitté.

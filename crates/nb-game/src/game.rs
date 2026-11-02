@@ -689,7 +689,10 @@ impl Game {
             }
             UiCommand::Resume => self.switch_state(GameState::Playing),
             UiCommand::SaveAndMainMenu => {
-                self.save_current();
+                // Correctif (décision de Gabriel) : le monde est sauvegardé puis déchargé. Le
+                // Java le laissait chargé (`currentWorldName` posé) et pouvait le resauvegarder
+                // plus tard sous un nom périmé (dossier d'un monde renommé/supprimé recréé).
+                self.unload_to_menu_world();
                 self.switch_state(GameState::MainMenu);
             }
             UiCommand::Quit => {
@@ -881,14 +884,7 @@ impl Game {
     pub fn load_world(&mut self, meta: &WorldMetadata) -> nb_core::Result<()> {
         let dir = save::world_dir(&self.opts.saves_root, &meta.name);
         let storage = FileChunkStorage::new(&dir)?;
-        self.save_current();
-        self.session.shutdown();
-        // `chunkMeshes.clear()` ; la génération incrémentée écarte les maillages en vol.
-        {
-            let cm = self.session.world.chunk_manager();
-            let acts = self.meshes.invalidate_all(&mut WorldChunks(cm), &[]);
-            self.mesh_actions.extend(acts);
-        }
+        self.release_session();
         let camera = self.session.camera();
         let mode = GameMode::from_java_name(&meta.game_mode);
         let rngs = ecs_rngs(&self.opts, &mut self.rng);
@@ -912,6 +908,46 @@ impl Game {
         self.sky.set_time(meta.world_config.time_of_day);
         self.session.apply_player_state(meta, &self.regs);
         Ok(())
+    }
+
+    /// Sauvegarde du monde nommé, arrêt de son gestionnaire de chunks et libération des
+    /// maillages (`chunkMeshes.clear()` ; la génération incrémentée écarte ceux en vol).
+    fn release_session(&mut self) {
+        self.save_current();
+        self.session.shutdown();
+        let cm = self.session.world.chunk_manager();
+        let acts = self.meshes.invalidate_all(&mut WorldChunks(cm), &[]);
+        self.mesh_actions.extend(acts);
+    }
+
+    /// Correctif PAUSED → MAIN MENU : sauvegarde et décharge le monde nommé, puis installe un
+    /// monde de menu neuf (comme `Main.initEngine` : graine `nextInt(1e9)`, stockage en
+    /// mémoire, joueur CREATIVE, jamais sauvegardé). Sans effet si aucun monde nommé.
+    pub fn unload_to_menu_world(&mut self) {
+        if self.session.name.is_none() {
+            return;
+        }
+        self.release_session();
+        let fov = self.session.camera().fov;
+        let seed = self
+            .opts
+            .menu_seed
+            .unwrap_or_else(|| i64::from(self.rng.next_int_bound(1_000_000_000)));
+        let rngs = ecs_rngs(&self.opts, &mut self.rng);
+        let s = WorldSession::new(
+            seed,
+            Arc::new(InMemoryChunkStorage::new()),
+            WorldConfig::default(),
+            &self.regs,
+            menu_camera(fov),
+            GameMode::Creative,
+            rngs,
+        );
+        s.world
+            .chunk_manager()
+            .set_render_distance(self.settings.render_distance);
+        self.session = s;
+        self.cursor.reset();
     }
 
     /// Fermeture (`Main.cleanup`) : sauvegarde du monde nommé et arrêt des threads.

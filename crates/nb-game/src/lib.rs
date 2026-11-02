@@ -16,9 +16,9 @@
 //!    l'ancien monde ne peut être affiché.
 //! 4. Sauvegarde dont le `world.json` est illisible : la graine du monde est conservée (le Java
 //!    repartait d'un `new WorldMetadata()`, graine 0).
-//!
-//! Bogue Java conservé : PAUSED → MAIN MENU laisse le monde chargé ; le renommer puis en
-//! charger un autre le resauvegarde sous l'ancien nom (dossier recréé).
+//! 5. Bogue Java corrigé (décision de Gabriel) : PAUSED → MAIN MENU décharge le monde
+//!    ([`Game::unload_to_menu_world`]) ; le Java le laissait chargé et pouvait le resauvegarder
+//!    sous un nom périmé (dossier d'un monde renommé ou supprimé recréé).
 
 pub mod chat;
 pub mod chunks;
