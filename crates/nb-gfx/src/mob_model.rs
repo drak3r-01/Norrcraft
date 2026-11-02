@@ -363,8 +363,8 @@ pub fn build_geometry(boxes: &[ColorBox]) -> Option<MobModelCpu> {
 
 /// `buildTexturedBox` : boîte `(-8,0,-8, 16,16,16)` sur un « atlas » 1×1. [JAVA-BUG] reproduit :
 /// le commentaire Java annonce des UV pleines par face, mais `addTexBox` divise des tailles de
-/// 16 pixels par 1 → UV de 0 à 64 (texture répétée 16 fois par face en REPEAT, cf. spec §14.2
-/// étape 4 qui suppose `[0,1]`).
+/// 16 pixels par 1 → UV de 0 à 64 (texture répétée 16 fois par face en REPEAT, spec §14.2
+/// étape 4).
 pub fn build_textured_box(texture: RgbaImage) -> MobModelCpu {
     let mut out = Vec::with_capacity(36);
     add_tex_box(

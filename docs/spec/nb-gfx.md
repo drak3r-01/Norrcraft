@@ -522,14 +522,14 @@ Blit de la profondeur HDR vers la profondeur de l'écran (même taille, NEAREST)
 - `model = T(x,y,z)·Ry(yaw)·Rx(pitch)[·S]`. Texture = celle du modèle, ou blanc 1×1 si mode couleur.
 - Plage opaque `[0, nOpaque)` : blend off, depth write on. Plage transparente `[nOpaque, nOpaque+nTrans)` : blend `SRC_ALPHA/ONE_MINUS_SRC_ALPHA`, depth write off. **Par mob** (pas de tri global).
 - Fin : depth write on, blend off.
-- [JAVA-BUG] Le FBO HDR a deux draw buffers mais le shader n'écrit que la location 0 : l'attachement 1 reçoit une valeur indéfinie en GL. En Vulkan : **colorWriteMask = 0 sur l'attachement 1** (le bright buffer reste inchangé — comportement pratique observé sur les pilotes courants).
+- [JAVA-BUG] Le FBO HDR a deux draw buffers mais le shader n'écrit que la location 0 : l'attachement 1 reçoit une valeur indéfinie en GL. En Vulkan (corrigé phase 6, conforme au code) : la passe **B2** (mobs + particules, §18.4 étape 4) n'attache **que `colorBuffer`** — le bright buffer n'est pas attaché, il reste donc inchangé (comportement pratique observé sur les pilotes courants ; équivalent à un `colorWriteMask = 0` sur l'attachement 1, sans sortie de fragment indéfinie). Passe sautée s'il n'y a ni mob ni particule (résultat identique).
 
 ### 14.2 `MobModelLoader` — ordre de résolution par id
 Pour chaque `MobConfig` (ordre du registre, doublons d'id ignorés), et identiquement pour `loadMob(id)` (qui remplace et détruit l'ancien modèle seulement si un nouveau est construit) :
 1. **JEM** (OptiFine CEM) : `<root>/assets/minecraft/optifine/cem/<id>.jem` pour `root ∈ [packRoot, defaultRoot]` ; le premier fichier existant **et** parsable gagne.
 2. **Forme vanilla codée en dur** (§14.4) + texture `findEntityTexture` ; texture introuvable → damier manquant 16×16.
 3. **Géométrie couleur** `cfg.geometry` (boîtes `[bx,by,bz,bw,bh,bd,r,g,b,a]` fournies par nb-mob).
-4. Si le mob n'est pas « built-in » : texture `findEntityTexture` sur une boîte `(-8,0,-8, 16,16,16)` avec un atlas 1×1 (UV pleines par face — voir §14.3 avec `tw = th = 1`, `u0 = v0 = 0`).
+4. Si le mob n'est pas « built-in » : texture `findEntityTexture` sur une boîte `(-8,0,-8, 16,16,16)` avec un « atlas » 1×1 : §14.3 avec `tw = th = 1`, `u0 = v0 = 0`. [JAVA-BUG] reproduit (corrigé phase 6, conforme au code) : le commentaire Java annonce des UV pleines par face, mais les tailles en pixels (16) ne sont pas normalisées → **U de 0 à 64, V de 1 à −47** (16 unités par face) : la texture est **répétée** (16 fois par face, échantillonneur REPEAT) au lieu d'être étirée.
 5. Sinon aucun modèle → cube manquant au rendu.
 
 `findEntityTexture(id)` : pour `root ∈ [packRoot, defaultRoot]`, dans `assets/minecraft/textures/entity/` : `id/id.png`, `id.png`, `id/id_temperate.png` ; le **premier existant** est chargé et **retourné même si le chargement échoue** (null, sans essayer `defaultRoot`) ; sinon premier `.png` (tri lexicographique des chemins, insensible à la casse sous Windows) du dossier `id/` s'il se charge. Textures entités : RGBA8 retournées, NEAREST/NEAREST, REPEAT, mips générés (inutilisés).
@@ -596,7 +596,7 @@ Fichier lu en UTF-8, lignes concaténées avec `\n`.
 - Rendu dans le FBO HDR après les mobs : blend `SRC_ALPHA/ONE_MINUS_SRC_ALPHA`, depth write **off**, depth test on, cull BACK, atlas particules en unité 0. **Pas de tri.**
 - Billboard sphérique : `model = T(p.position)` puis remplacement du bloc 3×3 par la **transposée** de la rotation de la vue (`model[c][r] = view[r][c]` pour `r,c < 3`), puis `scale(s)` uniforme avec `s = type.scale` (`leaf` 0.15, `lava` 0.1 — `particles.json`). Soit `model = T(p) · R_vᵀ · S(s)`.
 - Uniformes par particule : `model`, `colorTint = p.color`, `layer = type.textureLayer`.
-- Fin : depth write on, blend off. Attachement 1 : colorWriteMask = 0 (même raison que §14.1).
+- Fin : depth write on, blend off. Bright buffer non attaché en passe B2, donc inchangé (même raison que §14.1).
 
 ---
 
@@ -677,7 +677,7 @@ Samplers : un par combinaison (NEAREST_MIPMAP_LINEAR + aniso ≤ 8 + REPEAT pour
 1. **Shadow** : render pass/dynamic rendering depth-only, `loadOp CLEAR(1.0)`, `storeOp STORE` → layout final `SHADER_READ_ONLY_OPTIMAL` (ou `DEPTH_STENCIL_READ_ONLY_OPTIMAL`). Si OFF : ne pas rendre, l'image garde son layout de lecture.
 2. **Scène A** (opaque + occlusion) : color0/color1 `CLEAR(r,g,b,1)` **tous deux**, depth `CLEAR(1.0)`. Pipelines : terrain opaque ; AABB (`colorWriteMask = 0` sur les 2 attachements, depth write off, cull none) avec `vkCmdBeginQuery/EndQuery` par chunk (`queryPool` reset hors render pass).
 3. Transition depth → `DEPTH_STENCIL_READ_ONLY_OPTIMAL` (barrière `LATE_FRAGMENT_TESTS` écriture → `FRAGMENT_SHADER | EARLY_FRAGMENT_TESTS` lecture).
-4. **Scène B** (fluides, mobs, particules) : color `LOAD`, depth `LOAD` en **read-only** (`DEPTH_STENCIL_READ_ONLY_OPTIMAL`) et simultanément échantillonnée comme `opaqueDepth` — usage légal en Vulkan (attachement depth lecture seule + sampled dans le même layout). Toutes les pipelines de cette passe ont depth write **off**… **sauf la plage opaque des mobs** (depth write on en Java). Solution : scinder — **B1** fluides (depth read-only + sampled), puis transition depth → `DEPTH_STENCIL_ATTACHMENT_OPTIMAL`, **B2** mobs + particules (depth `LOAD`, écriture permise, plus échantillonnée).
+4. **Scène B** (fluides, mobs, particules) : color `LOAD`, depth `LOAD` en **read-only** (`DEPTH_STENCIL_READ_ONLY_OPTIMAL`) et simultanément échantillonnée comme `opaqueDepth` — usage légal en Vulkan (attachement depth lecture seule + sampled dans le même layout). Toutes les pipelines de cette passe ont depth write **off**… **sauf la plage opaque des mobs** (depth write on en Java). Solution : scinder — **B1** fluides (depth read-only + sampled), puis transition depth → `DEPTH_STENCIL_ATTACHMENT_OPTIMAL`, **B2** mobs + particules (depth `LOAD`, écriture permise, plus échantillonnée ; **seul `colorBuffer` attaché**, le bright buffer reste inchangé, §14.1).
 5. **Bloom** : 10 passes ping-pong (W/2×H/2), chaque cible `DONT_CARE` → `COLOR_ATTACHMENT` puis `SHADER_READ_ONLY` ; barrières entre itérations. Si désactivé : un `CLEAR(0)` de `pingpong[0]`.
 6. **Composite** : swapchain `CLEAR` ignoré (le quad couvre tout), pipeline pp ; transitions de `colorBuffer`, `depthBuffer` (`DEPTH_STENCIL_READ_ONLY_OPTIMAL` ou `SHADER_READ_ONLY_OPTIMAL`), `pingpong[0]`, nuages, bruit en lecture.
 7. **Overlay** (remplace le blit de profondeur) : même render pass que le composite ou suivant, en attachant `depthBuffer` HDR (même extent que la swapchain) comme depth en `LOAD`. Pipeline surbrillance : `LINE_LIST`, depth test `LESS_OR_EQUAL`, `lineWidth 1.0`. Puis UI (nb-ui) sur la même passe, depth test désactivé dans ses pipelines. Swapchain → `PRESENT_SRC_KHR`. (Alternative : copie de profondeur si l'overlay a besoin d'écrire la profondeur — non requis.)
