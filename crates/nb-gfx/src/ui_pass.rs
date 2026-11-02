@@ -754,6 +754,19 @@ mod tests {
             [255, 0, 255, 255],
             "atlas de repli magenta"
         );
+        // Frames d'interface seule (pas de scène 3D), alternées avec des frames de scène.
+        for _ in 0..3 {
+            let img = off
+                .render_ui_only([0.0, 0.0, 0.0, 1.0], &mut |pass| {
+                    ui.record(pass, (w as f32, h as f32), &verts, &draws)
+                        .unwrap();
+                })
+                .unwrap();
+            assert_eq!(img.get_pixel(8, 8).0, [255, 255, 0, 255], "quad uni");
+            assert_eq!(img.get_pixel(8, 24).0, [0, 0, 0, 255], "fond effacé en noir");
+            let scene = off.render(&input).unwrap();
+            assert_ne!(scene.get_pixel(8, 24).0, [0, 0, 0, 255], "ciel de la scène");
+        }
         drop(ui);
         drop(off);
         assert_eq!(validation_error_count(), 0, "erreurs de validation Vulkan");

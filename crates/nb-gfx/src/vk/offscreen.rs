@@ -8,7 +8,9 @@ use gpu_allocator::MemoryLocation;
 use image::RgbaImage;
 
 use super::resources::{Buffer, Image, ImageDesc, Transition};
-use super::scene::{OutputTarget, OverlayPass, SceneAssets, SceneRenderer, OUTPUT_FORMAT};
+use super::scene::{
+    FrameToken, OutputTarget, OverlayPass, SceneAssets, SceneRenderer, OUTPUT_FORMAT,
+};
 use super::{GpuContext, Result};
 use crate::frame::{FrameInput, GfxSettings};
 
@@ -86,6 +88,26 @@ impl OffscreenRenderer {
         input: &FrameInput<'_>,
         overlay: &mut dyn FnMut(&mut OverlayPass<'_>),
     ) -> Result<RgbaImage> {
+        self.render_and_read(&mut |scene, token, out| {
+            scene.record_frame(token, input, out, &mut *overlay)
+        })
+    }
+
+    /// Frame d'interface seule ([`SceneRenderer::record_ui_frame`]) relue en RGBA8.
+    pub fn render_ui_only(
+        &mut self,
+        clear: [f32; 4],
+        overlay: &mut dyn FnMut(&mut OverlayPass<'_>),
+    ) -> Result<RgbaImage> {
+        self.render_and_read(&mut |scene, token, out| {
+            scene.record_ui_frame(token, out, clear, &mut *overlay)
+        })
+    }
+
+    fn render_and_read(
+        &mut self,
+        record: &mut dyn FnMut(&mut SceneRenderer, FrameToken, &OutputTarget) -> Result<()>,
+    ) -> Result<RgbaImage> {
         let ctx = self.scene.context().clone();
         let (w, h) = self.extent();
         let token = self.scene.begin_frame()?;
@@ -95,7 +117,7 @@ impl OffscreenRenderer {
             extent: self.output.extent(),
             final_state: Transition::TRANSFER_SRC,
         };
-        self.scene.record_frame(token, input, &out, overlay)?;
+        record(&mut self.scene, token, &out)?;
         let region = vk::BufferImageCopy::default()
             .image_subresource(vk::ImageSubresourceLayers {
                 aspect_mask: vk::ImageAspectFlags::COLOR,

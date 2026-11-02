@@ -1183,6 +1183,85 @@ impl SceneRenderer {
         Ok(())
     }
 
+    /// Frame **sans scène 3D** (états dont l'écran Java n'appelle pas `MasterRenderer.render` :
+    /// choix du monde, réglages, packs, mobs) : la sortie est effacée à `clear` puis seule la
+    /// passe overlay est enregistrée (mêmes formats que [`Self::record_frame`] ; la profondeur
+    /// HDR est attachée en lecture seule, contenu abandonné, l'UI ne la teste pas).
+    pub fn record_ui_frame(
+        &mut self,
+        token: FrameToken,
+        out: &OutputTarget,
+        clear: [f32; 4],
+        overlay: &mut dyn FnMut(&mut OverlayPass<'_>),
+    ) -> Result<()> {
+        self.ensure_targets(out.extent)?;
+        let extent = out.extent;
+        let cmd = token.cmd;
+        let ctx = &*self.ctx;
+        let d = &ctx.device;
+        let t = self.targets.as_ref().expect("cibles HDR");
+        let out_range = vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        };
+        let initial = Transition {
+            layout: vk::ImageLayout::UNDEFINED,
+            stage: vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT
+                | vk::PipelineStageFlags2::TRANSFER,
+            access: vk::AccessFlags2::NONE,
+        };
+        // SAFETY : enregistrement dans un tampon ouvert ; ressources vivantes jusqu'à la fin de
+        // la frame.
+        unsafe {
+            barrier(
+                ctx,
+                cmd,
+                t.depth.raw,
+                t.depth.range(),
+                Transition::DEPTH_READ.discard(),
+                Transition::DEPTH_READ,
+            );
+            barrier(
+                ctx,
+                cmd,
+                out.image,
+                out_range,
+                initial,
+                Transition::COLOR_ATTACHMENT,
+            );
+            let att = [color_attachment(
+                out.view,
+                vk::AttachmentLoadOp::CLEAR,
+                clear,
+            )];
+            let depth_att = depth_attachment(t.depth.view, vk::AttachmentLoadOp::LOAD, true);
+            begin_rendering(d, cmd, extent, &att, Some(&depth_att));
+            set_viewport(d, cmd, extent);
+            let mut pass = OverlayPass {
+                device: d,
+                cmd,
+                extent,
+                color_format: self.pipelines.output_format,
+                depth_format: DEPTH_FORMAT,
+                block_atlas: &self.atlas_cpu,
+            };
+            overlay(&mut pass);
+            d.cmd_end_rendering(cmd);
+            barrier(
+                ctx,
+                cmd,
+                out.image,
+                out_range,
+                Transition::COLOR_ATTACHMENT,
+                out.final_state,
+            );
+        }
+        Ok(())
+    }
+
     fn record_highlight(&self, cmd: vk::CommandBuffer, frame_set: vk::DescriptorSet, b: IVec3) {
         let d = &self.ctx.device;
         // SAFETY : appelé pendant l'enregistrement de la passe composite.

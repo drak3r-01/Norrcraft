@@ -212,6 +212,27 @@ impl Renderer {
         input: &FrameInput<'_>,
         overlay: &mut dyn FnMut(&mut OverlayPass<'_>),
     ) -> Result<()> {
+        self.present_frame(&mut |scene, token, out| {
+            scene.record_frame(token, input, out, &mut *overlay)
+        })
+    }
+
+    /// Frame d'interface seule (pas de scène 3D : [`SceneRenderer::record_ui_frame`]), image
+    /// effacée à `clear` avant l'overlay.
+    pub fn render_ui_frame(
+        &mut self,
+        clear: [f32; 4],
+        overlay: &mut dyn FnMut(&mut OverlayPass<'_>),
+    ) -> Result<()> {
+        self.present_frame(&mut |scene, token, out| {
+            scene.record_ui_frame(token, out, clear, &mut *overlay)
+        })
+    }
+
+    fn present_frame(
+        &mut self,
+        record: &mut dyn FnMut(&mut SceneRenderer, crate::vk::FrameToken, &OutputTarget) -> Result<()>,
+    ) -> Result<()> {
         if self.size.0 == 0 || self.size.1 == 0 {
             return Ok(());
         }
@@ -246,7 +267,7 @@ impl Renderer {
             final_state: crate::vk::Transition::PRESENT,
         };
         let token = self.scene.begin_frame()?;
-        self.scene.record_frame(token, input, &out, overlay)?;
+        record(&mut self.scene, token, &out)?;
         let waits = [vk::SemaphoreSubmitInfo::default()
             .semaphore(self.acquire[slot])
             .stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)];
