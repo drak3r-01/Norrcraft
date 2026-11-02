@@ -11,3 +11,4 @@ Cargo.lock.bak
 .DS_Store
 Thumbs.db
 !crates/nb-gfx/shaders/spv/*.spv
+!crates/nb-gfx/shaders/ui/*.spv
