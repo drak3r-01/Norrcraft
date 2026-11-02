@@ -1,0 +1,22 @@
+{
+  "renderDistance": 12,
+  "fov": 90.0,
+  "sensitivity": 0.1,
+  "shadowQuality": "LOW",
+  "bloomEnabled": true,
+  "vsyncEnabled": false,
+  "fullscreen": false,
+  "resourcePack": "Default",
+  "windowWidth": 1280,
+  "windowHeight": 720,
+  "key_FORWARD": 87,
+  "key_BACKWARD": 83,
+  "key_LEFT": 65,
+  "key_RIGHT": 68,
+  "key_JUMP": 32,
+  "key_SPRINT": 341,
+  "key_CROUCH": 340,
+  "key_PAUSE": 256,
+  "key_INVENTORY": 69,
+  "key_DROP": 81
+}

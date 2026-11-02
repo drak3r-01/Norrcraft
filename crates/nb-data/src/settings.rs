@@ -246,6 +246,20 @@ mod tests {
         assert_eq!(s.key_bindings[&Action::Backward], keys::KEY_S);
     }
 
+    /// `assets/settings_defaults.json` (copié en `saves/settings.json` par
+    /// `scripts/package.sh`) doit rester égal aux réglages par défaut.
+    #[test]
+    fn packaged_defaults_file_matches() {
+        let file = include_str!("../../../assets/settings_defaults.json");
+        assert_eq!(
+            GameSettings::from_json(file).unwrap(),
+            GameSettings::default()
+        );
+        let a: Value = serde_json::from_str(file).unwrap();
+        let b: Value = serde_json::from_str(&GameSettings::default().to_json()).unwrap();
+        assert_eq!(a, b);
+    }
+
     #[test]
     fn roundtrip_and_float_formatting() {
         let mut s = GameSettings {
