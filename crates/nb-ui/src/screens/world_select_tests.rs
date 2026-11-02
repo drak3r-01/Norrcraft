@@ -225,7 +225,10 @@ fn create_flow_keeps_java_seed_bug() {
         panic!("création attendue : {r:?}");
     };
     assert_eq!(name, "My World");
-    assert_eq!(seed_text, "42", "germe saisi conservé (correctif par défaut)");
+    assert_eq!(
+        seed_text, "42",
+        "germe saisi conservé (correctif par défaut)"
+    );
     assert_eq!(world_type, WorldType::Flat);
     assert_eq!(game_mode, "CREATIVE");
     assert_eq!(params.sea_level, 4);

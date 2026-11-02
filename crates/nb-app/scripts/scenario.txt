@@ -1,0 +1,131 @@
+# Scénario de bout en bout (1280×720) : menu → créer un monde → jouer → inventaire → chat →
+# pause → réglages / packs / mobs → menu → recharger → quitter.
+# Coordonnées : voir crates/nb-game/tests/screens.rs. Un tick fixe par frame.
+
+# Menu principal : monde du menu en rotation.
+wait 90
+expect-state MainMenu
+capture 01-menu
+click 640 380                      # PLAY
+wait 3
+expect-state WorldSelect
+capture 02-world-select
+
+# Création : nom, germe, triche, puis Create.
+click 700 610                      # Create New World
+wait 3
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+key BACKSPACE
+type Bout en bout
+click 300 190                      # champ du germe
+type 20261102
+click 1000 290                     # Allow Cheats : ON
+wait 2
+capture 03-create-world
+click 300 610                      # Create
+wait 2
+expect-state Playing
+
+# Jeu : attendre le terrain (la souris est capturée : `look` tourne la caméra, `click` sans
+# coordonnées garde le curseur).
+wait-meshes 40 3000
+wait 60
+capture 04-playing-hud
+
+# Casser des blocs au sol (survie : ils vont dans la barre d'inventaire), sélection de la
+# case 1 (nom de l'objet affiché 1 s).
+look 0 700
+wait 2
+click
+wait 15
+click
+wait 15
+click
+wait 15
+look 0 -700
+wait 2
+key 1
+wait 10
+capture 05-hotbar-items
+
+# Mobs et particules (outils du script) devant la caméra.
+spawn-mob reindeer 4
+spawn-mob reindeer 7
+spawn-particles leaf 40
+spawn-particles lava 20
+wait 3
+capture 06-mobs-particles
+
+# Inventaire.
+key E
+wait 3
+expect-state Inventory
+capture 07-inventory
+key E
+wait 3
+expect-state Playing
+
+# Chat (commande avec triche).
+key T
+wait 2
+type time set noon
+wait 2
+capture 08-chat
+key ENTER
+wait 10
+capture 09-chat-log
+
+# Pause, réglages, packs, mobs.
+key ESC
+wait 3
+expect-state Paused
+capture 10-pause
+click 640 260                      # SETTINGS
+wait 3
+expect-state Settings
+capture 11-settings
+click 700 90                       # onglet Res. Packs
+wait 3
+expect-state ResourcePacks
+capture 12-resource-packs
+click 850 90                       # onglet Mobs
+wait 3
+expect-state MobSettings
+capture 13-mob-settings
+key ESC                            # applyAndLeave → SETTINGS
+wait 3
+expect-state Settings
+key ESC                            # retour → PAUSED
+wait 3
+expect-state Paused
+click 640 320                      # MAIN MENU (sauvegarde + déchargement)
+wait 60
+expect-state MainMenu
+capture 14-menu-after-save
+
+# Rechargement du monde.
+click 640 380                      # PLAY
+wait 3
+click 640 100                      # premier monde de la liste
+wait 2
+capture 15-world-list
+click 300 610                      # Play Selected World
+wait 2
+expect-state Playing
+wait-meshes 40 3000
+wait 30
+capture 16-reloaded
+
+# Quitter proprement.
+key ESC
+wait 3
+click 640 320
+wait 3
+click 640 500                      # QUIT
+wait 2

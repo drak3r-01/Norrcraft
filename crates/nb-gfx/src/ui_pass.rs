@@ -763,7 +763,11 @@ mod tests {
                 })
                 .unwrap();
             assert_eq!(img.get_pixel(8, 8).0, [255, 255, 0, 255], "quad uni");
-            assert_eq!(img.get_pixel(8, 24).0, [0, 0, 0, 255], "fond effacé en noir");
+            assert_eq!(
+                img.get_pixel(8, 24).0,
+                [0, 0, 0, 255],
+                "fond effacé en noir"
+            );
             let scene = off.render(&input).unwrap();
             assert_ne!(scene.get_pixel(8, 24).0, [0, 0, 0, 255], "ciel de la scène");
         }

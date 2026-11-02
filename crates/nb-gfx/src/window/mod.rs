@@ -231,7 +231,11 @@ impl Renderer {
 
     fn present_frame(
         &mut self,
-        record: &mut dyn FnMut(&mut SceneRenderer, crate::vk::FrameToken, &OutputTarget) -> Result<()>,
+        record: &mut dyn FnMut(
+            &mut SceneRenderer,
+            crate::vk::FrameToken,
+            &OutputTarget,
+        ) -> Result<()>,
     ) -> Result<()> {
         if self.size.0 == 0 || self.size.1 == 0 {
             return Ok(());

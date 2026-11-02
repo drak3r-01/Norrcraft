@@ -504,9 +504,7 @@ impl Ui for NbUi {
                         out.push(UiCommand::SetMobRegistry(Box::new(reg)));
                         out.push(UiCommand::ReloadMobModel(id));
                     }
-                    Some(MobAction::Reset) => {
-                        out.push(UiCommand::ResetMobRegistry(Box::new(reg)))
-                    }
+                    Some(MobAction::Reset) => out.push(UiCommand::ResetMobRegistry(Box::new(reg))),
                     None => {}
                 }
             }

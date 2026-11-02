@@ -102,7 +102,10 @@ fn full_flow_with_mouse_and_keyboard() {
     let mut g = game(&dir);
     tick(&mut g); // le panneau du menu est construit au premier `update`
     let f = g.draw_ui();
-    assert!(uses(&f, UiTexture::Logo) && uses(&f, UiTexture::Button), "menu dessiné");
+    assert!(
+        uses(&f, UiTexture::Logo) && uses(&f, UiTexture::Button),
+        "menu dessiné"
+    );
     assert_eq!((f.width, f.height), (1280, 720));
     let total: u32 = f.draws.iter().map(|d| d.count).sum();
     assert_eq!(total as usize, f.vertices.len());
@@ -112,7 +115,10 @@ fn full_flow_with_mouse_and_keyboard() {
     assert!(!GameState::WorldSelect.renders_world());
     let f = g.draw_ui();
     assert!(uses(&f, UiTexture::Dirt), "fond de terre");
-    assert!(f.draws.iter().any(|d| d.scissor.is_some()), "liste découpée");
+    assert!(
+        f.draws.iter().any(|d| d.scissor.is_some()),
+        "liste découpée"
+    );
 
     click(&mut g, CREATE_NEW.0, CREATE_NEW.1);
     assert!(g.input.is_typing_mode());

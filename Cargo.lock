@@ -811,10 +811,14 @@ dependencies = [
 name = "nb-app"
 version = "0.1.0"
 dependencies = [
+ "image",
+ "nb-core",
  "nb-data",
+ "nb-ecs",
  "nb-game",
  "nb-gfx",
  "nb-mesh",
+ "nb-ui",
  "winit",
 ]
 

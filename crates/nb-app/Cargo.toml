@@ -9,12 +9,18 @@ name = "norrblock"
 path = "src/main.rs"
 
 [dependencies]
+nb-core.workspace = true
 nb-game.workspace = true
 nb-data.workspace = true
+nb-ecs.workspace = true
 nb-mesh.workspace = true
+# Textures de l'interface (PNG intégrés, icônes procédurales).
+nb-ui.workspace = true
 # Renderer fenêtré (feature `window`, activée par défaut dans nb-gfx).
 nb-gfx = { workspace = true, features = ["window"] }
 winit.workspace = true
+# Captures PNG du mode scripté.
+image.workspace = true
 
 [lints]
 workspace = true

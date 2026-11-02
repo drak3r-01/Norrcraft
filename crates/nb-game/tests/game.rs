@@ -367,7 +367,12 @@ fn resource_pack_change_invalidates_meshes_and_waits_for_table() {
     let mut g = game(&dir);
     g.command(UiCommand::OpenSettings);
     g.command(UiCommand::SwitchState(GameState::ResourcePacks));
-    let packs: Vec<_> = g.ui_view().resource_packs.iter().map(|p| p.name.clone()).collect();
+    let packs: Vec<_> = g
+        .ui_view()
+        .resource_packs
+        .iter()
+        .map(|p| p.name.clone())
+        .collect();
     assert_eq!(packs, ["Default"]);
     g.take_requests();
     g.command(UiCommand::ApplyResourcePack("Other".into()));

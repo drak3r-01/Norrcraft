@@ -37,9 +37,9 @@ pub use fixed_step::{FixedStep, TIME_STEP};
 pub use game::{parse_seed, Game, GameOptions, PlatformRequest, Step};
 pub use input::{Action, InputManager};
 pub use render::{MobInstance, ParticleLayers, RenderView};
+pub use screens::NbUi;
 pub use session::{Registries, WorldSession};
 pub use state::{GameState, HudState, SettingsTab};
-pub use screens::NbUi;
 pub use ui::{NewWorld, NullUi, StubUi, Ui, UiCommand, UiFrame, UiView};
 
 pub use nb_ecs::GameMode;
