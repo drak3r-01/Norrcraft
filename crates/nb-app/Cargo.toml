@@ -10,6 +10,11 @@ path = "src/main.rs"
 
 [dependencies]
 nb-game.workspace = true
+nb-data.workspace = true
+nb-mesh.workspace = true
+# Renderer fenêtré (feature `window`, activée par défaut dans nb-gfx).
+nb-gfx = { workspace = true, features = ["window"] }
+winit.workspace = true
 
 [lints]
 workspace = true
