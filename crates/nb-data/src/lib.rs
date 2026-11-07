@@ -12,7 +12,10 @@ pub mod particles;
 pub mod settings;
 
 pub use blocks::{BlockId, BlockIds, BlockProperties, BlockRegistry, BlockType, BLOCKS_JSON};
-pub use mobs::{MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry, BUILTIN_MOB_IDS};
+pub use mobs::{
+    builtin_mob_ids, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,
+    BUILTIN_MOB_IDS,
+};
 pub use pack::PackMeta;
 pub use particles::{ParticleRegistry, ParticleType, PARTICLES_JSON};
 pub use settings::{Action, GameSettings, ShadowQuality};

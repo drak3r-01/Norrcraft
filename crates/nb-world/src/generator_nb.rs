@@ -85,6 +85,48 @@ impl<'a> Painter<'a> {
             .then_some((lx, y, lz))
     }
 
+    /// Vrai si la colonne `(wx, wz)` tombe dans ce chunk.
+    pub(crate) fn covers(&self, wx: i32, wz: i32) -> bool {
+        let (lx, lz) = (wx.wrapping_sub(self.x0), wz.wrapping_sub(self.z0));
+        (0..SX).contains(&lx) && (0..SZ).contains(&lz)
+    }
+
+    /// Écrit `b` quoi qu'il y ait déjà (structures : elles remplacent terrain et arbres).
+    pub(crate) fn force(&mut self, wx: i32, y: i32, wz: i32, b: BlockId) {
+        if let Some((lx, y, lz)) = self.local(wx, y, wz) {
+            self.chunk.set_block(lx, y, lz, b);
+        }
+    }
+
+    /// Bloc actuel (air hors du chunk).
+    pub(crate) fn get(&self, wx: i32, y: i32, wz: i32) -> BlockId {
+        match self.local(wx, y, wz) {
+            Some((lx, y, lz)) => self.chunk.block(lx, y, lz),
+            None => self.ids.air,
+        }
+    }
+
+    /// Végétation à retirer sous une structure : feuilles, troncs, plantes, cactus, champignons.
+    pub(crate) fn is_foliage(&self, b: BlockId) -> bool {
+        let i = self.ids;
+        self.is_leaf(b)
+            || self.is_plant(b)
+            || b == i.wood
+            || b == i.birch_wood
+            || b == i.spruce_wood
+            || b == i.jungle_wood
+            || b == i.acacia_wood
+            || b == i.dark_oak_wood
+            || b == i.cherry_wood
+            || b == i.baobab_wood
+            || b == i.redwood_wood
+            || b == i.cactus
+            || b == i.mushroom_stem
+            || b == i.mushroom_cap_red
+            || b == i.mushroom_cap_brown
+            || b == i.lily_pad
+    }
+
     fn is_leaf(&self, b: BlockId) -> bool {
         let i = self.ids;
         b == i.leaves
@@ -92,6 +134,8 @@ impl<'a> Painter<'a> {
             || b == i.spruce_leaves
             || b == i.jungle_leaves
             || b == i.acacia_leaves
+            || b == i.apple_leaves
+            || b == i.willow_leaves
     }
 
     fn is_plant(&self, b: BlockId) -> bool {
@@ -109,6 +153,20 @@ impl<'a> Painter<'a> {
             || b == i.dead_bush
             || b == i.mushroom_red
             || b == i.mushroom_brown
+            || b == i.allium
+            || b == i.blue_orchid
+            || b == i.sunflower
+            || b == i.lily_of_the_valley
+            || b == i.cotton_grass
+            || b == i.pampas_grass
+            || b == i.hibiscus
+            || b == i.ember_bloom
+            || b == i.bamboo
+            || b == i.berry_bush
+            || b == i.cattail
+            || b == i.desert_sage
+            || b == i.pumpkin
+            || b == i.vines
     }
 
     /// Tronc / bloc plein : remplace l'air, les feuilles et les plantes.
@@ -252,6 +310,8 @@ impl WorldGenerator {
             self.pass_lava(chunk);
         }
         self.nb_features(chunk, wx0, wz0);
+        self.nb_structures(chunk, wx0, wz0);
+        self.nb_flora(chunk, wx0, wz0, &grid);
         self.nb_vegetation(chunk, wx0, wz0, &grid);
     }
 
@@ -711,10 +771,11 @@ impl WorldGenerator {
     fn tree_density(&self, biome: Biome) -> f64 {
         let c = &*self.cfg;
         let ov = c.tree_density_overrides[biome.family().ordinal()];
+        let bcfg = self.biomes.config(biome);
         let base = if ov >= 0.0 {
             ov
         } else {
-            self.biomes.config(biome).tree_density
+            bcfg.nb_tree_density.unwrap_or(bcfg.tree_density)
         };
         base * c.vegetation_density
     }
@@ -767,9 +828,6 @@ impl WorldGenerator {
                 k
             };
             if kind == TreeType::Palm && col.temp < 0.42 {
-                continue;
-            }
-            if col.biome == Biome::Desert {
                 continue;
             }
             self.place_tree_nb(&mut painter, kind, px, col.height, pz, &mut rng);
@@ -1270,6 +1328,7 @@ impl WorldGenerator {
                     }
                 }
             }
+            _ => self.place_tree_nature(p, kind, x, y, z, rng),
         }
     }
 

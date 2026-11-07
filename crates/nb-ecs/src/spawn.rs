@@ -96,7 +96,15 @@ impl Spawner<'_> {
         rng: &mut JavaRandom,
         events: &mut Vec<EcsEvent>,
     ) {
-        let attempts = if cfg.group_size_max == 1 { 15 } else { 10 };
+        // Les mobs à conditions d'apparition (phase 9) tentent plus d'origines : beaucoup de
+        // points tirés ne sont pas dans leur habitat. Les mobs d'origine gardent 15 / 10.
+        let attempts = if cfg.has_habitat() {
+            40
+        } else if cfg.group_size_max == 1 {
+            15
+        } else {
+            10
+        };
         for _ in 0..attempts {
             let Some(ox) = next_int(rng, self.radius.saturating_mul(2)) else {
                 return;
@@ -148,13 +156,56 @@ impl Spawner<'_> {
     }
 
     fn find_spawn_y(&self, cfg: &MobConfig, x: i32, z: i32) -> i32 {
-        match cfg.medium {
+        let y = match cfg.medium {
             MobMedium::Land => find_surface_y(self.blocks, self.reg, x, z),
             MobMedium::Water => {
                 find_water_y(self.blocks, self.reg, x, z, cfg.spawn_min_water_depth)
             }
             MobMedium::Air => -1,
+        };
+        if y < 0 || !cfg.has_habitat() || self.habitat_ok(cfg, x, y, z) {
+            y
+        } else {
+            -1
         }
+    }
+
+    /// Conditions d'apparition de la phase 9 : biome, altitude, sol (ou fond), profondeur.
+    fn habitat_ok(&self, cfg: &MobConfig, x: i32, y: i32, z: i32) -> bool {
+        if y < cfg.spawn_min_y || (cfg.spawn_max_y > 0 && y > cfg.spawn_max_y) {
+            return false;
+        }
+        if !cfg.spawn_biomes.is_empty() {
+            if let Some(b) = self.blocks.biome_at(x, z) {
+                if !cfg.spawn_biomes.iter().any(|n| n == b.name()) {
+                    return false;
+                }
+            }
+        }
+        let water = self.reg.ids().water;
+        // Sol : sous les pieds d'un terrestre, fond de la colonne d'eau pour un aquatique.
+        let mut floor_y = y - 1;
+        if cfg.medium == MobMedium::Water {
+            while floor_y > 0 && self.blocks.block(x, floor_y, z) == water {
+                floor_y -= 1;
+            }
+            if cfg.spawn_max_water_depth > 0 {
+                let mut top = y;
+                while top < 127 && self.blocks.block(x, top + 1, z) == water {
+                    top += 1;
+                }
+                if top - floor_y > cfg.spawn_max_water_depth {
+                    return false;
+                }
+            }
+        }
+        let floor = self.reg.from_id(self.blocks.block(x, floor_y, z));
+        if cfg.medium == MobMedium::Land
+            && (floor.name.ends_with("leaves") || floor.name == "cactus" || !floor.solid)
+        {
+            return false;
+        }
+        cfg.spawn_surfaces.is_empty() || cfg.spawn_surfaces.contains(&floor.name)
     }
 }
 

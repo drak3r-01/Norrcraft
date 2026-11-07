@@ -92,6 +92,12 @@ cargo run --release -p nb-world --example blockmap -- <graine> <type> <x0> <z0> 
 Mesures (graine 12345, Normal, 8 000 × 8 000 blocs) : océans ≈ 26 %, rivières ≈ 9 %, plages ≈ 7 %,
 aucun biome au-dessus de 10 %. Génération d'un chunk ≈ 1,6 ms (dév. optimisé, 1 thread).
 
+## Phase 9 : structures, flore, faune
+
+* **Structures** (19 types : hameaux, tours, temples, épaves, phares…) : `docs/STRUCTURES.md`.
+* **Flore** (51 blocs, 8 arbres, 16 plantes par biome) : `docs/FLORE.md`.
+* **Faune** (42 animaux avec conditions d'apparition) : `docs/FAUNE.md`.
+
 ## Textures
 
 Les blocs ajoutés ont des textures procédurales originales (`scripts/gen_textures.py`, 32×32,

@@ -18,6 +18,12 @@ pub trait BlockAccess {
     /// Teinte `leavesTint` du biome en `(x, z)` (particules de feuilles).
     fn leaves_tint(&self, x: i32, z: i32) -> [f64; 3];
 
+    /// Biome de la colonne `(x, z)` ; `None` quand le monde n'en a pas (tests) : les conditions
+    /// d'apparition par biome sont alors ignorées.
+    fn biome_at(&self, _x: i32, _z: i32) -> Option<nb_world::Biome> {
+        None
+    }
+
     /// Raccourci sur un `IVec3`.
     fn block_at(&self, p: IVec3) -> BlockId {
         self.block(p.x, p.y, p.z)
@@ -46,6 +52,10 @@ impl BlockAccess for WorldBlocks<'_> {
         let biomes = self.0.biome_system();
         biomes.config(biomes.biome_at(x, z)).leaves_tint
     }
+
+    fn biome_at(&self, x: i32, z: i32) -> Option<nb_world::Biome> {
+        Some(self.0.biome_system().biome_at(x, z))
+    }
 }
 
 /// Monde de blocs en mémoire (tests, outils) : tout ce qui n'est pas écrit est de l'air.
@@ -58,6 +68,7 @@ pub struct MemoryBlocks {
     loaded: Option<HashSet<(i32, i32)>>,
     air: BlockId,
     tint: [f64; 3],
+    biome: Option<nb_world::Biome>,
 }
 
 impl MemoryBlocks {
@@ -83,6 +94,11 @@ impl MemoryBlocks {
     /// Teinte de feuilles renvoyée partout.
     pub fn set_leaves_tint(&mut self, tint: [f64; 3]) {
         self.tint = tint;
+    }
+
+    /// Biome renvoyé partout (`None` : le monde n'a pas de biomes, conditions d'apparition ignorées).
+    pub fn set_biome(&mut self, biome: Option<nb_world::Biome>) {
+        self.biome = biome;
     }
 
     /// Remplit la boîte `[min, max]` (bornes inclusives).
@@ -136,6 +152,10 @@ impl BlockAccess for MemoryBlocks {
 
     fn leaves_tint(&self, _x: i32, _z: i32) -> [f64; 3] {
         self.tint
+    }
+
+    fn biome_at(&self, _x: i32, _z: i32) -> Option<nb_world::Biome> {
+        self.biome
     }
 }
 

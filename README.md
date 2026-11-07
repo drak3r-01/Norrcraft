@@ -185,7 +185,8 @@ jumpforce <v>`, `/default`, `/kill`, `/setworldspawn`.
 valeurs du mob de même `id` ; un `id` inconnu crée un mob personnalisé à partir du renne.
 Champs (voir `saves/mobs_defaults.json` pour les valeurs d'origine) : `displayName`,
 `widthX`, `widthZ`, `height`, `maxHealth`, `medium` (`LAND`/`WATER`), `spawnMinWaterDepth`,
-`maxCount`, `groupSizeMin`, `groupSizeMax`, `spawnScatterRadius`, `behaviorType`
+`spawnBiomes`, `spawnSurfaces`, `spawnMinY`, `spawnMaxY`, `spawnMaxWaterDepth` (habitat,
+optionnels, voir `docs/FAUNE.md`), `maxCount`, `groupSizeMin`, `groupSizeMax`, `spawnScatterRadius`, `behaviorType`
 (`PASSIVE`/`AGGRESSIVE`), `moveSpeedMin/Max`, `moveDurationMin/Max`, `pauseDurationMin/Max`,
 `herding`, `herdRadius`, `herdBias`, `aggressorDetectRange`, `aggressorFleeSpeed`,
 `playerFleeSpeed`, `playerFleeDurationMin/Max`, `aggroPlayerRange`, `chaseSpeed`,
@@ -253,3 +254,9 @@ que les SPIR-V sont à jour).
 ## Licence
 
 MIT, voir [`LICENSE`](LICENSE).
+
+## Phase 9 : structures, faune, flore
+
+19 structures (`docs/STRUCTURES.md`, curseur « Structure Density » à la création du monde), 42 animaux
+supplémentaires (`docs/FAUNE.md`, `scripts/gen_mobs.py`) et une flore étendue (`docs/FLORE.md`,
+`scripts/gen_textures_nature.py` pour les textures provisoires).

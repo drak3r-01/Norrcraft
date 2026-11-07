@@ -20,6 +20,7 @@ fn defaults() -> WorldGenParams {
         snow_line_mountains: 70,
         snow_line_taiga: 60,
         vegetation_density: 1.0,
+        structure_density: 1.0,
         tree_density_overrides: [-1.0; 8],
         caves_enabled: true,
         cave_threshold: 0.5,

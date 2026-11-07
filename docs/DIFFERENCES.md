@@ -131,3 +131,24 @@ arbres et décors variés, grottes sans puits, minerais en filons, nouveaux type
 * `treeDensityOverrides` garde 8 valeurs : les nouveaux biomes héritent de celle de leur
   « famille » Java (`Biome::family`).
 * Les mondes Amplified et Island sont réajustés pour le nouveau générateur.
+
+## Structures, flore et faune (phase 9)
+
+Hors fidélité Java, comme la génération (`docs/STRUCTURES.md`, `docs/FLORE.md`, `docs/FAUNE.md`) :
+
+* **Structures** : 19 types posés par cellules de 64 blocs (générateur Norrblock uniquement ;
+  curseur `structureDensity`). Aucune structure en `Classic`.
+* **Blocs** : 51 blocs de plus (identifiants 68 à 118) ; un monde créé avant n'en contient pas.
+* **Arbres et plantes** : 8 arbres, 16 plantes par biome ; le désert et les badlands ont des
+  arbres. Le générateur Java ne lit ni `flora`, ni `tree_mix`, ni `nb_tree_density`.
+* **Mobs** : 42 animaux ajoutés au registre après les trois d'origine, avec des conditions
+  d'apparition facultatives (`spawnBiomes`, `spawnSurfaces`, `spawnMinY`, `spawnMaxY`,
+  `spawnMaxWaterDepth`). Les trois mobs d'origine n'ont aucune condition et gardent le tirage
+  d'apparition du Java ; en revanche le flux du générateur aléatoire d'apparition est partagé, donc
+  les positions exactes des mobs d'origine ne sont plus celles du Java dès que les autres
+  tentent d'apparaître (les tests Java n'activent que les mobs d'origine).
+* **Apparition sur les feuillages** : un mob soumis à des conditions n'apparaît jamais sur des
+  feuilles ni un cactus (le Java les y faisait apparaître) ; les trois mobs d'origine gardent
+  ce comportement.
+* **Prédation** : un hostile terrestre ou aquatique poursuit la proie passive la plus proche de
+  son milieu (comportement Java, désormais visible avec les loups et les requins).

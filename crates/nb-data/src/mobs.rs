@@ -1,7 +1,9 @@
 //! Configuration des mobs : valeurs par défaut intégrées + surcharges `saves/mobs.json`.
 //!
-//! Comme en Java, la config est à deux niveaux : les 3 mobs intégrés (renne, poisson, orque)
-//! puis les champs présents dans `mobs.json` qui écrasent un par un les valeurs courantes.
+//! Comme en Java, la config est à deux niveaux : les mobs intégrés puis les champs présents dans
+//! `mobs.json` qui écrasent un par un les valeurs courantes. Les 3 mobs d'origine (renne, poisson,
+//! orque) sont suivis des animaux de la phase 9 (`mobs_nb.json`, généré par `scripts/gen_mobs.py`),
+//! qui ajoutent des conditions d'apparition (biomes, sols, altitude, profondeur).
 //! Un identifiant inconnu crée un mob personnalisé, initialisé depuis le renne.
 
 use std::collections::HashMap;
@@ -14,8 +16,11 @@ use serde_json::Value;
 const DEFAULTS_JSON: &str = include_str!("../../../assets/mobs_defaults.json");
 /// Boîtes colorées des mobs intégrés : `[x, y, z, w, h, d, r, g, b, a]` en pixels MC (÷16).
 const GEOMETRY_JSON: &str = include_str!("../../../assets/mob_geometry.json");
+/// Animaux de la phase 9 : réglages et géométrie (même formats).
+const NB_DEFAULTS_JSON: &str = include_str!("../../../assets/mobs_nb.json");
+const NB_GEOMETRY_JSON: &str = include_str!("../../../assets/mob_geometry_nb.json");
 
-/// Identifiants des mobs intégrés, dans l'ordre de l'enum Java `MobType`.
+/// Identifiants des trois mobs d'origine, dans l'ordre de l'enum Java `MobType`.
 pub const BUILTIN_MOB_IDS: [&str; 3] = ["reindeer", "fish", "orca"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -86,6 +91,35 @@ pub struct MobConfig {
     pub attack_damage: f32,
     pub attack_cooldown: f32,
     pub knockback_force: f32,
+
+    /// Conditions d'apparition (phase 9). Tout est optionnel : vide / 0 = pas de contrainte, ce
+    /// qui est le cas des trois mobs d'origine (leur apparition reste celle du Java).
+    /// Noms de biomes (`Biome::name()`, ex. `SNOWY_PLAINS`) où le mob peut apparaître.
+    #[serde(default)]
+    pub spawn_biomes: Vec<String>,
+    /// Noms de blocs sur lesquels il apparaît (sol pour un terrestre, fond pour un aquatique).
+    /// Un mob soumis à une condition n'apparaît jamais sur les feuillages.
+    #[serde(default)]
+    pub spawn_surfaces: Vec<String>,
+    #[serde(default)]
+    pub spawn_min_y: i32,
+    /// `0` = pas de plafond.
+    #[serde(default)]
+    pub spawn_max_y: i32,
+    /// Profondeur d'eau maximale (rivières) ; `0` = pas de plafond.
+    #[serde(default)]
+    pub spawn_max_water_depth: i32,
+}
+
+impl MobConfig {
+    /// Vrai si le mob a au moins une condition d'apparition (phase 9).
+    pub fn has_habitat(&self) -> bool {
+        !self.spawn_biomes.is_empty()
+            || !self.spawn_surfaces.is_empty()
+            || self.spawn_min_y > 0
+            || self.spawn_max_y > 0
+            || self.spawn_max_water_depth > 0
+    }
 }
 
 fn num(obj: &Value, key: &str) -> Option<f64> {
@@ -131,6 +165,19 @@ impl MobConfig {
             "spawnMinWaterDepth" => spawn_min_water_depth, "maxCount" => max_count,
             "groupSizeMin" => group_size_min, "groupSizeMax" => group_size_max,
             "spawnScatterRadius" => spawn_scatter_radius,
+            "spawnMinY" => spawn_min_y, "spawnMaxY" => spawn_max_y,
+            "spawnMaxWaterDepth" => spawn_max_water_depth,
+        }
+        for (key, slot) in [
+            ("spawnBiomes", &mut self.spawn_biomes),
+            ("spawnSurfaces", &mut self.spawn_surfaces),
+        ] {
+            if let Some(a) = obj.get(key).and_then(Value::as_array) {
+                *slot = a
+                    .iter()
+                    .filter_map(|v| v.as_str().map(str::to_owned))
+                    .collect();
+            }
         }
         if let Some(m) = obj
             .get("medium")
@@ -217,7 +264,7 @@ impl MobRegistry {
     }
 
     pub fn is_built_in(id: &str) -> bool {
-        BUILTIN_MOB_IDS.contains(&id)
+        BUILTIN_MOB_IDS.contains(&id) || builtin_mob_ids().iter().any(|b| b == id)
     }
 
     pub fn id_exists(&self, id: &str) -> bool {
@@ -251,7 +298,7 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
         serde_json::from_str(DEFAULTS_JSON).map_err(|e| Error::data("mobs_defaults.json", e))?;
     let geometry: HashMap<String, Vec<[f32; 10]>> =
         serde_json::from_str(GEOMETRY_JSON).map_err(|e| Error::data("mob_geometry.json", e))?;
-    let mut configs = Vec::with_capacity(BUILTIN_MOB_IDS.len());
+    let mut configs = Vec::with_capacity(BUILTIN_MOB_IDS.len() + 48);
     for id in BUILTIN_MOB_IDS {
         let mut cfg = file
             .mobs
@@ -265,7 +312,34 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
         cfg.geometry = Some(MobGeometry { boxes });
         configs.push(cfg);
     }
+    // Animaux de la phase 9, dans l'ordre du fichier.
+    let nb_file: File =
+        serde_json::from_str(NB_DEFAULTS_JSON).map_err(|e| Error::data("mobs_nb.json", e))?;
+    let nb_geometry: HashMap<String, Vec<[f32; 10]>> = serde_json::from_str(NB_GEOMETRY_JSON)
+        .map_err(|e| Error::data("mob_geometry_nb.json", e))?;
+    for mut cfg in nb_file.mobs {
+        let boxes = nb_geometry.get(&cfg.id).cloned().ok_or_else(|| {
+            Error::data(
+                "mob_geometry_nb.json",
+                format!("géométrie manquante: {}", cfg.id),
+            )
+        })?;
+        cfg.geometry = Some(MobGeometry { boxes });
+        configs.push(cfg);
+    }
     Ok(configs)
+}
+
+/// Identifiants de tous les mobs intégrés (d'origine puis phase 9).
+pub fn builtin_mob_ids() -> &'static [String] {
+    static IDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    IDS.get_or_init(|| {
+        builtin_configs()
+            .expect("données de mobs intégrées invalides")
+            .into_iter()
+            .map(|c| c.id)
+            .collect()
+    })
 }
 
 #[cfg(test)]
@@ -276,7 +350,14 @@ mod tests {
     fn builtin_order_and_values() {
         let reg = MobRegistry::builtin();
         let ids: Vec<_> = reg.all().iter().map(|c| c.id.as_str()).collect();
-        assert_eq!(ids, BUILTIN_MOB_IDS);
+        assert_eq!(ids[..3], BUILTIN_MOB_IDS);
+        assert!(
+            ids.len() >= 40,
+            "les animaux de la phase 9 manquent : {}",
+            ids.len()
+        );
+        let unique: std::collections::HashSet<_> = ids.iter().collect();
+        assert_eq!(unique.len(), ids.len(), "identifiants en double");
         let reindeer = reg.get("reindeer").unwrap();
         assert_eq!(reindeer.max_health, 5.0);
         assert_eq!(reindeer.medium, MobMedium::Land);

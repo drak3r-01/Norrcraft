@@ -215,7 +215,7 @@ mod tests {
         assert_eq!(t.get(26).role, BlockRole::LilyPad);
         assert_eq!(t.get(3).role, BlockRole::Other);
         assert_eq!(t.canonical(200), 0);
-        assert_eq!(t.canonical(100), 0);
+        assert_eq!(t.canonical(150), 0);
         assert_eq!(t.get(200).role, BlockRole::Air);
         assert_eq!(t.get(0).texture_layers, [0; 6]);
         assert_eq!(t.get(3).texture_layers, [1; 6]);

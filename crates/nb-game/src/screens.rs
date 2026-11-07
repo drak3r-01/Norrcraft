@@ -93,6 +93,7 @@ pub fn params_from_config(c: &WorldConfig) -> WorldGenParams {
         snow_line_mountains: c.snow_line_mountains,
         snow_line_taiga: c.snow_line_taiga,
         vegetation_density: c.vegetation_density,
+        structure_density: c.structure_density,
         tree_density_overrides: c.tree_density_overrides,
         caves_enabled: c.caves_enabled,
         cave_threshold: c.cave_threshold,
@@ -137,6 +138,7 @@ pub fn apply_params(p: &WorldGenParams, c: &mut WorldConfig) {
     c.snow_line_mountains = p.snow_line_mountains;
     c.snow_line_taiga = p.snow_line_taiga;
     c.vegetation_density = p.vegetation_density;
+    c.structure_density = p.structure_density;
     c.tree_density_overrides = p.tree_density_overrides;
     c.caves_enabled = p.caves_enabled;
     c.cave_threshold = p.cave_threshold;

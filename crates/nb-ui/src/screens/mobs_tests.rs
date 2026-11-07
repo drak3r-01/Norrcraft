@@ -202,7 +202,7 @@ fn delete_reset_and_escape() {
     assert_eq!(h.s.screen, Screen::Main);
     h.click(640.0, 140.0);
     assert_eq!(h.click(300.0, ROW1), Some(MobAction::Reset));
-    assert_eq!(h.reg.all().len(), 3);
+    assert_eq!(h.reg.all().len(), MobRegistry::builtin().all().len());
     assert_eq!(h.esc(), Some(MobAction::Leave));
     assert_eq!(h.click(RIGHT, ROW2), Some(MobAction::Leave));
 }
@@ -232,5 +232,6 @@ fn main_draw_lists_rows() {
         .iter()
         .filter(|v| v.color == [0.15, 0.15, 0.15, 0.9])
         .count();
-    assert_eq!(rows, 3 * 6);
+    assert!(rows >= 3 * 6, "les lignes visibles : {rows}");
+    assert_eq!(rows % 6, 0);
 }

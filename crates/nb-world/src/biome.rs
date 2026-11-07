@@ -182,6 +182,44 @@ pub enum TreeType {
     Bush,
     HugeRedMushroom,
     HugeBrownMushroom,
+    // Ajouts de la phase 9 (flore).
+    /// Pommier (feuilles à pommes), petit et rond.
+    Apple,
+    /// Saule pleureur : couronne retombante.
+    Willow,
+    /// Baobab : tronc renflé, branches en candélabre.
+    Baobab,
+    /// Séquoia : tronc 2×2 très haut, cime étroite.
+    Redwood,
+    /// Cactus candélabre à bras.
+    Saguaro,
+    /// Arbre-parasol (dragonnier) à plateau de feuilles.
+    Umbrella,
+    /// Bosquet de bambous.
+    BambooGrove,
+    /// Genévrier : petit conifère trapu.
+    Juniper,
+}
+
+/// Natures de sol acceptées par une plante de [`FloraEntry`].
+pub const SOIL_GRASS: u8 = 1;
+pub const SOIL_SAND: u8 = 2;
+pub const SOIL_SNOW: u8 = 4;
+pub const SOIL_ASH: u8 = 8;
+
+/// Plante de la passe « flore » (Norrblock uniquement : le générateur Java ne la lit pas).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FloraEntry {
+    pub block: BlockId,
+    pub chance: f64,
+    /// Masque de `SOIL_*`.
+    pub soil: u8,
+    /// Seulement dans les plaques d'un bruit lent (champs, parterres).
+    pub patchy: bool,
+    /// Seulement au contact de l'eau.
+    pub wet: bool,
+    /// Hauteur de la tige en blocs (min, max).
+    pub height: (u8, u8),
 }
 
 /// Plante candidate d'un biome (liste ordonnée).
@@ -202,6 +240,10 @@ pub struct BiomeConfig {
     /// Mélange d'arbres pondéré du générateur « Norrblock » (vide : `tree_type` seul).
     pub tree_mix: Vec<(TreeType, u32)>,
     pub vegetation: Vec<VegetationEntry>,
+    /// Plantes supplémentaires du générateur « Norrblock » (voir [`FloraEntry`]).
+    pub flora: Vec<FloraEntry>,
+    /// Densité d'arbres propre à Norrblock (remplace `tree_density` quand elle est définie).
+    pub nb_tree_density: Option<f64>,
     pub height_modifier: f64,
     pub grass_tint: [f64; 3],
     pub leaves_tint: [f64; 3],
@@ -251,6 +293,8 @@ fn bc(
         tree_density,
         tree_mix: Vec::new(),
         vegetation,
+        flora: Vec::new(),
+        nb_tree_density: None,
         height_modifier,
         grass_tint,
         leaves_tint,
@@ -381,6 +425,7 @@ fn build_configs(b: &BlockIds) -> Vec<BiomeConfig> {
     ];
     v.extend(norrblock_configs(b));
     apply_classic_mixes(&mut v);
+    apply_nature(&mut v, b);
     v
 }
 
@@ -408,6 +453,178 @@ fn apply_classic_mixes(v: &mut [BiomeConfig]) {
     set(v, Biome::Swamp, &[(SwampOak, 1)]);
     set(v, Biome::Savanna, &[(Acacia, 7), (Bush, 2), (Dead, 1)]);
     set(v, Biome::Mountains, &[(Spruce, 1)]);
+}
+
+fn fl(block: BlockId, chance: f64, soil: u8) -> FloraEntry {
+    FloraEntry {
+        block,
+        chance,
+        soil,
+        patchy: false,
+        wet: false,
+        height: (1, 1),
+    }
+}
+
+impl FloraEntry {
+    fn patchy(mut self) -> Self {
+        self.patchy = true;
+        self
+    }
+    fn wet(mut self) -> Self {
+        self.wet = true;
+        self
+    }
+    fn tall(mut self, lo: u8, hi: u8) -> Self {
+        self.height = (lo, hi);
+        self
+    }
+}
+
+/// Flore et arbres de la phase 9 : plantes par biome, nouveaux mélanges d'arbres.
+/// N'affecte que le générateur « Norrblock » (le Java ne lit ni `flora` ni `tree_mix`).
+fn apply_nature(v: &mut [BiomeConfig], b: &BlockIds) {
+    use TreeType::*;
+    let g = SOIL_GRASS;
+    let (sand, snow, ash) = (SOIL_SAND, SOIL_SNOW, SOIL_ASH);
+    let flora = |v: &mut [BiomeConfig], biome: Biome, list: Vec<FloraEntry>| {
+        v[biome.ordinal()].flora = list;
+    };
+    let add_trees = |v: &mut [BiomeConfig], biome: Biome, extra: &[(TreeType, u32)]| {
+        v[biome.ordinal()].tree_mix.extend_from_slice(extra);
+    };
+
+    flora(
+        v,
+        Biome::Plains,
+        vec![
+            fl(b.sunflower, 0.10, g).patchy(),
+            fl(b.allium, 0.006, g),
+            fl(b.berry_bush, 0.004, g),
+            fl(b.cattail, 0.10, g).wet(),
+        ],
+    );
+    flora(
+        v,
+        Biome::Forest,
+        vec![
+            fl(b.berry_bush, 0.008, g),
+            fl(b.lily_of_the_valley, 0.05, g).patchy(),
+            fl(b.allium, 0.004, g),
+            fl(b.cattail, 0.08, g).wet(),
+        ],
+    );
+    flora(
+        v,
+        Biome::BirchForest,
+        vec![
+            fl(b.lily_of_the_valley, 0.12, g).patchy(),
+            fl(b.allium, 0.008, g),
+            fl(b.berry_bush, 0.004, g),
+        ],
+    );
+    flora(v, Biome::DarkForest, vec![fl(b.berry_bush, 0.006, g)]);
+    flora(
+        v,
+        Biome::FlowerMeadow,
+        vec![
+            fl(b.sunflower, 0.12, g).patchy(),
+            fl(b.allium, 0.05, g).patchy(),
+            fl(b.blue_orchid, 0.01, g),
+        ],
+    );
+    flora(
+        v,
+        Biome::CherryGrove,
+        vec![
+            fl(b.allium, 0.02, g).patchy(),
+            fl(b.lily_of_the_valley, 0.03, g),
+            fl(b.bamboo, 0.03, g).patchy().tall(3, 7),
+        ],
+    );
+    flora(
+        v,
+        Biome::AutumnForest,
+        vec![fl(b.pumpkin, 0.02, g).patchy(), fl(b.berry_bush, 0.012, g)],
+    );
+    flora(
+        v,
+        Biome::Taiga,
+        vec![
+            fl(b.berry_bush, 0.012, g),
+            fl(b.lily_of_the_valley, 0.01, g),
+        ],
+    );
+    flora(v, Biome::MegaTaiga, vec![fl(b.berry_bush, 0.012, g)]);
+    flora(
+        v,
+        Biome::SnowyTaiga,
+        vec![fl(b.cotton_grass, 0.03, snow | g)],
+    );
+    flora(
+        v,
+        Biome::SnowyPlains,
+        vec![fl(b.cotton_grass, 0.05, snow | g).patchy()],
+    );
+    flora(
+        v,
+        Biome::Heath,
+        vec![
+            fl(b.cotton_grass, 0.10, g).patchy(),
+            fl(b.berry_bush, 0.012, g),
+            fl(b.allium, 0.02, g).patchy(),
+        ],
+    );
+    flora(
+        v,
+        Biome::Hills,
+        vec![fl(b.berry_bush, 0.006, g), fl(b.allium, 0.006, g)],
+    );
+    flora(
+        v,
+        Biome::Savanna,
+        vec![
+            fl(b.pampas_grass, 0.22, g).patchy(),
+            fl(b.sunflower, 0.006, g),
+        ],
+    );
+    flora(
+        v,
+        Biome::Jungle,
+        vec![
+            fl(b.bamboo, 0.07, g).patchy().tall(3, 8),
+            fl(b.hibiscus, 0.03, g),
+            fl(b.blue_orchid, 0.012, g),
+            fl(b.cattail, 0.10, g).wet(),
+        ],
+    );
+    flora(
+        v,
+        Biome::Swamp,
+        vec![fl(b.cattail, 0.22, g).wet(), fl(b.blue_orchid, 0.04, g)],
+    );
+    flora(v, Biome::Desert, vec![fl(b.desert_sage, 0.012, sand)]);
+    flora(v, Biome::Badlands, vec![fl(b.desert_sage, 0.015, sand)]);
+    flora(v, Biome::Volcano, vec![fl(b.ember_bloom, 0.05, ash)]);
+    flora(v, Biome::Beach, vec![fl(b.cattail, 0.05, sand).wet()]);
+
+    // Arbres : mélanges enrichis.
+    add_trees(v, Biome::Plains, &[(Apple, 1)]);
+    add_trees(v, Biome::Forest, &[(Apple, 1)]);
+    add_trees(v, Biome::AutumnForest, &[(Apple, 3)]);
+    add_trees(v, Biome::FlowerMeadow, &[(Apple, 1)]);
+    add_trees(v, Biome::Swamp, &[(Willow, 2)]);
+    add_trees(v, Biome::Savanna, &[(Baobab, 1), (Umbrella, 2)]);
+    add_trees(v, Biome::MegaTaiga, &[(Redwood, 2)]);
+    add_trees(v, Biome::Taiga, &[(Redwood, 1), (Juniper, 2)]);
+    add_trees(v, Biome::Heath, &[(Juniper, 4)]);
+    add_trees(v, Biome::Hills, &[(Juniper, 2)]);
+    add_trees(v, Biome::Jungle, &[(BambooGrove, 3)]);
+    add_trees(v, Biome::CherryGrove, &[(BambooGrove, 1)]);
+    v[Biome::Desert.ordinal()].tree_mix = vec![(Saguaro, 1)];
+    v[Biome::Desert.ordinal()].nb_tree_density = Some(0.0022);
+    v[Biome::Badlands.ordinal()].tree_mix = vec![(Dead, 2), (Umbrella, 1), (Saguaro, 1)];
+    v[Biome::Badlands.ordinal()].nb_tree_density = Some(0.0035);
 }
 
 #[allow(clippy::too_many_lines)]

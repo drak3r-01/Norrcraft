@@ -124,6 +124,7 @@ pub struct WorldGenParams {
     pub snow_line_mountains: i32,
     pub snow_line_taiga: i32,
     pub vegetation_density: f64,
+    pub structure_density: f64,
     /// `< 0` = automatique.
     pub tree_density_overrides: [f64; 8],
     pub caves_enabled: bool,
@@ -279,6 +280,7 @@ pub fn adv_rows(c: &WorldGenParams) -> Vec<AdvRow> {
         ),
         s("Snow Line (Taiga)", 30.0, 80.0, c.snow_line_taiga as f32),
         s("Vegetation Density", 0.0, 2.0, c.vegetation_density as f32),
+        s("Structure Density", 0.0, 3.0, c.structure_density as f32),
     ];
     for (i, name) in TREE_NAMES.iter().enumerate() {
         let o = c.tree_density_overrides[i];
@@ -337,6 +339,7 @@ pub fn apply_adv(rows: &[AdvRow], c: &mut WorldGenParams) {
                     "Snow Line (Mountains)" => c.snow_line_mountains = jround(v),
                     "Snow Line (Taiga)" => c.snow_line_taiga = jround(v),
                     "Vegetation Density" => c.vegetation_density = v,
+                    "Structure Density" => c.structure_density = v,
                     "Cave Threshold" => c.cave_threshold = v,
                     "Cavern Threshold" => c.cavern_threshold = v,
                     "Cave Depth Max" => c.cave_depth_max = jround(v),

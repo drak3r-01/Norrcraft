@@ -28,6 +28,7 @@
 pub mod biome;
 pub mod chunk;
 pub mod config;
+mod flora;
 pub mod generator;
 mod generator_nb;
 pub mod light;
@@ -35,11 +36,13 @@ pub mod manager;
 pub mod noise;
 pub mod save;
 pub mod storage;
+pub mod structures;
 pub mod terrain;
 pub mod world;
 
 pub use biome::{
-    Biome, BiomeConfig, BiomeSystem, TreeType, VegetationEntry, BIOME_COUNT, CLASSIC_BIOME_COUNT,
+    Biome, BiomeConfig, BiomeSystem, FloraEntry, TreeType, VegetationEntry, BIOME_COUNT,
+    CLASSIC_BIOME_COUNT, SOIL_ASH, SOIL_GRASS, SOIL_SAND, SOIL_SNOW,
 };
 pub use chunk::{
     fnv1a, java_index, Chunk, ChunkEntry, ChunkFlags, ChunkSnapshot, SharedChunk, CHUNK_SIZE_X,
@@ -51,5 +54,6 @@ pub use light::{compute_light, LightContext, LightTable};
 pub use manager::{ChunkManager, DEFAULT_RENDER_DISTANCE};
 pub use noise::{hash_position, java_string_hash, Noise};
 pub use storage::{ChunkStorage, FileChunkStorage, InMemoryChunkStorage};
+pub use structures::{StructureKind, StructureSite};
 pub use terrain::{NbColumn, Terrain};
 pub use world::{find_spawn_location, World};

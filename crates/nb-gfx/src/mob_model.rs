@@ -663,8 +663,26 @@ mod tests {
     fn geometry_and_builtin_descs() {
         let reg = MobRegistry::builtin();
         let descs = MobModelDesc::from_registry(&reg);
-        assert_eq!(descs.len(), 3);
+        // Trois mobs d'origine + les animaux de la phase 9, tous intégrés et tous dessinables.
+        assert_eq!(descs.len(), reg.all().len());
+        assert!(descs.len() >= 40);
         assert!(descs.iter().all(|d| d.built_in));
+        for d in &descs {
+            let m = build_geometry(d.geometry.as_ref().unwrap())
+                .unwrap_or_else(|| panic!("{} sans géométrie", d.id));
+            assert!(m.vertices.len() >= 36 * 4, "{} trop simple", d.id);
+            // Un identifiant de forme vanilla (`sheep`, `wolf`…) donnerait un damier sans texture.
+            if !MobRegistry::builtin()
+                .get(&d.id)
+                .is_some_and(|c| c.id == "reindeer")
+            {
+                assert!(
+                    vanilla_shape(&d.id).is_none(),
+                    "{} entre en collision avec une forme vanilla",
+                    d.id
+                );
+            }
+        }
         let reindeer = build_geometry(descs[0].geometry.as_ref().unwrap()).unwrap();
         assert_eq!(reindeer.vertices.len(), 17 * 36);
         assert!(reindeer.texture.is_none());

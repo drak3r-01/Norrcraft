@@ -138,6 +138,8 @@ pub struct WorldConfig {
     pub snow_line_mountains: i32,
     pub snow_line_taiga: i32,
     pub vegetation_density: f64,
+    /// Densité des structures (villages, tours, ruines…) du générateur « Norrblock » ; 0 = aucune.
+    pub structure_density: f64,
     /// Indexé par ordinal de [`crate::Biome`] ; `< 0` = densité par défaut du biome.
     /// À la lecture, un tableau plus court est complété par `-1.0` et un plus long tronqué
     /// (écart volontaire : le Java plantait la génération).
@@ -201,6 +203,7 @@ impl Default for WorldConfig {
             snow_line_mountains: 58,
             snow_line_taiga: 52,
             vegetation_density: 1.0,
+            structure_density: 1.0,
             tree_density_overrides: [-1.0; CLASSIC_BIOME_COUNT],
             gravity: -32.0,
             jump_force: 8.4,
