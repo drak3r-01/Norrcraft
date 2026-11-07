@@ -260,3 +260,11 @@ MIT, voir [`LICENSE`](LICENSE).
 19 structures (`docs/STRUCTURES.md`, curseur « Structure Density » à la création du monde), 42 animaux
 supplémentaires (`docs/FAUNE.md`, `scripts/gen_mobs.py`) et une flore étendue (`docs/FLORE.md`,
 `scripts/gen_textures_nature.py` pour les textures provisoires).
+
+## Phase 10 : inventaire et craft
+
+Grille de craft 2×2 dans l'inventaire (E), établi 3×3 et fonderie (clic droit sur les blocs
+`workbench` et `forge`), clic droit / Maj dans les cases, 8 objets, 9 blocs exclusifs et 46
+recettes. Tout est décrit et modifiable dans `docs/CRAFT.md` (données : `assets/items.json`,
+`assets/recipes.json`, `assets/blocks_craft.json` ; textures provisoires :
+`scripts/gen_craft_textures.py`, `scripts/gen_craft_hud.py`).

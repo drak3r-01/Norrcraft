@@ -2,7 +2,7 @@
 //! `PlayerInputSystem` (spec §6). L'ordre des étapes du tick est normatif.
 
 use nb_core::glam::{IVec3, Vec3};
-use nb_data::BlockId;
+use nb_data::{BlockId, Station};
 use nb_world::WorldConfig;
 
 use crate::components::{
@@ -354,10 +354,29 @@ impl System for PlayerInputSystem {
             }
         }
         if just(GameAction::Secondary) {
-            if let Some(pt) = place_target {
+            // Clic droit sur un établi / une fonderie : ouvre la station (Accroupi : poser un
+            // bloc contre elle comme d'habitude).
+            let station = targeted
+                .filter(|_| !pressed(GameAction::Crouch))
+                .and_then(|tb| station_of(ctx, ctx.blocks.block_at(tb)));
+            if let Some((station, pos)) = station.zip(targeted) {
+                ctx.events.push(EcsEvent::StationUsed { pos, station });
+            } else if let Some(pt) = place_target {
                 try_place(world, ctx, id, pt, slot, &feet, &collider);
             }
         }
+    }
+}
+
+/// Station de craft portée par un bloc (`workbench`, `forge`), s'il en porte une.
+fn station_of(ctx: &TickCtx<'_>, block: BlockId) -> Option<Station> {
+    let reg = ctx.block_reg;
+    if block == reg.get("workbench").id && block != reg.ids().air {
+        Some(Station::Workbench)
+    } else if block == reg.get("forge").id && block != reg.ids().air {
+        Some(Station::Forge)
+    } else {
+        None
     }
 }
 
@@ -381,10 +400,11 @@ fn try_place(
     if aabb_intersects_block(pt, feet.pos.x, feet.pos.y, feet.pos.z, collider) {
         return;
     }
-    ctx.blocks.set_block(pt.x, pt.y, pt.z, held.block);
+    // Un objet pur (bâton, lingot…) ne se pose pas.
+    let Ok(block) = BlockId::try_from(held.item) else {
+        return;
+    };
+    ctx.blocks.set_block(pt.x, pt.y, pt.z, block);
     inv.0.remove_one(HOTBAR_START + slot);
-    ctx.events.push(EcsEvent::BlockPlaced {
-        pos: pt,
-        block: held.block,
-    });
+    ctx.events.push(EcsEvent::BlockPlaced { pos: pt, block });
 }

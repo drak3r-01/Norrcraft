@@ -13,6 +13,10 @@ pub struct UiInput {
     pub mouse_down: bool,
     /// Action `PRIMARY` venant d'être pressée (`isActionJustPressed`, faux en mode saisie).
     pub primary_pressed: bool,
+    /// Action `SECONDARY` (clic droit) venant d'être pressée.
+    pub secondary_pressed: bool,
+    /// Maj gauche ou droite enfoncée.
+    pub shift_down: bool,
     /// Défilement vertical de la frame (`window.getScrollY()`).
     pub scroll_y: f64,
     /// Touche Échap enfoncée (`glfwGetKey(ESCAPE)`).

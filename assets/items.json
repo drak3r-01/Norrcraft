@@ -1,0 +1,42 @@
+[
+ {
+  "id": 256,
+  "name": "stick",
+  "texture": "item_stick"
+ },
+ {
+  "id": 257,
+  "name": "coal",
+  "texture": "item_coal"
+ },
+ {
+  "id": 258,
+  "name": "iron_ingot",
+  "texture": "item_iron_ingot"
+ },
+ {
+  "id": 259,
+  "name": "gold_ingot",
+  "texture": "item_gold_ingot"
+ },
+ {
+  "id": 260,
+  "name": "diamond",
+  "texture": "item_diamond"
+ },
+ {
+  "id": 261,
+  "name": "emerald",
+  "texture": "item_emerald"
+ },
+ {
+  "id": 262,
+  "name": "brick",
+  "texture": "item_brick"
+ },
+ {
+  "id": 263,
+  "name": "aurora_shard",
+  "texture": "item_aurora_shard"
+ }
+]

@@ -11,6 +11,9 @@ pub type BlockId = u8;
 /// Contenu de `assets/blocks.json`, embarqué dans le binaire (comme la ressource Java).
 pub const BLOCKS_JSON: &str = include_str!("../../../assets/blocks.json");
 
+/// Blocs du système de craft (`assets/blocks_craft.json`, identifiants 200 et plus, réservés).
+pub const CRAFT_BLOCKS_JSON: &str = include_str!("../../../assets/blocks_craft.json");
+
 /// Entrée brute de `blocks.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -334,6 +337,16 @@ impl BlockRegistry {
         Self::from_json(BLOCKS_JSON).expect("blocks.json embarqué invalide")
     }
 
+    /// Registre complet du jeu : `blocks.json` + blocs de craft (`blocks_craft.json`).
+    pub fn builtin_with_craft() -> Self {
+        let mut props: Vec<BlockProperties> =
+            serde_json::from_str(BLOCKS_JSON).expect("blocks.json embarqué invalide");
+        let extra: Vec<BlockProperties> =
+            serde_json::from_str(CRAFT_BLOCKS_JSON).expect("blocks_craft.json embarqué invalide");
+        props.extend(extra);
+        Self::from_properties(props).expect("blocs embarqués invalides")
+    }
+
     pub fn from_json(json: &str) -> Result<Self> {
         let props: Vec<BlockProperties> =
             serde_json::from_str(json).map_err(|e| Error::data("blocks.json", e))?;
@@ -566,5 +579,32 @@ mod tests {
         let reg = BlockRegistry::builtin();
         assert_eq!(reg.from_id(200).id, 0);
         assert_eq!(reg.get("nope").id, 0);
+    }
+}
+
+#[cfg(test)]
+mod craft_tests {
+    use super::*;
+
+    #[test]
+    fn craft_blocks_use_reserved_ids_without_overlap() {
+        let base: Vec<BlockProperties> = serde_json::from_str(BLOCKS_JSON).unwrap();
+        let extra: Vec<BlockProperties> = serde_json::from_str(CRAFT_BLOCKS_JSON).unwrap();
+        assert!(
+            extra.iter().all(|b| b.id >= 200),
+            "ids 200+ réservés au craft"
+        );
+        for e in &extra {
+            assert!(
+                base.iter().all(|b| b.id != e.id && b.name != e.name),
+                "{}",
+                e.name
+            );
+        }
+        let full = BlockRegistry::builtin_with_craft();
+        assert_eq!(full.len(), base.len() + extra.len());
+        assert_eq!(full.get("aurora_block").light_emission, 15);
+        assert_eq!(full.get("workbench").id, 200);
+        assert!(full.get("forge").light_emission > 0);
     }
 }

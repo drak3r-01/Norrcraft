@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use nb_core::glam::Vec3;
 use nb_core::Result;
-use nb_data::{BlockRegistry, MobRegistry, ParticleRegistry};
+use nb_data::{BlockRegistry, ItemRegistry, MobRegistry, ParticleRegistry, RecipeBook};
 use nb_ecs::player::EYE_OFFSET;
 use nb_ecs::{
     CameraState, EcsEvent, EcsRngs, EntityId, GameMode, Health, InventoryComp, ItemStack,
@@ -23,6 +23,10 @@ use crate::chunks::WorldBiomes;
 #[derive(Clone, Debug)]
 pub struct Registries {
     pub blocks: Arc<BlockRegistry>,
+    /// Objets : blocs + objets purs (inventaire, craft).
+    pub items: Arc<ItemRegistry>,
+    /// Recettes de craft.
+    pub recipes: Arc<RecipeBook>,
     pub mobs: MobRegistry,
     pub particles: ParticleRegistry,
 }
@@ -30,8 +34,13 @@ pub struct Registries {
 impl Registries {
     /// Données intégrées (`blocks.json`, mobs et particules par défaut).
     pub fn builtin() -> Self {
+        let blocks = Arc::new(BlockRegistry::builtin_with_craft());
+        let items = Arc::new(ItemRegistry::builtin(&blocks));
+        let recipes = Arc::new(RecipeBook::builtin(&items));
         Self {
-            blocks: Arc::new(BlockRegistry::builtin()),
+            blocks,
+            items,
+            recipes,
             mobs: MobRegistry::builtin(),
             particles: ParticleRegistry::builtin(),
         }
@@ -237,7 +246,7 @@ impl WorldSession {
                         let s = s.as_ref()?;
                         (s.count > 0).then(|| InventorySlot {
                             slot: i as i32,
-                            block_name: regs.blocks.from_id(s.block).name.clone(),
+                            block_name: regs.items.name_of(s.item).to_owned(),
                             count: s.count,
                         })
                     })
@@ -286,11 +295,11 @@ impl WorldSession {
         }
         if let Some(inv) = e.get_mut::<InventoryComp>(id) {
             inv.0.clear();
-            let air = regs.blocks.ids().air;
             for sd in &meta.inventory_slots {
-                let b = regs.blocks.get(&sd.block_name).id;
-                if b != air {
-                    inv.0.set_slot(sd.slot, Some(ItemStack::new(b, sd.count)));
+                // Objet inconnu (pack ou version différente) : case ignorée.
+                if let Some(item) = regs.items.id_of(&sd.block_name) {
+                    inv.0
+                        .set_slot(sd.slot, Some(ItemStack::new(item, sd.count)));
                 }
             }
         }

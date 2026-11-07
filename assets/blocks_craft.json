@@ -1,0 +1,173 @@
+[
+ {
+  "id": 200,
+  "name": "workbench",
+  "textures": [
+   "crafting_table_side",
+   "crafting_table_side",
+   "crafting_table_front",
+   "crafting_table_side",
+   "crafting_table_top",
+   "oak_planks"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 201,
+  "name": "forge",
+  "textures": [
+   "blast_furnace_side",
+   "blast_furnace_side",
+   "blast_furnace_front",
+   "blast_furnace_side",
+   "blast_furnace_top",
+   "blast_furnace_top"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 5
+ },
+ {
+  "id": 202,
+  "name": "marble_bricks",
+  "textures": [
+   "marble_bricks",
+   "marble_bricks",
+   "marble_bricks",
+   "marble_bricks",
+   "marble_bricks",
+   "marble_bricks"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 203,
+  "name": "slate_tiles",
+  "textures": [
+   "deepslate_tiles",
+   "deepslate_tiles",
+   "deepslate_tiles",
+   "deepslate_tiles",
+   "deepslate_tiles",
+   "deepslate_tiles"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 204,
+  "name": "coal_block",
+  "textures": [
+   "coal_block",
+   "coal_block",
+   "coal_block",
+   "coal_block",
+   "coal_block",
+   "coal_block"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 205,
+  "name": "iron_block",
+  "textures": [
+   "iron_block",
+   "iron_block",
+   "iron_block",
+   "iron_block",
+   "iron_block",
+   "iron_block"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 206,
+  "name": "diamond_block",
+  "textures": [
+   "diamond_block",
+   "diamond_block",
+   "diamond_block",
+   "diamond_block",
+   "diamond_block",
+   "diamond_block"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 207,
+  "name": "emerald_block",
+  "textures": [
+   "emerald_block",
+   "emerald_block",
+   "emerald_block",
+   "emerald_block",
+   "emerald_block",
+   "emerald_block"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 0
+ },
+ {
+  "id": 208,
+  "name": "aurora_block",
+  "textures": [
+   "aurora_block",
+   "aurora_block",
+   "aurora_block",
+   "aurora_block",
+   "aurora_block",
+   "aurora_block"
+  ],
+  "transparent": false,
+  "crossShaped": false,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": true,
+  "lightAttenuation": 15,
+  "lightEmission": 15
+ }
+]

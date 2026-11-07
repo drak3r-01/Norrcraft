@@ -11,15 +11,15 @@
 
 use nb_data::keys::KEY_ESCAPE;
 use nb_data::MobRegistry;
-use nb_ecs::{GameMode, ItemStack};
+use nb_ecs::{Button, GameMode, ItemStack};
 use nb_ui::screens::{
     MainMenu, MenuAction, MobAction, MobSettingsScreen, PackAction, PackEntry, PauseMenu,
     ResourcePackScreen, SettingsAction, SettingsScreen, WorldAction, WorldEntry, WorldGenParams,
     WorldSelectScreen, WorldType as UiWorldType,
 };
 use nb_ui::{
-    DrawList, Hud, HudView, InventoryAction, InventoryScreen, SlotView, TypingBuffers, UiContext,
-    UiInput,
+    ClickButton, DrawList, Hud, HudView, InventoryAction, InventoryScreen, SlotView, TypingBuffers,
+    UiContext, UiInput,
 };
 use nb_world::save;
 use nb_world::{OreRange, WorldConfig, WorldType};
@@ -173,6 +173,9 @@ pub fn ui_input(view: &UiView<'_>, input: &InputManager, dt: f64) -> UiInput {
         mouse_y: my,
         mouse_down: input.is_mouse_down(glfw::MOUSE_BUTTON_LEFT),
         primary_pressed: input.is_just_pressed(Action::Primary),
+        secondary_pressed: input.is_just_pressed(Action::Secondary),
+        shift_down: input.is_key_down(nb_data::keys::KEY_LEFT_SHIFT)
+            || input.is_key_down(nb_data::keys::KEY_RIGHT_SHIFT),
         scroll_y: input.scroll_y(),
         esc_down: input.is_key_down(KEY_ESCAPE),
         pause_pressed: input.is_just_pressed(Action::Pause),
@@ -226,10 +229,15 @@ fn pack_entries(view: &UiView<'_>) -> Vec<PackEntry> {
 /// Case d'inventaire vue par nb-ui : icône = `getTextureIndex(0)`, nom interne du bloc.
 fn slot_view<'a>(view: &UiView<'a>, s: Option<ItemStack>) -> Option<SlotView<'a>> {
     let s = s?;
+    // Bloc : couche de la table de maillage ; objet pur : couche de son icône.
+    let icon_layer = match nb_data::BlockId::try_from(s.item) {
+        Ok(b) => view.block_table.get(b).texture_layers[0],
+        Err(_) => view.item_icons.get(s.item),
+    };
     Some(SlotView {
-        icon_layer: view.block_table.get(s.block).texture_layers[0],
+        icon_layer,
         count: s.count,
-        name: &view.blocks.from_id(s.block).name,
+        name: view.items.name_of(s.item),
     })
 }
 
@@ -350,6 +358,7 @@ impl Ui for NbUi {
             GameState::Playing => self.hud.enter(),
             GameState::Inventory => {
                 let (w, h) = view.window_size;
+                self.inventory.set_station(view.craft_station);
                 self.inventory.resize(w as i32, h as i32);
             }
             GameState::WorldSelect => self.worlds.enter(world_entries(view)),
@@ -431,7 +440,18 @@ impl Ui for NbUi {
                 self.hud.track_held(dt, &hv);
             }
             GameState::Inventory => match self.inventory.update(&ui) {
-                Some(InventoryAction::Click(slot)) => out.push(UiCommand::InventoryClick(slot)),
+                Some(InventoryAction::Click {
+                    slot,
+                    button,
+                    shift,
+                }) => out.push(UiCommand::SlotClick {
+                    slot,
+                    button: match button {
+                        ClickButton::Left => Button::Left,
+                        ClickButton::Right => Button::Right,
+                    },
+                    shift,
+                }),
                 Some(InventoryAction::Close) => {
                     out.push(UiCommand::SwitchState(GameState::Playing))
                 }
@@ -525,6 +545,7 @@ impl Ui for NbUi {
             GameState::Paused => self.pause.draw(dl, &ui),
             GameState::Playing => self.hud.draw(dl, w, h, &hud_view(view)),
             GameState::Inventory => {
+                self.inventory.set_station(view.craft_station);
                 self.inventory.resize(w, h);
                 let slots: [Option<SlotView<'_>>; nb_ui::inventory::SLOTS] =
                     std::array::from_fn(|i| {
@@ -533,8 +554,17 @@ impl Ui for NbUi {
                             view.inventory.as_ref().and_then(|inv| inv.slot(i as i32)),
                         )
                     });
-                self.inventory
-                    .draw(dl, &ui, &slots, slot_view(view, view.held));
+                let grid: Vec<Option<SlotView<'_>>> = (0..view.craft_grid.len())
+                    .map(|k| slot_view(view, view.craft_grid.cell(k)))
+                    .collect();
+                self.inventory.draw_craft(
+                    dl,
+                    &ui,
+                    &slots,
+                    slot_view(view, view.held),
+                    &grid,
+                    slot_view(view, view.craft_grid.output()),
+                );
             }
             GameState::WorldSelect => {
                 let root = view.saves_root;

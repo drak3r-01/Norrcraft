@@ -22,6 +22,7 @@ pub mod ai;
 pub mod blocks;
 pub mod command;
 pub mod components;
+pub mod crafting;
 pub mod health;
 pub mod input;
 pub mod inventory;
@@ -41,6 +42,7 @@ pub use components::{
     AggressiveAi, CameraState, Collider, EntityId, GameMode, Health, InventoryComp, MobType,
     PassiveAi, Player, Transform, Velocity,
 };
+pub use crafting::{Button, CraftingGrid, GRID_BASE, OUTPUT_SLOT};
 pub use input::{ActionSet, GameAction, PlayerInput};
 pub use inventory::{Inventory, InventoryCursor, ItemStack};
 pub use particles::{Particle, ParticleManager};

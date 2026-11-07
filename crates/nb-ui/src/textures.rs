@@ -31,10 +31,12 @@ pub enum UiTexture {
     HungerFull,
     HungerHalf,
     HungerEmpty,
+    Workbench,
+    Forge,
 }
 
 impl UiTexture {
-    pub const ALL: [UiTexture; 14] = [
+    pub const ALL: [UiTexture; 16] = [
         UiTexture::White,
         UiTexture::Crosshair,
         UiTexture::Hotbar,
@@ -49,6 +51,8 @@ impl UiTexture {
         UiTexture::HungerFull,
         UiTexture::HungerHalf,
         UiTexture::HungerEmpty,
+        UiTexture::Workbench,
+        UiTexture::Forge,
     ];
 
     pub fn index(self) -> u32 {
@@ -62,6 +66,8 @@ impl UiTexture {
             UiTexture::Hotbar => asset!("assets/textures/hud/hotbar.png"),
             UiTexture::Selector => asset!("assets/textures/hud/hotbar_selector.png"),
             UiTexture::Inventory => asset!("assets/textures/hud/inventory.png"),
+            UiTexture::Workbench => asset!("assets/textures/hud/workbench.png"),
+            UiTexture::Forge => asset!("assets/textures/hud/forge.png"),
             UiTexture::Button => asset!("assets/textures/ui/button.png"),
             UiTexture::Logo => asset!("assets/textures/ui/logo.png"),
             // `defaultPackBlockPath("dirt.png")` : toujours le pack Default.

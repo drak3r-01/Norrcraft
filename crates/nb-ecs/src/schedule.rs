@@ -66,6 +66,11 @@ pub enum EcsEvent {
     BlockBroken { pos: IVec3, block: BlockId },
     /// Bloc posé par le joueur.
     BlockPlaced { pos: IVec3, block: BlockId },
+    /// Clic droit sur un bloc-station (établi, fonderie) : l'interface ouvre son écran.
+    StationUsed {
+        pos: IVec3,
+        station: nb_data::Station,
+    },
     /// Mob frappé par le joueur.
     MobHit { entity: EntityId },
     /// Mob apparu.

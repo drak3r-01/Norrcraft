@@ -302,7 +302,7 @@ fn inventory_cursor_and_return_on_close() {
     g.command(UiCommand::InventoryClick(3));
     assert_eq!(g.inventory_cursor().held.map(|h| h.count), Some(5));
     assert!(g.session().inventory().unwrap().slot(3).is_none());
-    assert_eq!(g.ui_view().held.map(|h| h.block), Some(stone));
+    assert_eq!(g.ui_view().held.map(|h| h.item), Some(u16::from(stone)));
     press(&mut g, keys::KEY_ESCAPE);
     assert_eq!(g.state(), GameState::Playing);
     assert!(g.inventory_cursor().held.is_none());

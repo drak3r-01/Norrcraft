@@ -1,0 +1,649 @@
+{
+ "tags": {
+  "logs": [
+   "wood",
+   "birch_wood",
+   "spruce_wood",
+   "jungle_wood",
+   "acacia_wood",
+   "cherry_wood",
+   "dark_oak_wood"
+  ],
+  "planks": [
+   "planks_oak",
+   "planks_birch",
+   "planks_spruce",
+   "planks_acacia",
+   "planks_cherry",
+   "planks_dark_oak"
+  ],
+  "rock": [
+   "stone",
+   "cobblestone",
+   "basalt",
+   "slate",
+   "marble"
+  ],
+  "fuel": [
+   "coal",
+   "planks_oak",
+   "planks_birch",
+   "planks_spruce",
+   "planks_acacia",
+   "planks_cherry",
+   "planks_dark_oak",
+   "wood",
+   "birch_wood",
+   "spruce_wood",
+   "jungle_wood",
+   "acacia_wood",
+   "cherry_wood",
+   "dark_oak_wood",
+   "stick"
+  ]
+ },
+ "recipes": [
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_oak",
+    "count": 4
+   },
+   "shapeless": [
+    "wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_birch",
+    "count": 4
+   },
+   "shapeless": [
+    "birch_wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_spruce",
+    "count": 4
+   },
+   "shapeless": [
+    "spruce_wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_acacia",
+    "count": 4
+   },
+   "shapeless": [
+    "acacia_wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_cherry",
+    "count": 4
+   },
+   "shapeless": [
+    "cherry_wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_dark_oak",
+    "count": 4
+   },
+   "shapeless": [
+    "dark_oak_wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "planks_oak",
+    "count": 4
+   },
+   "shapeless": [
+    "jungle_wood"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "stick",
+    "count": 4
+   },
+   "pattern": [
+    "P",
+    "P"
+   ],
+   "key": {
+    "P": "#planks"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "workbench",
+    "count": 1
+   },
+   "pattern": [
+    "PP",
+    "PP"
+   ],
+   "key": {
+    "P": "#planks"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "torch",
+    "count": 4
+   },
+   "pattern": [
+    "C",
+    "S"
+   ],
+   "key": {
+    "C": "coal",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "sandstone",
+    "count": 1
+   },
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "sand"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "aurora_block",
+    "count": 1
+   },
+   "pattern": [
+    "AA",
+    "AA"
+   ],
+   "key": {
+    "A": "aurora_shard"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "aurora_shard",
+    "count": 4
+   },
+   "shapeless": [
+    "aurora_block"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "bricks",
+    "count": 1
+   },
+   "pattern": [
+    "BB",
+    "BB"
+   ],
+   "key": {
+    "B": "brick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "coal_block",
+    "count": 1
+   },
+   "pattern": [
+    "III",
+    "III",
+    "III"
+   ],
+   "key": {
+    "I": "coal"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "coal",
+    "count": 9
+   },
+   "shapeless": [
+    "coal_block"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_block",
+    "count": 1
+   },
+   "pattern": [
+    "III",
+    "III",
+    "III"
+   ],
+   "key": {
+    "I": "iron_ingot"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "iron_ingot",
+    "count": 9
+   },
+   "shapeless": [
+    "iron_block"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "gold_block",
+    "count": 1
+   },
+   "pattern": [
+    "III",
+    "III",
+    "III"
+   ],
+   "key": {
+    "I": "gold_ingot"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "gold_ingot",
+    "count": 9
+   },
+   "shapeless": [
+    "gold_block"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_block",
+    "count": 1
+   },
+   "pattern": [
+    "III",
+    "III",
+    "III"
+   ],
+   "key": {
+    "I": "diamond"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "diamond",
+    "count": 9
+   },
+   "shapeless": [
+    "diamond_block"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "emerald_block",
+    "count": 1
+   },
+   "pattern": [
+    "III",
+    "III",
+    "III"
+   ],
+   "key": {
+    "I": "emerald"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "emerald",
+    "count": 9
+   },
+   "shapeless": [
+    "emerald_block"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "forge",
+    "count": 1
+   },
+   "pattern": [
+    "SSS",
+    "SCS",
+    "SSS"
+   ],
+   "key": {
+    "S": "#rock",
+    "C": "coal"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "stone_bricks",
+    "count": 4
+   },
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "stone"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "marble_bricks",
+    "count": 4
+   },
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "marble"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "basalt_bricks",
+    "count": 4
+   },
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "basalt"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "slate_tiles",
+    "count": 4
+   },
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "slate"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "cut_sandstone",
+    "count": 4
+   },
+   "pattern": [
+    "SS",
+    "SS"
+   ],
+   "key": {
+    "S": "sandstone"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "mossy_stone_bricks",
+    "count": 1
+   },
+   "shapeless": [
+    "stone_bricks",
+    "moss"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "mossy_cobblestone",
+    "count": 1
+   },
+   "shapeless": [
+    "cobblestone",
+    "moss"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "lantern",
+    "count": 1
+   },
+   "pattern": [
+    " I ",
+    "IAI",
+    " I "
+   ],
+   "key": {
+    "I": "iron_ingot",
+    "A": "aurora_shard"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "sea_lantern",
+    "count": 1
+   },
+   "pattern": [
+    "AG",
+    "GA"
+   ],
+   "key": {
+    "A": "aurora_shard",
+    "G": "glass"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "campfire",
+    "count": 1
+   },
+   "pattern": [
+    " S ",
+    "SCS",
+    "LLL"
+   ],
+   "key": {
+    "S": "stick",
+    "C": "coal",
+    "L": "#logs"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "bookshelf",
+    "count": 1
+   },
+   "pattern": [
+    "PPP",
+    "WWW",
+    "PPP"
+   ],
+   "key": {
+    "P": "#planks",
+    "W": "wool_white"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "iron_ingot",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "iron_ore",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "gold_ingot",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "gold_ore",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "diamond",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "diamond_ore",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "emerald",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "emerald_ore",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "coal",
+    "count": 2
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "coal_ore",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "glass",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "sand",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "glass",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "red_sand",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "brick",
+    "count": 2
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "clay",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "stone",
+    "count": 1
+   },
+   "pattern": [
+    "IF"
+   ],
+   "key": {
+    "I": "cobblestone",
+    "F": "#fuel"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "aurora_shard",
+    "count": 2
+   },
+   "pattern": [
+    "IG"
+   ],
+   "key": {
+    "I": "packed_ice",
+    "G": "gold_ingot"
+   }
+  }
+ ]
+}

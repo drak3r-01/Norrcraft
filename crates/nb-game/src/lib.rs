@@ -40,7 +40,7 @@ pub use render::{MobInstance, ParticleLayers, RenderView};
 pub use screens::NbUi;
 pub use session::{Registries, WorldSession};
 pub use state::{GameState, HudState, SettingsTab};
-pub use ui::{NewWorld, NullUi, StubUi, Ui, UiCommand, UiFrame, UiView};
+pub use ui::{ItemIcons, NewWorld, NullUi, StubUi, Ui, UiCommand, UiFrame, UiView};
 
 pub use nb_ecs::GameMode;
 pub use nb_mesh::MeshAction;

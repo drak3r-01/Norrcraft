@@ -5,8 +5,8 @@
 //! (rien) et [`StubUi`] (clavier, sans rendu : tests et outils).
 
 use nb_data::keys;
-use nb_data::{BlockRegistry, GameSettings, MobRegistry};
-use nb_ecs::{GameMode, Inventory, ItemStack};
+use nb_data::{BlockRegistry, GameSettings, ItemId, ItemRegistry, MobRegistry, Station};
+use nb_ecs::{Button, CraftingGrid, GameMode, Inventory, ItemStack};
 use nb_gfx::ui_pass::{UiDraw, UiTextureSlot, UiVertex};
 use nb_gfx::ResourcePackMeta;
 use nb_mesh::BlockTable;
@@ -69,6 +69,13 @@ pub enum UiCommand {
     RefreshWorlds,
     /// Clic gauche sur une case d'inventaire (`-1` = hors grille).
     InventoryClick(i32),
+    /// Clic sur une case d'un écran d'inventaire / de station (voir `nb_ecs::crafting` pour la
+    /// numérotation) : bouton, Maj.
+    SlotClick {
+        slot: i32,
+        button: Button,
+        shift: bool,
+    },
     /// « Apply » des packs : pack choisi (rechargé s'il diffère), puis SETTINGS.
     ApplyResourcePack(String),
     /// Registre de mobs modifié et sauvegardé (`MobRegistry.save()` : `dirty = true`).
@@ -80,6 +87,28 @@ pub enum UiCommand {
     ResetMobRegistry(Box<MobRegistry>),
     /// Sortie de l'écran des mobs (`applyAndLeave`) → SETTINGS.
     LeaveMobSettings,
+}
+
+/// Couche d'atlas de l'icône de chaque objet pur (les blocs utilisent la table de maillage).
+#[derive(Clone, Debug, Default)]
+pub struct ItemIcons(std::collections::HashMap<ItemId, u32>);
+
+impl ItemIcons {
+    /// `layer` : couche d'atlas d'une texture, d'après son nom.
+    pub fn build(items: &ItemRegistry, layer: impl Fn(&str) -> u32) -> Self {
+        Self(
+            items
+                .iter()
+                .filter(|i| i.block.is_none())
+                .map(|i| (i.id, layer(&i.texture)))
+                .collect(),
+        )
+    }
+
+    /// Couche de l'objet (0 si inconnu).
+    pub fn get(&self, item: ItemId) -> u32 {
+        self.0.get(&item).copied().unwrap_or(0)
+    }
 }
 
 /// Vue en lecture du jeu pour l'écran courant.
@@ -97,6 +126,14 @@ pub struct UiView<'a> {
     pub blocks: &'a BlockRegistry,
     /// Couches de texture des blocs (icônes : `getTextureIndex(0)`).
     pub block_table: &'a BlockTable,
+    /// Objets (noms des objets purs : bâton, lingot…).
+    pub items: &'a ItemRegistry,
+    /// Couches de texture des objets purs.
+    pub item_icons: &'a ItemIcons,
+    /// Station affichée par l'écran d'inventaire (main, établi, fonderie).
+    pub craft_station: Station,
+    /// Grille de craft de l'écran d'inventaire.
+    pub craft_grid: &'a CraftingGrid,
     pub previous_state: GameState,
     /// Onglet à l'entrée de SETTINGS.
     pub settings_tab: SettingsTab,

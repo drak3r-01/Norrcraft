@@ -6,7 +6,10 @@ use std::sync::Arc;
 use nb_core::glam::Vec3;
 use nb_core::JavaRandom;
 use nb_data::GameSettings;
-use nb_ecs::{CameraState, EcsEvent, EcsRngs, GameMode, InventoryCursor, MobType, TICK_DT};
+use nb_data::Station;
+use nb_ecs::{
+    CameraState, CraftingGrid, EcsEvent, EcsRngs, GameMode, InventoryCursor, MobType, TICK_DT,
+};
 use nb_gfx::{GfxSettings, SkyClock};
 use nb_mesh::{BlockTable, MeshAction, MeshScheduler};
 use nb_world::save::{self, WorldMetadata};
@@ -18,7 +21,7 @@ use crate::input::{Action, InputManager};
 use crate::render::{build_view, ParticleLayers, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
-use crate::ui::{NewWorld, NullUi, Ui, UiCommand, UiFrame, UiView};
+use crate::ui::{ItemIcons, NewWorld, NullUi, Ui, UiCommand, UiFrame, UiView};
 
 /// Demandes faites à la plateforme (fenêtre, GPU) ; la logique reste sans effet de bord.
 #[derive(Clone, Debug, PartialEq)]
@@ -135,6 +138,10 @@ pub struct Game {
     menu_rotation: f32,
     hud: HudState,
     cursor: InventoryCursor,
+    /// Station de craft de l'écran d'inventaire et sa grille (vidée à la fermeture).
+    craft_station: Station,
+    craft_grid: CraftingGrid,
+    item_icons: Arc<ItemIcons>,
     mouse_locked: bool,
     mobs_dirty: bool,
     meshes: MeshScheduler,
@@ -216,6 +223,9 @@ impl Game {
             menu_rotation: 0.0,
             hud: HudState::default(),
             cursor: InventoryCursor::default(),
+            craft_station: Station::Hand,
+            craft_grid: CraftingGrid::new(Station::Hand),
+            item_icons: Arc::new(ItemIcons::default()),
             mouse_locked: true,
             mobs_dirty: false,
             meshes: MeshScheduler::new(threads),
@@ -346,6 +356,29 @@ impl Game {
         &self.cursor
     }
 
+    /// Grille de craft de l'écran d'inventaire courant.
+    pub fn craft_grid(&self) -> &CraftingGrid {
+        &self.craft_grid
+    }
+
+    /// Station de l'écran d'inventaire (main, établi, fonderie).
+    pub fn craft_station(&self) -> Station {
+        self.craft_station
+    }
+
+    /// Ouvre l'écran d'une station de craft (clic droit sur un établi / une fonderie).
+    pub fn open_station(&mut self, station: Station) {
+        if self.state == GameState::Playing {
+            self.craft_station = station;
+            self.switch_state(GameState::Inventory);
+        }
+    }
+
+    /// Couches d'atlas des icônes d'objets purs (à fournir avec la table de blocs).
+    pub fn set_item_icons(&mut self, icons: Arc<ItemIcons>) {
+        self.item_icons = icons;
+    }
+
     pub fn worlds(&self) -> &[WorldMetadata] {
         &self.worlds
     }
@@ -438,6 +471,10 @@ impl Game {
             mobs: &self.regs.mobs,
             blocks: &self.regs.blocks,
             block_table: &self.block_table,
+            items: &self.regs.items,
+            item_icons: &self.item_icons,
+            craft_station: self.craft_station,
+            craft_grid: &self.craft_grid,
             previous_state: self.previous_state,
             settings_tab: self.settings_tab,
             hud: &self.hud,
@@ -550,10 +587,12 @@ impl Game {
                     return;
                 }
                 if self.input.is_just_pressed(Action::Inventory) {
+                    self.craft_station = Station::Hand;
                     self.switch_state(GameState::Inventory);
                     return;
                 }
                 self.step(Step::EcsTick);
+                let first_new_event = self.events.len();
                 let pi = self.input.player_input(
                     self.mouse_locked,
                     Some(self.settings.sensitivity),
@@ -561,12 +600,23 @@ impl Game {
                 );
                 self.session
                     .tick(&pi, &self.regs, &mut self.events, dt as f32);
+                // Clic droit sur un établi / une fonderie : ouvre l'écran de la station.
+                let station = self.events[first_new_event.min(self.events.len())..]
+                    .iter()
+                    .find_map(|e| match e {
+                        EcsEvent::StationUsed { station, .. } => Some(*station),
+                        _ => None,
+                    });
+                if let Some(station) = station {
+                    self.open_station(station);
+                    return;
+                }
                 let slot = self.input.selected_slot();
                 let held = self
                     .session
                     .inventory()
                     .and_then(|i| i.hotbar_slot(i32::from(slot)))
-                    .map(|s| s.block);
+                    .map(|s| s.item);
                 self.hud.update(slot, held, dt);
             }
             GameState::Paused => {
@@ -579,7 +629,7 @@ impl Game {
                 if self.input.is_just_pressed(Action::Inventory)
                     || self.input.is_just_pressed(Action::Pause)
                 {
-                    self.return_held();
+                    self.close_craft_screen();
                     self.switch_state(GameState::Playing);
                     return;
                 }
@@ -639,6 +689,7 @@ impl Game {
             GameState::Inventory => {
                 self.set_mouse_locked(false);
                 self.cursor.reset();
+                self.craft_grid = CraftingGrid::new(self.craft_station);
             }
             GameState::WorldSelect => {
                 self.requests.push(PlatformRequest::SetCursorGrab(false));
@@ -665,18 +716,23 @@ impl Game {
     fn exit_state(&mut self, s: GameState) {
         match s {
             GameState::MainMenu => self.reset_camera_to_default(),
-            GameState::Inventory => self.return_held(),
+            GameState::Inventory => self.close_craft_screen(),
             GameState::Settings => self.input.cancel_rebind(),
             _ => {}
         }
     }
 
-    fn return_held(&mut self) {
+    /// Ferme l'écran d'inventaire : la pile tenue et la grille de craft retournent dans
+    /// l'inventaire (le reliquat qui ne rentre pas est perdu, comme `returnHeld`).
+    fn close_craft_screen(&mut self) {
         let mut cursor = self.cursor;
+        let mut grid = self.craft_grid.clone();
+        let book = self.regs.recipes.clone();
         if let Some(inv) = self.session.inventory_mut() {
-            cursor.return_held(inv);
+            cursor.close(inv, &mut grid, &book);
         }
         self.cursor = cursor;
+        self.craft_grid = grid;
     }
 
     fn refresh_worlds(&mut self) {
@@ -766,13 +822,25 @@ impl Game {
                 }
             }
             UiCommand::RefreshWorlds => self.refresh_worlds(),
-            UiCommand::InventoryClick(slot) => {
+            UiCommand::InventoryClick(slot) => self.command(UiCommand::SlotClick {
+                slot,
+                button: nb_ecs::Button::Left,
+                shift: false,
+            }),
+            UiCommand::SlotClick {
+                slot,
+                button,
+                shift,
+            } => {
                 if self.state == GameState::Inventory {
                     let mut cursor = self.cursor;
+                    let mut grid = self.craft_grid.clone();
+                    let book = self.regs.recipes.clone();
                     if let Some(inv) = self.session.inventory_mut() {
-                        cursor.left_click(inv, slot);
+                        cursor.click(inv, &mut grid, &book, slot, button, shift);
                     }
                     self.cursor = cursor;
+                    self.craft_grid = grid;
                 }
             }
             UiCommand::ApplyResourcePack(name) => {

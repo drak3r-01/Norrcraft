@@ -121,6 +121,12 @@ pub fn block_table(scene: &SceneRenderer, regs: &Registries) -> Arc<BlockTable> 
     Arc::new(BlockTable::from_registry(&regs.blocks, |n| atlas.layer(n)))
 }
 
+/// Couches d'atlas des icônes d'objets purs.
+pub fn item_icons(scene: &SceneRenderer, regs: &Registries) -> Arc<nb_game::ItemIcons> {
+    let atlas = scene.block_atlas();
+    Arc::new(nb_game::ItemIcons::build(&regs.items, |n| atlas.layer(n)))
+}
+
 /// Jeu + rendu de l'interface.
 pub struct Driver {
     pub game: Game,
@@ -138,7 +144,9 @@ impl Driver {
         if opts.window_size == (0, 0) {
             opts.window_size = (1280, 720);
         }
+        let icons = item_icons(b.scene(), &regs);
         let mut game = Game::new(opts, regs, table);
+        game.set_item_icons(icons);
         game.set_particle_layers(b.scene().particle_atlas());
         // Le renderer a été créé avec le registre intégré ; `Game` a pu lire `mobs.json`.
         if game.regs.mobs.to_json() != nb_data::MobRegistry::builtin().to_json() {
@@ -193,6 +201,8 @@ impl Driver {
                     }
                     let table = block_table(b.scene(), &self.game.regs);
                     self.game.set_block_table(table);
+                    let icons = item_icons(b.scene(), &self.game.regs);
+                    self.game.set_item_icons(icons);
                 }
                 PlatformRequest::ReloadMobModels => {
                     // `applyAndLeave` : modèle rechargé pour chaque mob qui n'en a pas.

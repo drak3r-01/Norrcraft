@@ -1,14 +1,14 @@
 //! Inventaire (spec §14) : 36 cases, barre rapide en 27–35, piles de 64, et logique « curseur »
 //! de l'écran d'inventaire.
 
-use nb_data::BlockId;
+use nb_data::{BlockId, ItemId};
 
 /// Nombre de cases.
 pub const SIZE: usize = 36;
 /// Première case de la barre rapide (barre `i` → case `27 + i`).
 pub const HOTBAR_START: i32 = 27;
 /// Taille maximale d'une pile.
-pub const STACK_MAX: i32 = 64;
+pub const STACK_MAX: i32 = nb_data::STACK_MAX;
 
 /// Ordre de remplissage : barre rapide 27..=35 puis grille 0..=26.
 pub const FILL_ORDER: [usize; SIZE] = {
@@ -25,16 +25,20 @@ pub const FILL_ORDER: [usize; SIZE] = {
     o
 };
 
-/// Pile d'un bloc (`count` non borné par le type, comme en Java).
+/// Pile d'un objet (bloc ou objet pur ; `count` non borné par le type, comme en Java).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ItemStack {
-    pub block: BlockId,
+    pub item: ItemId,
     pub count: i32,
 }
 
 impl ItemStack {
-    pub fn new(block: BlockId, count: i32) -> Self {
-        Self { block, count }
+    /// `item` : un [`ItemId`] ou un `BlockId` (un bloc est l'objet de même identifiant).
+    pub fn new(item: impl Into<ItemId>, count: i32) -> Self {
+        Self {
+            item: item.into(),
+            count,
+        }
     }
 }
 
@@ -62,21 +66,66 @@ impl Inventory {
         if block == air {
             return false;
         }
+        self.add_item(ItemId::from(block))
+    }
+
+    /// Ajoute un exemplaire de `item` (mêmes règles que [`Inventory::add_block`]).
+    pub fn add_item(&mut self, item: ItemId) -> bool {
+        self.add_stack(ItemStack::new(item, 1)) == 0
+    }
+
+    /// Ajoute une pile : complète d'abord les piles non pleines, puis les cases vides (selon
+    /// [`FILL_ORDER`]). Retourne le **reliquat** non placé (0 si tout est rentré).
+    pub fn add_stack(&mut self, stack: ItemStack) -> i32 {
+        let mut left = stack.count;
+        if left <= 0 {
+            return 0;
+        }
         for i in FILL_ORDER {
             if let Some(s) = &mut self.slots[i] {
-                if s.block == block && s.count < STACK_MAX {
-                    s.count += 1;
-                    return true;
+                if s.item == stack.item && s.count < STACK_MAX {
+                    let t = (STACK_MAX - s.count).min(left);
+                    s.count += t;
+                    left -= t;
+                    if left == 0 {
+                        return 0;
+                    }
                 }
             }
         }
         for i in FILL_ORDER {
             if self.slots[i].is_none() {
-                self.slots[i] = Some(ItemStack::new(block, 1));
-                return true;
+                let t = STACK_MAX.min(left);
+                self.slots[i] = Some(ItemStack::new(stack.item, t));
+                left -= t;
+                if left == 0 {
+                    return 0;
+                }
             }
         }
-        false
+        left
+    }
+
+    /// Nombre d'exemplaires de `item` qui rentreraient encore (piles non pleines + cases vides).
+    pub fn room_for(&self, item: ItemId) -> i32 {
+        self.slots
+            .iter()
+            .map(|s| match s {
+                None => STACK_MAX,
+                Some(s) if s.item == item => (STACK_MAX - s.count).max(0),
+                Some(_) => 0,
+            })
+            .sum()
+    }
+
+    /// Nombre total d'exemplaires de `item`.
+    pub fn count_of(&self, item: ItemId) -> i32 {
+        self.slots
+            .iter()
+            .flatten()
+            .filter(|s| s.item == item)
+            .map(|s| s.count)
+            .sum()
     }
 
     /// Case `index` ; hors `[0, 36)` → `None`.
@@ -161,24 +210,30 @@ impl InventoryCursor {
             }
             return;
         }
-        let current = inv.slot(slot);
-        match (self.held, current) {
+        let mut cell = inv.slot(slot);
+        self.left_on_cell(&mut cell, slot);
+        inv.set_slot(slot, cell);
+    }
+
+    /// Clic gauche sur une case : prendre, poser, fusionner ou échanger.
+    pub(crate) fn left_on_cell(&mut self, cell: &mut Option<ItemStack>, slot: i32) {
+        match (self.held, *cell) {
             (None, None) => {}
             (None, Some(s)) => {
                 self.held = Some(s);
                 self.held_from = slot;
-                inv.set_slot(slot, None);
+                *cell = None;
             }
             (Some(h), None) => {
-                inv.set_slot(slot, Some(h));
+                *cell = Some(h);
                 self.held = None;
                 self.held_from = -1;
             }
-            (Some(mut h), Some(mut s)) if h.block == s.block => {
+            (Some(mut h), Some(mut s)) if h.item == s.item => {
                 let t = (STACK_MAX - s.count).min(h.count);
                 s.count += t;
                 h.count -= t;
-                inv.set_slot(slot, Some(s));
+                *cell = Some(s);
                 if h.count <= 0 {
                     self.held = None;
                     self.held_from = -1;
@@ -187,10 +242,50 @@ impl InventoryCursor {
                 }
             }
             (Some(h), Some(s)) => {
-                inv.set_slot(slot, Some(h));
+                *cell = Some(h);
                 self.held = Some(s);
                 self.held_from = slot;
             }
+        }
+    }
+
+    /// Clic droit sur une case : prendre la moitié, poser un exemplaire ou échanger.
+    pub(crate) fn right_on_cell(&mut self, cell: &mut Option<ItemStack>, slot: i32) {
+        match (self.held, *cell) {
+            (None, None) => {}
+            (None, Some(s)) => {
+                let take = (s.count + 1) / 2;
+                self.held = Some(ItemStack::new(s.item, take));
+                self.held_from = slot;
+                *cell = (s.count - take > 0).then(|| ItemStack::new(s.item, s.count - take));
+            }
+            (Some(mut h), None) => {
+                *cell = Some(ItemStack::new(h.item, 1));
+                h.count -= 1;
+                self.set_held_or_clear(h);
+            }
+            (Some(mut h), Some(mut s)) if h.item == s.item => {
+                if s.count < STACK_MAX {
+                    s.count += 1;
+                    h.count -= 1;
+                    *cell = Some(s);
+                    self.set_held_or_clear(h);
+                }
+            }
+            (Some(h), Some(s)) => {
+                *cell = Some(h);
+                self.held = Some(s);
+                self.held_from = slot;
+            }
+        }
+    }
+
+    fn set_held_or_clear(&mut self, h: ItemStack) {
+        if h.count <= 0 {
+            self.held = None;
+            self.held_from = -1;
+        } else {
+            self.held = Some(h);
         }
     }
 
@@ -212,7 +307,7 @@ impl InventoryCursor {
                         inv.set_slot(i, Some(h));
                         break;
                     }
-                    Some(mut s) if s.block == h.block && s.count < STACK_MAX => {
+                    Some(mut s) if s.item == h.item && s.count < STACK_MAX => {
                         let t = (STACK_MAX - s.count).min(h.count);
                         s.count += t;
                         h.count -= t;

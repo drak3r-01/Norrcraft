@@ -20,6 +20,6 @@ pub use chat::{Chat, ChatKeys, ChatMessage};
 pub use draw::{Batch, DrawList, Rgba, Scissor, TextureRef, Vertex};
 pub use hud::{Hud, HudView, SlotView};
 pub use input::{TypingBuffers, UiInput};
-pub use inventory::{InventoryAction, InventoryScreen};
+pub use inventory::{ClickButton, InventoryAction, InventoryScreen};
 pub use state::{GameState, UiContext};
 pub use textures::UiTexture;

@@ -1,6 +1,6 @@
 //! États du jeu (`GameState.java`) et petites logiques d'état sans rendu.
 
-use nb_data::BlockId;
+use nb_data::ItemId;
 
 /// `GameState`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -65,7 +65,7 @@ pub const ITEM_NAME_FADE: f32 = 0.5;
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct HudState {
     pub last_selected_slot: i32,
-    pub last_held: Option<BlockId>,
+    pub last_held: Option<ItemId>,
     pub item_name_timer: f32,
 }
 
@@ -81,7 +81,7 @@ impl Default for HudState {
 
 impl HudState {
     /// Fin de `PlayingState.update`.
-    pub fn update(&mut self, selected_slot: u8, held: Option<BlockId>, dt: f64) {
+    pub fn update(&mut self, selected_slot: u8, held: Option<ItemId>, dt: f64) {
         let slot = i32::from(selected_slot);
         if slot != self.last_selected_slot || held != self.last_held {
             self.last_selected_slot = slot;
