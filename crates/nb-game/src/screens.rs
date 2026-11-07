@@ -65,6 +65,9 @@ pub fn to_world_type(t: UiWorldType) -> WorldType {
         UiWorldType::Flat => WorldType::Flat,
         UiWorldType::Amplified => WorldType::Amplified,
         UiWorldType::Island => WorldType::Island,
+        UiWorldType::Archipelago => WorldType::Archipelago,
+        UiWorldType::Highlands => WorldType::Highlands,
+        UiWorldType::Classic => WorldType::Classic,
     }
 }
 

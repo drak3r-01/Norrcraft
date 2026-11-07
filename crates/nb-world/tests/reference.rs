@@ -5,13 +5,21 @@ use std::sync::Arc;
 use nb_core::ChunkPos;
 use nb_data::BlockRegistry;
 use nb_world::{
-    find_spawn_location, fnv1a, Chunk, LightTable, WorldConfig, WorldGenerator, WorldType,
+    find_spawn_location, fnv1a, Chunk, GeneratorKind, LightTable, WorldConfig, WorldGenerator,
+    WorldType,
 };
+
+/// Les vecteurs de référence sont ceux du Java : ils valident le générateur `Classic`.
+fn classic(t: WorldType) -> WorldConfig {
+    let c = WorldConfig::preset_java(t);
+    assert_eq!(c.generator, GeneratorKind::Classic);
+    c
+}
 
 const POSITIONS: [(i32, i32); 5] = [(0, 0), (-1, 2), (5, -3), (-17, -9), (30, 30)];
 
 fn generator(reg: &BlockRegistry, seed: i64, t: WorldType) -> WorldGenerator {
-    WorldGenerator::new(seed, Arc::new(WorldConfig::preset(t)), reg.ids()).with_java_lava_pass(true)
+    WorldGenerator::new(seed, Arc::new(classic(t)), reg.ids()).with_java_lava_pass(true)
 }
 
 fn chunk(g: &WorldGenerator, cx: i32, cz: i32) -> Chunk {
@@ -315,11 +323,7 @@ fn flat_java_mode_matches_reference() {
 fn flat_corrected_has_no_lava() {
     let reg = BlockRegistry::builtin();
     let ids = reg.ids();
-    let g = WorldGenerator::new(
-        12345,
-        Arc::new(WorldConfig::preset(WorldType::Flat)),
-        reg.ids(),
-    );
+    let g = WorldGenerator::new(12345, Arc::new(classic(WorldType::Flat)), reg.ids());
     for (cx, cz) in POSITIONS {
         let c = chunk(&g, cx, cz);
         assert!(
@@ -345,11 +349,7 @@ fn flat_corrected_has_no_lava() {
     // Le spawn ne dépend pas de la passe de lave.
     assert_eq!(spawn(&g), [32.5, 8.0, -31.5]);
     // Les autres préréglages (grottes actives) restent identiques au Java.
-    let normal = WorldGenerator::new(
-        12345,
-        Arc::new(WorldConfig::preset(WorldType::Normal)),
-        reg.ids(),
-    );
+    let normal = WorldGenerator::new(12345, Arc::new(classic(WorldType::Normal)), reg.ids());
     assert_eq!(chunk(&normal, 0, 0).fingerprint(), 0x3300759565bbadfe);
 }
 

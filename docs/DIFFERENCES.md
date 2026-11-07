@@ -115,3 +115,19 @@ du Java à reproduire » de chaque spec) :
   l'intérieur, donnait 0 échantillon en grotte et faisait clignoter le chunk) ; un chunk qui
   rentre dans le frustum repart de « visible » ; entrées des chunks déchargés purgées.
 * **Fluides** : chunks dessinés de l'arrière vers l'avant (mélange alpha correct entre chunks).
+
+## Génération du monde « Norrblock » (passe 2026-11-07)
+
+Décision de Gabriel : la contrainte « à l'identique » est levée **pour la génération** (le reste
+du jeu reste fidèle). Nouveau générateur par défaut : relief continu, 30 biomes, 33 blocs,
+arbres et décors variés, grottes sans puits, minerais en filons, nouveaux types de monde
+(Archipelago, Highlands, Classic). Détail et principes : `docs/WORLDGEN.md`.
+
+* Le générateur Java reste complet (`GeneratorKind::Classic`, type « Classic ») et garantit
+  toujours les vecteurs de référence ; `WorldConfig::preset_java` conserve les préréglages
+  d'origine.
+* Un `world.json` sans champ `generator` est lu comme `Classic` (pas de raccord dans un monde
+  commencé avant).
+* `treeDensityOverrides` garde 8 valeurs : les nouveaux biomes héritent de celle de leur
+  « famille » Java (`Biome::family`).
+* Les mondes Amplified et Island sont réajustés pour le nouveau générateur.

@@ -42,16 +42,16 @@ fn settle(m: &ChunkManager, player: Vec3) {
     });
 }
 
+/// Ces tests vérifient le gestionnaire contre les vecteurs Java : générateur classique.
+fn classic() -> WorldConfig {
+    let mut c = WorldConfig::preset(WorldType::Normal);
+    c.generator = nb_world::GeneratorKind::Classic;
+    c
+}
+
 fn manager(storage: Arc<dyn ChunkStorage>, seed: i64, r: i32) -> ChunkManager {
     let reg = Arc::new(BlockRegistry::builtin());
-    let m = ChunkManager::with_threads(
-        storage,
-        seed,
-        Arc::new(WorldConfig::preset(WorldType::Normal)),
-        reg,
-        2,
-        2,
-    );
+    let m = ChunkManager::with_threads(storage, seed, Arc::new(classic()), reg, 2, 2);
     m.set_render_distance(r);
     m
 }
@@ -179,7 +179,7 @@ fn corrupt_chunk_file_is_regenerated() {
 fn world_spawn_and_save_roundtrip() {
     let root = TempDir::new("world");
     let reg = Arc::new(BlockRegistry::builtin());
-    let cfg = WorldConfig::preset(WorldType::Normal);
+    let cfg = classic();
 
     let mut meta = WorldMetadata::new("Mon monde", 12345, "SURVIVAL");
     meta.world_config = cfg.clone();

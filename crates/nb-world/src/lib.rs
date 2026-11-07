@@ -19,6 +19,9 @@
 //!    sentinelle `playerY == 100.0` ; un nom assaini vide donne le répertoire `world`.
 //! 5. `InMemoryChunkStorage` copie les voxels au lieu d'aliaser le tableau (sans effet observable).
 //!
+//! 6. **Générateur « Norrblock »** (2026-11-07, hors fidélité Java) : nouveau terrain par défaut,
+//!    voir `docs/WORLDGEN.md` ; le générateur Java reste disponible (`GeneratorKind::Classic`).
+//!
 //! Les autres corrections retenues (shadow map, accumulateur 60 Hz, tri du quadtree) relèvent
 //! d'autres crates.
 
@@ -26,22 +29,27 @@ pub mod biome;
 pub mod chunk;
 pub mod config;
 pub mod generator;
+mod generator_nb;
 pub mod light;
 pub mod manager;
 pub mod noise;
 pub mod save;
 pub mod storage;
+pub mod terrain;
 pub mod world;
 
-pub use biome::{Biome, BiomeConfig, BiomeSystem, TreeType, VegetationEntry, BIOME_COUNT};
+pub use biome::{
+    Biome, BiomeConfig, BiomeSystem, TreeType, VegetationEntry, BIOME_COUNT, CLASSIC_BIOME_COUNT,
+};
 pub use chunk::{
     fnv1a, java_index, Chunk, ChunkEntry, ChunkFlags, ChunkSnapshot, SharedChunk, CHUNK_SIZE_X,
     CHUNK_SIZE_Y, CHUNK_SIZE_Z, CHUNK_VOLUME,
 };
-pub use config::{OreConfig, OreRange, WorldConfig, WorldType};
+pub use config::{GeneratorKind, OreConfig, OreRange, WorldConfig, WorldType};
 pub use generator::WorldGenerator;
 pub use light::{compute_light, LightContext, LightTable};
 pub use manager::{ChunkManager, DEFAULT_RENDER_DISTANCE};
 pub use noise::{hash_position, java_string_hash, Noise};
 pub use storage::{ChunkStorage, FileChunkStorage, InMemoryChunkStorage};
+pub use terrain::{NbColumn, Terrain};
 pub use world::{find_spawn_location, World};

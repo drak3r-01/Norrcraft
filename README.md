@@ -208,6 +208,14 @@ Une texture de bloc absente d'un pack apparaît en damier magenta (pas de repli 
 comme en Java) ; les mobs se replient sur Default. Les textures animées (bandes verticales)
 utilisent leur dernière image.
 
+### Textures par défaut
+
+Le pack `Default` contient les textures d'origine et, pour les blocs ajoutés par le générateur
+de monde (voir `docs/WORLDGEN.md`), des textures procédurales (`scripts/gen_textures.py`).
+`python3 scripts/import_faithful.py Faithful-32x.zip` remplace celles que le pack
+[Faithful 32x](https://faithfulpack.net) fournit aussi et écrit `CREDITS-Faithful.txt` : leur
+licence impose de les créditer clairement avec un lien vers leur site.
+
 ## Sauvegardes
 
 `saves/<nom du monde>/world.json` (graine, mode, triche, configuration du monde, joueur,

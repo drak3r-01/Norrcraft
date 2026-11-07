@@ -68,14 +68,20 @@ pub enum WorldType {
     Flat,
     Amplified,
     Island,
+    Archipelago,
+    Highlands,
+    Classic,
 }
 
 impl WorldType {
-    pub const ALL: [WorldType; 4] = [
+    pub const ALL: [WorldType; 7] = [
         WorldType::Normal,
         WorldType::Flat,
         WorldType::Amplified,
         WorldType::Island,
+        WorldType::Archipelago,
+        WorldType::Highlands,
+        WorldType::Classic,
     ];
 
     /// `worldTypeName`.
@@ -85,6 +91,9 @@ impl WorldType {
             WorldType::Flat => "Flat",
             WorldType::Amplified => "Amplified",
             WorldType::Island => "Island",
+            WorldType::Archipelago => "Archipelago",
+            WorldType::Highlands => "Highlands",
+            WorldType::Classic => "Classic",
         }
     }
 

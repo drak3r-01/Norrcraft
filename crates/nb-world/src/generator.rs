@@ -9,8 +9,9 @@ use nb_data::{BlockId, BlockIds};
 
 use crate::biome::{Biome, BiomeSystem, TreeType};
 use crate::chunk::{Chunk, CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
-use crate::config::WorldConfig;
+use crate::config::{GeneratorKind, WorldConfig};
 use crate::noise::{hash_position, Noise};
+use crate::terrain::Terrain;
 
 const SY: i32 = CHUNK_SIZE_Y as i32;
 const SX: i32 = CHUNK_SIZE_X as i32;
@@ -37,10 +38,11 @@ fn ifloor(v: f64) -> i32 {
 /// Générateur immuable, partageable entre threads.
 #[derive(Debug, Clone)]
 pub struct WorldGenerator {
-    noise: Arc<Noise>,
-    biomes: BiomeSystem,
-    cfg: Arc<WorldConfig>,
-    ids: BlockIds,
+    pub(crate) noise: Arc<Noise>,
+    pub(crate) biomes: BiomeSystem,
+    pub(crate) terrain: Terrain,
+    pub(crate) cfg: Arc<WorldConfig>,
+    pub(crate) ids: BlockIds,
     java_lava_pass: bool,
 }
 
@@ -58,9 +60,11 @@ impl WorldGenerator {
     pub fn new(seed: i64, cfg: Arc<WorldConfig>, ids: &BlockIds) -> Self {
         let noise = Arc::new(Noise::new(seed));
         let biomes = BiomeSystem::new(noise.clone(), cfg.clone(), ids);
+        let terrain = biomes.terrain().clone();
         Self {
             noise,
             biomes,
+            terrain,
             cfg,
             ids: *ids,
             java_lava_pass: false,
@@ -183,11 +187,18 @@ impl WorldGenerator {
 
     /// Hauteur de colonne : premier `y` libre (spec §7.3).
     pub fn compute_surface_height(&self, wx: i32, wz: i32) -> i32 {
+        if self.cfg.generator == GeneratorKind::Norrblock {
+            return self.terrain.height(wx, wz);
+        }
         self.column(wx, wz).height
     }
 
     /// Génère un chunk supposé vide (spec §7.4). Les drapeaux sont à la charge de l'appelant.
     pub fn generate_chunk(&self, chunk: &mut Chunk) {
+        if self.cfg.generator == GeneratorKind::Norrblock {
+            self.generate_chunk_nb(chunk);
+            return;
+        }
         let pos = chunk.pos();
         let wx0 = pos.x.wrapping_mul(SX);
         let wz0 = pos.z.wrapping_mul(SZ);
@@ -256,7 +267,7 @@ impl WorldGenerator {
         columns
     }
 
-    fn pass_caves(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) {
+    pub(crate) fn pass_caves(&self, chunk: &mut Chunk, wx0: i32, wz0: i32) {
         let ids = &self.ids;
         let c = &*self.cfg;
         let open = |b: BlockId| b == ids.air || b == ids.water || b == ids.bedrock;
@@ -313,7 +324,12 @@ impl WorldGenerator {
                         continue;
                     }
                     let below = chunk.block(lx, y - 1, lz);
-                    if below != ids.stone && below != ids.dirt {
+                    if below != ids.stone
+                        && below != ids.dirt
+                        && below != ids.slate
+                        && below != ids.basalt
+                        && below != ids.marble
+                    {
                         continue;
                     }
                     let h = hash_position(
@@ -370,7 +386,7 @@ impl WorldGenerator {
         }
     }
 
-    fn pass_lava(&self, chunk: &mut Chunk) {
+    pub(crate) fn pass_lava(&self, chunk: &mut Chunk) {
         let ids = &self.ids;
         for lx in 0..SX {
             for lz in 0..SZ {
@@ -447,6 +463,8 @@ impl WorldGenerator {
             TreeType::Jungle => self.place_jungle(chunk, x, y, z),
             TreeType::Acacia => self.place_acacia(chunk, x, y, z),
             TreeType::SwampOak => self.place_swamp_oak(chunk, x, y, z),
+            // Les ajouts de « Norrblock » n'existent pas dans le générateur classique.
+            _ => self.place_oak(chunk, x, y, z),
         }
     }
 

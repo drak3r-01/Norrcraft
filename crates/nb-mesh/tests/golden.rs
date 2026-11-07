@@ -172,9 +172,12 @@ fn check(
     len: usize,
     hash: u64,
 ) {
-    let table = BlockTable::from_registry(&BlockRegistry::builtin(), |n| {
+    let full = BlockTable::from_registry(&BlockRegistry::builtin(), |n| {
         java_hash(n).rem_euclid(61) as u32
     });
+    // Les scènes de référence supposent le registre Java (35 blocs) : les identifiants ajoutés
+    // ensuite par « Norrblock » y restent indéfinis, donc de l'air.
+    let table = BlockTable::new((0..35u8).map(|id| (id, full.get(id).clone())).collect());
     let mut r = Lcg(seed);
     let voxels: Vec<ChunkVoxels> = (0..9)
         .map(|_| {

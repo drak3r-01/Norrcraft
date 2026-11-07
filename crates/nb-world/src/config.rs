@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::biome::BIOME_COUNT;
+use crate::biome::CLASSIC_BIOME_COUNT;
 
 /// Type de monde choisi à la création (non sauvegardé, seul le `WorldConfig` résultant l'est).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -11,20 +11,46 @@ pub enum WorldType {
     Flat,
     Amplified,
     Island,
+    /// Beaucoup de petites îles dans un océan tropical (générateur « Norrblock »).
+    Archipelago,
+    /// Hautes terres : reliefs massifs, peu d'océan (générateur « Norrblock »).
+    Highlands,
+    /// Terrain du jeu Java d'origine, 8 biomes (générateur classique).
+    Classic,
 }
 
 impl WorldType {
-    pub const ALL: [WorldType; 4] = [
+    pub const ALL: [WorldType; 7] = [
         WorldType::Normal,
         WorldType::Flat,
         WorldType::Amplified,
         WorldType::Island,
+        WorldType::Archipelago,
+        WorldType::Highlands,
+        WorldType::Classic,
     ];
 
-    /// Type suivant dans le cycle de l'UI (`ordinal + 1 mod 4`).
+    /// Type suivant dans le cycle de l'UI.
     pub fn next(self) -> Self {
         Self::ALL[(self as usize + 1) % Self::ALL.len()]
     }
+}
+
+/// Algorithme de génération du terrain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GeneratorKind {
+    /// Port exact du générateur Java (8 biomes) — conservé pour les vecteurs de référence et
+    /// pour les mondes créés avant l'arrivée du générateur « Norrblock ».
+    Classic,
+    /// Générateur « Norrblock » : relief continu, 30 biomes, arbres et décors variés.
+    Norrblock,
+}
+
+/// Un `world.json` sans champ `generator` date d'avant le nouveau générateur : il garde le
+/// terrain classique pour ne pas créer de raccord avec les chunks déjà explorés.
+fn classic_generator() -> GeneratorKind {
+    GeneratorKind::Classic
 }
 
 /// Plage de génération d'un minerai (bornes inclusives).
@@ -75,6 +101,9 @@ impl Default for OreConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorldConfig {
+    /// Algorithme de génération (voir [`GeneratorKind`]).
+    #[serde(default = "classic_generator")]
+    pub generator: GeneratorKind,
     // Terrain
     pub sea_level: i32,
     pub base_height: i32,
@@ -113,7 +142,7 @@ pub struct WorldConfig {
     /// À la lecture, un tableau plus court est complété par `-1.0` et un plus long tronqué
     /// (écart volontaire : le Java plantait la génération).
     #[serde(deserialize_with = "deserialize_tree_overrides")]
-    pub tree_density_overrides: [f64; BIOME_COUNT],
+    pub tree_density_overrides: [f64; CLASSIC_BIOME_COUNT],
     // Gameplay
     pub gravity: f32,
     pub jump_force: f32,
@@ -143,6 +172,7 @@ pub struct WorldConfig {
 impl Default for WorldConfig {
     fn default() -> Self {
         Self {
+            generator: GeneratorKind::Norrblock,
             sea_level: 34,
             base_height: 30,
             height_scale: 38,
@@ -171,7 +201,7 @@ impl Default for WorldConfig {
             snow_line_mountains: 58,
             snow_line_taiga: 52,
             vegetation_density: 1.0,
-            tree_density_overrides: [-1.0; BIOME_COUNT],
+            tree_density_overrides: [-1.0; CLASSIC_BIOME_COUNT],
             gravity: -32.0,
             jump_force: 8.4,
             fall_damage_enabled: true,
@@ -190,11 +220,15 @@ impl Default for WorldConfig {
 }
 
 impl WorldConfig {
-    /// `WorldConfig.preset(type)` : défauts puis modifications du préréglage (spec §5.2).
-    pub fn preset(t: WorldType) -> Self {
-        let mut c = Self::default();
+    /// `WorldConfig.preset(type)` du Java : défauts puis modifications du préréglage (spec §5.2),
+    /// avec le générateur **classique**. Sert aux vecteurs de référence ; les types ajoutés
+    /// après le Java (Archipelago, Highlands, Classic) y valent NORMAL.
+    pub fn preset_java(t: WorldType) -> Self {
+        let mut c = Self {
+            generator: GeneratorKind::Classic,
+            ..Self::default()
+        };
         match t {
-            WorldType::Normal => {}
             WorldType::Flat => {
                 c.sea_level = 5;
                 c.base_height = 5;
@@ -212,6 +246,45 @@ impl WorldConfig {
                 c.ocean_threshold = 0.20;
                 c.coast_threshold = 0.30;
             }
+            _ => {}
+        }
+        c
+    }
+
+    /// Préréglage d'un type de monde. Les types Java (Normal, Flat, Amplified, Island) reprennent
+    /// les réglages du Java avec le générateur « Norrblock » ; AMPLIFIED et ISLAND sont
+    /// réajustés pour ce générateur (le seuil d'océan du Java, > au seuil de côte, y donnait un
+    /// monde noyé à côtes verticales ; ISLAND y supprimait presque tout l'océan).
+    pub fn preset(t: WorldType) -> Self {
+        let mut c = Self::preset_java(t);
+        c.generator = GeneratorKind::Norrblock;
+        match t {
+            WorldType::Normal | WorldType::Flat => {}
+            WorldType::Amplified => {
+                c.ocean_threshold = 0.44;
+                c.coast_threshold = 0.52;
+            }
+            WorldType::Island => {
+                c.ocean_frequency = 0.0016;
+                c.ocean_threshold = 0.50;
+                c.coast_threshold = 0.58;
+            }
+            WorldType::Archipelago => {
+                c.ocean_frequency = 0.0042;
+                c.ocean_threshold = 0.48;
+                c.coast_threshold = 0.55;
+                c.temp_scale = 0.0015;
+                c.river_width = 0.02;
+            }
+            WorldType::Highlands => {
+                c.height_scale = 50;
+                c.base_height = 38;
+                c.mountain_threshold = 0.58;
+                c.ocean_threshold = 0.30;
+                c.coast_threshold = 0.38;
+                c.snow_line_mountains = 74;
+            }
+            WorldType::Classic => c.generator = GeneratorKind::Classic,
         }
         c
     }
@@ -226,12 +299,12 @@ impl WorldConfig {
 
 /// Lit un tableau de longueur quelconque ; complète à 8 avec `-1.0` (ou tronque).
 /// Un élément non numérique (`null`…) vaut `-1.0`.
-fn deserialize_tree_overrides<'de, D>(d: D) -> Result<[f64; BIOME_COUNT], D::Error>
+fn deserialize_tree_overrides<'de, D>(d: D) -> Result<[f64; CLASSIC_BIOME_COUNT], D::Error>
 where
     D: Deserializer<'de>,
 {
     let raw: Vec<serde_json::Value> = Vec::deserialize(d)?;
-    let mut out = [-1.0; BIOME_COUNT];
+    let mut out = [-1.0; CLASSIC_BIOME_COUNT];
     for (slot, v) in out.iter_mut().zip(raw) {
         *slot = v.as_f64().unwrap_or(-1.0);
     }
@@ -244,14 +317,15 @@ mod tests {
 
     #[test]
     fn presets() {
-        let f = WorldConfig::preset(WorldType::Flat);
+        let f = WorldConfig::preset_java(WorldType::Flat);
         assert_eq!((f.sea_level, f.base_height, f.height_scale), (5, 5, 1));
         assert!(!f.caves_enabled);
         assert_eq!(f.river_width, 0.0);
-        let a = WorldConfig::preset(WorldType::Amplified);
+        let a = WorldConfig::preset_java(WorldType::Amplified);
         assert_eq!((a.height_scale, a.base_height), (80, 45));
         assert_eq!((a.ocean_threshold, a.coast_threshold), (0.50, 0.48));
-        let i = WorldConfig::preset(WorldType::Island);
+        assert_eq!(a.generator, GeneratorKind::Classic);
+        let i = WorldConfig::preset_java(WorldType::Island);
         assert_eq!(
             (i.ocean_frequency, i.ocean_threshold, i.coast_threshold),
             (0.003, 0.20, 0.30)
@@ -260,7 +334,16 @@ mod tests {
             WorldConfig::preset(WorldType::Normal),
             WorldConfig::default()
         );
-        assert_eq!(WorldType::Island.next(), WorldType::Normal);
+        assert_eq!(WorldType::Classic.next(), WorldType::Normal);
+        assert_eq!(WorldType::Island.next(), WorldType::Archipelago);
+        assert_eq!(
+            WorldConfig::preset(WorldType::Classic).generator,
+            GeneratorKind::Classic
+        );
+        assert_eq!(
+            WorldConfig::preset(WorldType::Highlands).generator,
+            GeneratorKind::Norrblock
+        );
         assert_eq!(WorldType::Normal.next(), WorldType::Flat);
     }
 

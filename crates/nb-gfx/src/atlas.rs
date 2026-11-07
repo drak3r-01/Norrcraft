@@ -233,8 +233,19 @@ mod tests {
     fn default_pack_atlas() {
         let a = TextureArrayCpu::from_dir(&default_blocks());
         assert_eq!(a.tile, 32);
-        assert_eq!(a.layer_count(), 46);
-        assert_eq!(a.missing_layer, 45);
+        let pngs = std::fs::read_dir(default_blocks())
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .unwrap()
+                    .file_name()
+                    .to_string_lossy()
+                    .ends_with(".png")
+            })
+            .count() as u32;
+        assert!(pngs >= 46);
+        assert_eq!(a.layer_count(), pngs + 1);
+        assert_eq!(a.missing_layer, pngs);
         assert_eq!(a.layer("STONE"), a.layer("stone"));
         assert_ne!(a.layer("stone"), a.missing_layer);
         assert_eq!(a.layer("nope"), a.missing_layer);
@@ -254,7 +265,7 @@ mod tests {
             }
         }
         // Couche manquante : damier de cases de 8.
-        let m = &a.layers[45];
+        let m = &a.layers[a.missing_layer as usize];
         assert_eq!(&m[0..4], &MAGENTA);
         assert_eq!(&m[8 * 4..8 * 4 + 4], &BLACK);
     }

@@ -109,6 +109,39 @@ const WELL_KNOWN: &[&str] = &[
     "emerald_ore",
     "lava",
     "sandstone",
+    "gravel",
+    "red_sand",
+    "terracotta",
+    "terracotta_red",
+    "terracotta_orange",
+    "terracotta_yellow",
+    "terracotta_white",
+    "terracotta_brown",
+    "ice",
+    "packed_ice",
+    "podzol",
+    "mycelium",
+    "basalt",
+    "marble",
+    "slate",
+    "ash",
+    "magma",
+    "cherry_wood",
+    "dark_oak_wood",
+    "mushroom_stem",
+    "mushroom_cap_red",
+    "mushroom_cap_brown",
+    "coral_pink",
+    "coral_purple",
+    "coral_yellow",
+    "coral_blue",
+    "flower_blue",
+    "flower_pink",
+    "flower_white",
+    "flower_orange",
+    "lavender",
+    "reeds",
+    "moss",
 ];
 
 /// Identifiants des blocs connus du code (équivalents des champs statiques du `BlockRegistry`).
@@ -149,6 +182,39 @@ pub struct BlockIds {
     pub emerald_ore: BlockId,
     pub lava: BlockId,
     pub sandstone: BlockId,
+    pub gravel: BlockId,
+    pub red_sand: BlockId,
+    pub terracotta: BlockId,
+    pub terracotta_red: BlockId,
+    pub terracotta_orange: BlockId,
+    pub terracotta_yellow: BlockId,
+    pub terracotta_white: BlockId,
+    pub terracotta_brown: BlockId,
+    pub ice: BlockId,
+    pub packed_ice: BlockId,
+    pub podzol: BlockId,
+    pub mycelium: BlockId,
+    pub basalt: BlockId,
+    pub marble: BlockId,
+    pub slate: BlockId,
+    pub ash: BlockId,
+    pub magma: BlockId,
+    pub cherry_wood: BlockId,
+    pub dark_oak_wood: BlockId,
+    pub mushroom_stem: BlockId,
+    pub mushroom_cap_red: BlockId,
+    pub mushroom_cap_brown: BlockId,
+    pub coral_pink: BlockId,
+    pub coral_purple: BlockId,
+    pub coral_yellow: BlockId,
+    pub coral_blue: BlockId,
+    pub flower_blue: BlockId,
+    pub flower_pink: BlockId,
+    pub flower_white: BlockId,
+    pub flower_orange: BlockId,
+    pub lavender: BlockId,
+    pub reeds: BlockId,
+    pub moss: BlockId,
 }
 
 /// Registre immuable des blocs.
@@ -227,6 +293,39 @@ impl BlockRegistry {
             emerald_ore: v[32],
             lava: v[33],
             sandstone: v[34],
+            gravel: v[35],
+            red_sand: v[36],
+            terracotta: v[37],
+            terracotta_red: v[38],
+            terracotta_orange: v[39],
+            terracotta_yellow: v[40],
+            terracotta_white: v[41],
+            terracotta_brown: v[42],
+            ice: v[43],
+            packed_ice: v[44],
+            podzol: v[45],
+            mycelium: v[46],
+            basalt: v[47],
+            marble: v[48],
+            slate: v[49],
+            ash: v[50],
+            magma: v[51],
+            cherry_wood: v[52],
+            dark_oak_wood: v[53],
+            mushroom_stem: v[54],
+            mushroom_cap_red: v[55],
+            mushroom_cap_brown: v[56],
+            coral_pink: v[57],
+            coral_purple: v[58],
+            coral_yellow: v[59],
+            coral_blue: v[60],
+            flower_blue: v[61],
+            flower_pink: v[62],
+            flower_white: v[63],
+            flower_orange: v[64],
+            lavender: v[65],
+            reeds: v[66],
+            moss: v[67],
         };
         Ok(Self {
             by_id,
@@ -275,15 +374,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_has_35_blocks_with_expected_ids() {
+    fn builtin_has_68_blocks_with_expected_ids() {
         let reg = BlockRegistry::builtin();
-        assert_eq!(reg.len(), 35);
+        assert_eq!(reg.len(), 68);
         let ids = reg.ids();
         assert_eq!(ids.air, 0);
         assert_eq!(ids.stone, 3);
         assert_eq!(ids.water, 4);
         assert_eq!(ids.lava, 33);
         assert_eq!(ids.sandstone, 34);
+        assert_eq!(ids.gravel, 35);
+        assert_eq!(ids.moss, 67);
     }
 
     #[test]

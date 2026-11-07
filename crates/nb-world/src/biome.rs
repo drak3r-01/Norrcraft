@@ -4,13 +4,17 @@ use std::sync::Arc;
 
 use nb_data::{BlockId, BlockIds};
 
-use crate::config::WorldConfig;
+use crate::config::{GeneratorKind, WorldConfig};
 use crate::noise::Noise;
+use crate::terrain::Terrain;
 
-/// Nombre de biomes (taille de `treeDensityOverrides`).
-pub const BIOME_COUNT: usize = 8;
+/// Nombre de biomes du générateur Java (taille de `treeDensityOverrides`).
+pub const CLASSIC_BIOME_COUNT: usize = 8;
+/// Nombre total de biomes (Java + ajouts du générateur « Norrblock »).
+pub const BIOME_COUNT: usize = 30;
 
-/// Biome d'une colonne. Les ordinaux sont ceux du Java.
+/// Biome d'une colonne. Les 8 premiers ordinaux sont ceux du Java ; les suivants sont propres au
+/// générateur « Norrblock » (le générateur classique ne les produit jamais).
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Biome {
@@ -22,6 +26,28 @@ pub enum Biome {
     Swamp = 5,
     Savanna = 6,
     Mountains = 7,
+    Ocean = 8,
+    DeepOcean = 9,
+    WarmOcean = 10,
+    FrozenOcean = 11,
+    River = 12,
+    Beach = 13,
+    StonyShore = 14,
+    BirchForest = 15,
+    DarkForest = 16,
+    FlowerMeadow = 17,
+    CherryGrove = 18,
+    AutumnForest = 19,
+    SnowyPlains = 20,
+    SnowyTaiga = 21,
+    IceSpikes = 22,
+    Heath = 23,
+    MegaTaiga = 24,
+    Badlands = 25,
+    Hills = 26,
+    SnowyPeaks = 27,
+    Volcano = 28,
+    MushroomFields = 29,
 }
 
 impl Biome {
@@ -34,6 +60,28 @@ impl Biome {
         Biome::Swamp,
         Biome::Savanna,
         Biome::Mountains,
+        Biome::Ocean,
+        Biome::DeepOcean,
+        Biome::WarmOcean,
+        Biome::FrozenOcean,
+        Biome::River,
+        Biome::Beach,
+        Biome::StonyShore,
+        Biome::BirchForest,
+        Biome::DarkForest,
+        Biome::FlowerMeadow,
+        Biome::CherryGrove,
+        Biome::AutumnForest,
+        Biome::SnowyPlains,
+        Biome::SnowyTaiga,
+        Biome::IceSpikes,
+        Biome::Heath,
+        Biome::MegaTaiga,
+        Biome::Badlands,
+        Biome::Hills,
+        Biome::SnowyPeaks,
+        Biome::Volcano,
+        Biome::MushroomFields,
     ];
 
     #[inline]
@@ -52,6 +100,61 @@ impl Biome {
             Biome::Swamp => "SWAMP",
             Biome::Savanna => "SAVANNA",
             Biome::Mountains => "MOUNTAINS",
+            Biome::Ocean => "OCEAN",
+            Biome::DeepOcean => "DEEP_OCEAN",
+            Biome::WarmOcean => "WARM_OCEAN",
+            Biome::FrozenOcean => "FROZEN_OCEAN",
+            Biome::River => "RIVER",
+            Biome::Beach => "BEACH",
+            Biome::StonyShore => "STONY_SHORE",
+            Biome::BirchForest => "BIRCH_FOREST",
+            Biome::DarkForest => "DARK_FOREST",
+            Biome::FlowerMeadow => "FLOWER_MEADOW",
+            Biome::CherryGrove => "CHERRY_GROVE",
+            Biome::AutumnForest => "AUTUMN_FOREST",
+            Biome::SnowyPlains => "SNOWY_PLAINS",
+            Biome::SnowyTaiga => "SNOWY_TAIGA",
+            Biome::IceSpikes => "ICE_SPIKES",
+            Biome::Heath => "HEATH",
+            Biome::MegaTaiga => "MEGA_TAIGA",
+            Biome::Badlands => "BADLANDS",
+            Biome::Hills => "HILLS",
+            Biome::SnowyPeaks => "SNOWY_PEAKS",
+            Biome::Volcano => "VOLCANO",
+            Biome::MushroomFields => "MUSHROOM_FIELDS",
+        }
+    }
+
+    /// Biome du Java dont ce biome hérite le réglage `treeDensityOverrides` (l'interface ne
+    /// propose que 8 curseurs).
+    pub const fn family(self) -> Biome {
+        match self {
+            Biome::Plains
+            | Biome::FlowerMeadow
+            | Biome::Beach
+            | Biome::SnowyPlains
+            | Biome::Heath => Biome::Plains,
+            Biome::Forest
+            | Biome::BirchForest
+            | Biome::DarkForest
+            | Biome::CherryGrove
+            | Biome::AutumnForest
+            | Biome::Hills => Biome::Forest,
+            Biome::Desert | Biome::Badlands => Biome::Desert,
+            Biome::Taiga | Biome::SnowyTaiga | Biome::MegaTaiga => Biome::Taiga,
+            Biome::Jungle => Biome::Jungle,
+            Biome::Swamp | Biome::MushroomFields => Biome::Swamp,
+            Biome::Savanna => Biome::Savanna,
+            Biome::Mountains
+            | Biome::SnowyPeaks
+            | Biome::StonyShore
+            | Biome::Volcano
+            | Biome::IceSpikes => Biome::Mountains,
+            Biome::Ocean
+            | Biome::DeepOcean
+            | Biome::WarmOcean
+            | Biome::FrozenOcean
+            | Biome::River => Biome::Plains,
         }
     }
 }
@@ -65,6 +168,20 @@ pub enum TreeType {
     Jungle,
     Acacia,
     SwampOak,
+    // Ajouts du générateur « Norrblock ».
+    /// Grand chêne à branches.
+    Fancy,
+    DarkOak,
+    Cherry,
+    /// Épicéa géant à tronc de 2×2.
+    MegaSpruce,
+    /// Jungle géante à tronc de 2×2.
+    MegaJungle,
+    Palm,
+    Dead,
+    Bush,
+    HugeRedMushroom,
+    HugeBrownMushroom,
 }
 
 /// Plante candidate d'un biome (liste ordonnée).
@@ -82,6 +199,8 @@ pub struct BiomeConfig {
     pub deep: BlockId,
     pub tree_type: TreeType,
     pub tree_density: f64,
+    /// Mélange d'arbres pondéré du générateur « Norrblock » (vide : `tree_type` seul).
+    pub tree_mix: Vec<(TreeType, u32)>,
     pub vegetation: Vec<VegetationEntry>,
     pub height_modifier: f64,
     pub grass_tint: [f64; 3],
@@ -99,7 +218,8 @@ const HUMID_OFFSET_Z: f64 = 800.0;
 pub struct BiomeSystem {
     noise: Arc<Noise>,
     cfg: Arc<WorldConfig>,
-    configs: [BiomeConfig; BIOME_COUNT],
+    configs: Vec<BiomeConfig>,
+    terrain: Terrain,
     snow: BlockId,
 }
 
@@ -129,6 +249,7 @@ fn bc(
         deep,
         tree_type,
         tree_density,
+        tree_mix: Vec::new(),
         vegetation,
         height_modifier,
         grass_tint,
@@ -137,8 +258,8 @@ fn bc(
     }
 }
 
-fn build_configs(b: &BlockIds) -> [BiomeConfig; BIOME_COUNT] {
-    [
+fn build_configs(b: &BlockIds) -> Vec<BiomeConfig> {
+    let mut v = vec![
         bc(
             b.grass,
             b.dirt,
@@ -257,12 +378,395 @@ fn build_configs(b: &BlockIds) -> [BiomeConfig; BIOME_COUNT] {
             [0.25, 0.50, 0.20],
             [0.15, 0.4, 0.75],
         ),
+    ];
+    v.extend(norrblock_configs(b));
+    apply_classic_mixes(&mut v);
+    v
+}
+
+impl BiomeConfig {
+    fn mix(mut self, m: &[(TreeType, u32)]) -> Self {
+        self.tree_mix = m.to_vec();
+        self
+    }
+}
+
+/// Mélanges d'arbres du générateur « Norrblock » pour les 8 biomes du Java.
+fn apply_classic_mixes(v: &mut [BiomeConfig]) {
+    use TreeType::*;
+    let set = |v: &mut [BiomeConfig], b: Biome, m: &[(TreeType, u32)]| {
+        v[b.ordinal()].tree_mix = m.to_vec();
+    };
+    set(v, Biome::Plains, &[(Oak, 5), (Fancy, 2), (Bush, 3)]);
+    set(v, Biome::Forest, &[(Oak, 11), (Birch, 4), (Fancy, 5)]);
+    set(v, Biome::Taiga, &[(Spruce, 9), (Bush, 1)]);
+    set(
+        v,
+        Biome::Jungle,
+        &[(Jungle, 12), (MegaJungle, 5), (Bush, 3)],
+    );
+    set(v, Biome::Swamp, &[(SwampOak, 1)]);
+    set(v, Biome::Savanna, &[(Acacia, 7), (Bush, 2), (Dead, 1)]);
+    set(v, Biome::Mountains, &[(Spruce, 1)]);
+}
+
+#[allow(clippy::too_many_lines)]
+fn norrblock_configs(b: &BlockIds) -> Vec<BiomeConfig> {
+    use TreeType::*;
+    vec![
+        // Ocean
+        bc(
+            b.sand,
+            b.sand,
+            b.stone,
+            Oak,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.45, 0.74, 0.19],
+            [0.36, 0.73, 0.24],
+            [0.16, 0.42, 0.78],
+        ),
+        // DeepOcean
+        bc(
+            b.gravel,
+            b.gravel,
+            b.stone,
+            Oak,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.45, 0.74, 0.19],
+            [0.36, 0.73, 0.24],
+            [0.08, 0.26, 0.62],
+        ),
+        // WarmOcean
+        bc(
+            b.sand,
+            b.sand,
+            b.sandstone,
+            Oak,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.6, 0.78, 0.3],
+            [0.5, 0.74, 0.3],
+            [0.10, 0.70, 0.80],
+        ),
+        // FrozenOcean
+        bc(
+            b.gravel,
+            b.gravel,
+            b.stone,
+            Spruce,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.5, 0.7, 0.5],
+            [0.3, 0.5, 0.35],
+            [0.30, 0.48, 0.82],
+        ),
+        // River
+        bc(
+            b.sand,
+            b.sand,
+            b.stone,
+            Oak,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.45, 0.74, 0.19],
+            [0.36, 0.73, 0.24],
+            [0.20, 0.52, 0.82],
+        ),
+        // Beach
+        bc(
+            b.sand,
+            b.sand,
+            b.sandstone,
+            Palm,
+            0.004,
+            veg(&[(b.reeds, 0.02), (b.dead_bush, 0.004)]),
+            1.0,
+            [0.62, 0.74, 0.30],
+            [0.5, 0.7, 0.28],
+            [0.14, 0.56, 0.78],
+        )
+        .mix(&[(Palm, 1)]),
+        // StonyShore
+        bc(
+            b.gravel,
+            b.stone,
+            b.stone,
+            Spruce,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.4, 0.62, 0.28],
+            [0.3, 0.5, 0.25],
+            [0.15, 0.4, 0.72],
+        ),
+        // BirchForest
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            Birch,
+            0.03,
+            veg(&[
+                (b.tall_grass, 0.22),
+                (b.flower_white, 0.012),
+                (b.flower_yellow, 0.01),
+                (b.fern, 0.03),
+            ]),
+            1.0,
+            [0.47, 0.74, 0.30],
+            [0.52, 0.78, 0.32],
+            [0.2, 0.5, 0.78],
+        )
+        .mix(&[(Birch, 14), (Oak, 3), (Fancy, 1)]),
+        // DarkForest
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            DarkOak,
+            0.06,
+            veg(&[
+                (b.tall_grass, 0.12),
+                (b.fern, 0.05),
+                (b.mushroom_brown, 0.012),
+                (b.mushroom_red, 0.008),
+            ]),
+            1.0,
+            [0.24, 0.46, 0.16],
+            [0.14, 0.34, 0.12],
+            [0.14, 0.38, 0.58],
+        )
+        .mix(&[
+            (DarkOak, 12),
+            (Fancy, 3),
+            (HugeBrownMushroom, 1),
+            (HugeRedMushroom, 1),
+        ]),
+        // FlowerMeadow
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            Oak,
+            0.004,
+            veg(&[
+                (b.tall_grass, 0.26),
+                (b.flower_red, 0.025),
+                (b.flower_yellow, 0.025),
+                (b.flower_blue, 0.025),
+                (b.flower_pink, 0.02),
+                (b.flower_white, 0.02),
+                (b.flower_orange, 0.02),
+            ]),
+            1.0,
+            [0.50, 0.82, 0.22],
+            [0.40, 0.76, 0.26],
+            [0.22, 0.52, 0.84],
+        )
+        .mix(&[(Oak, 3), (Birch, 2), (Bush, 3)]),
+        // CherryGrove
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            Cherry,
+            0.032,
+            veg(&[
+                (b.tall_grass, 0.16),
+                (b.flower_pink, 0.05),
+                (b.flower_white, 0.015),
+            ]),
+            1.0,
+            [0.52, 0.80, 0.38],
+            [0.98, 0.64, 0.80],
+            [0.34, 0.58, 0.92],
+        )
+        .mix(&[(Cherry, 12), (Birch, 2)]),
+        // AutumnForest
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            Oak,
+            0.032,
+            veg(&[
+                (b.tall_grass, 0.12),
+                (b.fern, 0.04),
+                (b.mushroom_red, 0.006),
+                (b.flower_orange, 0.01),
+            ]),
+            1.0,
+            [0.62, 0.62, 0.22],
+            [0.92, 0.48, 0.12],
+            [0.2, 0.46, 0.7],
+        )
+        .mix(&[(Oak, 9), (Birch, 7), (Fancy, 4)]),
+        // SnowyPlains
+        bc(
+            b.snow,
+            b.dirt,
+            b.stone,
+            Spruce,
+            0.002,
+            veg(&[]),
+            1.0,
+            [0.5, 0.72, 0.5],
+            [0.3, 0.5, 0.38],
+            [0.22, 0.42, 0.78],
+        )
+        .mix(&[(Spruce, 1)]),
+        // SnowyTaiga
+        bc(
+            b.snow,
+            b.dirt,
+            b.stone,
+            Spruce,
+            0.022,
+            veg(&[(b.fern, 0.04)]),
+            1.0,
+            [0.38, 0.6, 0.42],
+            [0.2, 0.42, 0.3],
+            [0.18, 0.36, 0.74],
+        )
+        .mix(&[(Spruce, 10), (MegaSpruce, 1)]),
+        // IceSpikes
+        bc(
+            b.snow,
+            b.dirt,
+            b.stone,
+            Spruce,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.5, 0.72, 0.5],
+            [0.3, 0.5, 0.38],
+            [0.30, 0.50, 0.88],
+        ),
+        // Heath
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            Bush,
+            0.008,
+            veg(&[
+                (b.lavender, 0.10),
+                (b.fern, 0.10),
+                (b.tall_grass, 0.16),
+                (b.flower_pink, 0.01),
+            ]),
+            1.0,
+            [0.52, 0.58, 0.38],
+            [0.4, 0.55, 0.3],
+            [0.2, 0.42, 0.66],
+        )
+        .mix(&[(Bush, 8), (Dead, 2), (Spruce, 2)]),
+        // MegaTaiga
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            MegaSpruce,
+            0.034,
+            veg(&[
+                (b.fern, 0.34),
+                (b.mushroom_brown, 0.012),
+                (b.mushroom_red, 0.01),
+                (b.tall_grass, 0.05),
+            ]),
+            1.0,
+            [0.32, 0.52, 0.28],
+            [0.2, 0.4, 0.2],
+            [0.14, 0.34, 0.62],
+        )
+        .mix(&[(MegaSpruce, 6), (Spruce, 5)]),
+        // Badlands
+        bc(
+            b.red_sand,
+            b.terracotta,
+            b.stone,
+            Dead,
+            0.002,
+            veg(&[(b.dead_bush, 0.025), (b.cactus, 0.004)]),
+            1.0,
+            [0.62, 0.56, 0.26],
+            [0.5, 0.5, 0.2],
+            [0.36, 0.56, 0.62],
+        )
+        .mix(&[(Dead, 1)]),
+        // Hills
+        bc(
+            b.grass,
+            b.dirt,
+            b.stone,
+            Oak,
+            0.012,
+            veg(&[
+                (b.tall_grass, 0.22),
+                (b.flower_red, 0.008),
+                (b.flower_blue, 0.006),
+                (b.fern, 0.03),
+            ]),
+            1.0,
+            [0.38, 0.66, 0.2],
+            [0.3, 0.62, 0.2],
+            [0.18, 0.46, 0.74],
+        )
+        .mix(&[(Oak, 4), (Spruce, 4), (Birch, 2), (Bush, 2)]),
+        // SnowyPeaks
+        bc(
+            b.snow,
+            b.stone,
+            b.stone,
+            Spruce,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.5, 0.7, 0.5],
+            [0.3, 0.5, 0.38],
+            [0.2, 0.42, 0.8],
+        ),
+        // Volcano
+        bc(
+            b.basalt,
+            b.basalt,
+            b.stone,
+            Dead,
+            0.0,
+            veg(&[]),
+            1.0,
+            [0.46, 0.42, 0.34],
+            [0.36, 0.34, 0.3],
+            [0.26, 0.32, 0.34],
+        ),
+        // MushroomFields
+        bc(
+            b.mycelium,
+            b.dirt,
+            b.stone,
+            HugeRedMushroom,
+            0.007,
+            veg(&[(b.mushroom_red, 0.03), (b.mushroom_brown, 0.03)]),
+            1.0,
+            [0.36, 0.7, 0.4],
+            [0.3, 0.6, 0.4],
+            [0.46, 0.4, 0.74],
+        )
+        .mix(&[(HugeRedMushroom, 1), (HugeBrownMushroom, 1)]),
     ]
 }
 
 impl BiomeSystem {
     pub fn new(noise: Arc<Noise>, cfg: Arc<WorldConfig>, ids: &BlockIds) -> Self {
         Self {
+            terrain: Terrain::new(noise.clone(), cfg.clone()),
             noise,
             cfg,
             configs: build_configs(ids),
@@ -300,6 +804,12 @@ impl BiomeSystem {
 
     /// `getBiome` (spec §6.2).
     pub fn biome(&self, wx: f64, wz: f64) -> Biome {
+        if self.cfg.generator == GeneratorKind::Norrblock {
+            return self
+                .terrain
+                .column(wx.floor() as i32, wz.floor() as i32)
+                .biome;
+        }
         if self.mountain_factor(wx, wz) > self.cfg.mountain_threshold {
             return Biome::Mountains;
         }
@@ -332,6 +842,11 @@ impl BiomeSystem {
         self.biome(f64::from(wx), f64::from(wz))
     }
 
+    /// Échantillonneur de terrain du générateur « Norrblock ».
+    pub fn terrain(&self) -> &Terrain {
+        &self.terrain
+    }
+
     pub fn config(&self, b: Biome) -> &BiomeConfig {
         &self.configs[b.ordinal()]
     }
@@ -357,14 +872,17 @@ mod tests {
     use super::*;
     use nb_data::BlockRegistry;
 
+    fn classic() -> WorldConfig {
+        WorldConfig {
+            generator: GeneratorKind::Classic,
+            ..WorldConfig::default()
+        }
+    }
+
     #[test]
     fn reference_biomes_seed_12345() {
         let reg = BlockRegistry::builtin();
-        let bs = BiomeSystem::new(
-            Arc::new(Noise::new(12345)),
-            Arc::new(WorldConfig::default()),
-            reg.ids(),
-        );
+        let bs = BiomeSystem::new(Arc::new(Noise::new(12345)), Arc::new(classic()), reg.ids());
         let cases: [(i32, i32, Biome, f64, f64, f64); 6] = [
             (
                 0,
@@ -428,11 +946,7 @@ mod tests {
     fn snow_lines() {
         let reg = BlockRegistry::builtin();
         let ids = reg.ids();
-        let bs = BiomeSystem::new(
-            Arc::new(Noise::new(1)),
-            Arc::new(WorldConfig::default()),
-            ids,
-        );
+        let bs = BiomeSystem::new(Arc::new(Noise::new(1)), Arc::new(classic()), ids);
         assert_eq!(bs.surface_block(Biome::Mountains, 59), ids.snow);
         assert_eq!(bs.surface_block(Biome::Mountains, 58), ids.stone);
         assert_eq!(bs.surface_block(Biome::Taiga, 53), ids.snow);
