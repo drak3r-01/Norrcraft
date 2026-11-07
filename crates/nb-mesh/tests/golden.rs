@@ -1,3 +1,8 @@
+//! NOTE : depuis la passe de correction visuelle, le mesher s'écarte volontairement du Java sur
+//! deux points (fusion des quads limitée aux axes où AO/lumière sont constantes, diagonale des
+//! quads choisie selon la luminosité des coins ; seul le second change ces empreintes). Les empreintes ci-dessous sont celles du Rust actuel ;
+//! les valeurs strictement Java sont dans l'historique git (commit 5e223dc).
+//!
 //! Tests dorés : empreintes bit à bit de `ChunkMesher.generateChunkMeshData` (Java) sur des
 //! scènes pseudo-aléatoires.
 //!
@@ -190,13 +195,17 @@ fn check(
         &HarnessBiomes(biome_mode),
     );
     let floats = mesh.as_floats();
+    if std::env::var_os("PRINT_GOLDEN").is_some() {
+        eprintln!("GOLDEN {name} {} {:#x}", floats.len(), fnv(floats));
+        return;
+    }
     assert_eq!(floats.len(), len, "{name} : nombre de floats");
     assert_eq!(fnv(floats), hash, "{name} : empreinte");
 }
 
 #[test]
 fn terrain_matches_java() {
-    check("terrain", 0, 0, 0, -1, 0x0, 1, 129762, 0x5a3c594765987279);
+    check("terrain", 0, 0, 0, -1, 0x0, 1, 129762, 0x4580bfa37a7f9685);
 }
 
 #[test]
@@ -210,7 +219,7 @@ fn terrain_negative_chunk_matches_java() {
         0x0,
         2,
         140400,
-        0x2c692ad902b8d4ee,
+        0x72da8ac4114f6a68,
     );
 }
 
@@ -225,13 +234,13 @@ fn terrain_missing_neighbours_matches_java() {
         0x12a,
         3,
         135000,
-        0x52a57b3d6b801f3b,
+        0xafd35b0e30e3af85,
     );
 }
 
 #[test]
 fn noise_matches_java() {
-    check("noise", 1, 1, 1, -1, 0x0, 4, 3297564, 0x1a90bf8e5d220172);
+    check("noise", 1, 1, 1, -1, 0x0, 4, 3297564, 0xcfbc182f98d67f7b);
 }
 
 #[test]
@@ -245,16 +254,16 @@ fn noise_center_only_matches_java() {
         0x1ef,
         5,
         3292272,
-        0x8fa4e2c18b08b0d3,
+        0x12391dc006f093be,
     );
 }
 
 #[test]
 fn cave_matches_java() {
-    check("cave", 2, -5, 2, 0, 0x0, 6, 335988, 0x91c258beb6fb79c2);
+    check("cave", 2, -5, 2, 0, 0x0, 6, 335988, 0xbc5d74611d24f373);
 }
 
 #[test]
 fn cave_checker_biomes_matches_java() {
-    check("cave_b", 0, 3, 2, -1, 0x0, 7, 328428, 0xeb696506e7272220);
+    check("cave_b", 0, 3, 2, -1, 0x0, 7, 328428, 0xecee42c1e7acb326);
 }

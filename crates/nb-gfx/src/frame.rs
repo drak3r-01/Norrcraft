@@ -28,7 +28,7 @@ impl Default for GfxSettings {
             shadow_quality: ShadowQuality::Low,
             bloom: true,
             fov_y_deg: 90.0,
-            fix_shadow_layer_thresholds: false,
+            fix_shadow_layer_thresholds: true,
         }
     }
 }
@@ -42,7 +42,7 @@ impl GfxSettings {
             shadow_quality: s.shadow_quality,
             bloom: s.bloom_enabled,
             fov_y_deg: s.fov,
-            fix_shadow_layer_thresholds: false,
+            fix_shadow_layer_thresholds: true,
         }
     }
 }
@@ -254,7 +254,7 @@ mod tests {
         assert_eq!(d.clear_color, Vec3::new(0.8, 0.1, 0.0));
         let u = d.uniforms;
         assert_eq!(u.camera_pos, [1.0, 70.0, 2.0, 12.5]);
-        assert_eq!(u.flags, [2, 0, 0, 0]);
+        assert_eq!(u.flags, [2, 1, 0, 0]);
         assert_eq!(u.env[2], 0.25);
         // getLinearDepth(gl_FragCoord.z) avec ces coefficients = distance à l'œil.
         let (m22, m32) = (u.proj_gl[0], u.proj_gl[1]);

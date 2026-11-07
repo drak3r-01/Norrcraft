@@ -313,3 +313,48 @@ fn light_volume_lava_and_darkness() {
     assert_eq!(light_scale(0), 0.08);
     assert_eq!(light_scale(15), 1.0);
 }
+
+/// Normale (non normalisée) du triangle `a, b, c`.
+fn tri_normal(a: &ChunkVertex, b: &ChunkVertex, c: &ChunkVertex) -> [f32; 3] {
+    let u: [f32; 3] = std::array::from_fn(|i| b.pos[i] - a.pos[i]);
+    let v: [f32; 3] = std::array::from_fn(|i| c.pos[i] - a.pos[i]);
+    [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ]
+}
+
+#[test]
+fn quad_diagonal_flip_keeps_winding() {
+    // Terrain accidenté : piliers isolés sur un sol → AO asymétrique, diagonales retournées.
+    let mut c = floor(STONE, 10);
+    for (x, z) in [(3, 3), (4, 4), (8, 8), (9, 7), (12, 2)] {
+        c.set(x, 11, z, STONE);
+    }
+    let m = mesh(&c, None);
+    let mut asymmetric = 0;
+    for q in quads(&m) {
+        let n1 = tri_normal(&q[0], &q[1], &q[2]);
+        let n2 = tri_normal(&q[3], &q[4], &q[5]);
+        let dot: f32 = (0..3).map(|i| n1[i] * n2[i]).sum();
+        assert!(
+            dot > 0.0,
+            "les deux triangles d'un quad doivent être coplanaires et de même sens"
+        );
+        // Diagonale commune = q[0]/q[2] ; coins hors diagonale = q[1]/q[4].
+        let shared = q[0].color[0] + q[2].color[0];
+        let other = q[1].color[0] + q[4].color[0];
+        assert!(
+            shared >= other - 1e-6,
+            "la diagonale doit joindre les coins les plus clairs"
+        );
+        if (shared - other).abs() > 1e-6 {
+            asymmetric += 1;
+        }
+    }
+    assert!(
+        asymmetric > 0,
+        "scène sans AO asymétrique : test sans objet"
+    );
+}

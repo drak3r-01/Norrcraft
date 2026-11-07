@@ -271,6 +271,10 @@ pub struct SceneRenderer {
     quadtree: ChunkQuadtree,
     visible: Vec<ChunkPos>,
     shadow_visible: Vec<ChunkPos>,
+    /// Chunks visibles à la frame précédente (réinitialisation de l'occlusion).
+    prev_visible: std::collections::HashSet<ChunkPos>,
+    /// Chunks de la passe fluide, triés de l'arrière vers l'avant.
+    fluid_order: Vec<ChunkPos>,
     /// `lastQueryResults` (défaut : visible).
     occlusion: HashMap<ChunkPos, bool>,
     frame_counter: u64,
@@ -425,6 +429,8 @@ impl SceneRenderer {
             quadtree: ChunkQuadtree::new(),
             visible: Vec::new(),
             shadow_visible: Vec::new(),
+            prev_visible: std::collections::HashSet::new(),
+            fluid_order: Vec::new(),
             occlusion: HashMap::new(),
             frame_counter: 0,
             completed: None,
@@ -825,6 +831,43 @@ impl SceneRenderer {
         slot.query_chunks.clear();
         slot.query_chunks.extend_from_slice(&self.visible);
 
+        // Occlusion : un chunk qui (ré)entre dans le frustum repart de « visible » (le dernier
+        // résultat date d'avant sa sortie : sinon il resterait masqué quelques frames), et les
+        // chunks entourant la caméra ne sont jamais masqués. La boîte d'un chunk qui contient
+        // la caméra est vue de l'intérieur : en grotte, toutes ses faces sont derrière les
+        // parois, la requête renvoyait 0, le chunk disparaissait, puis réapparaissait à la
+        // frame suivante (scintillement).
+        {
+            let cam = derived.camera.position;
+            let (ccx, ccz) = ((cam.x / 16.0).floor() as i32, (cam.z / 16.0).floor() as i32);
+            let meshes = &self.meshes;
+            self.occlusion.retain(|p, _| meshes.contains_key(p));
+            for pos in &self.visible {
+                let near = (pos.x - ccx).abs() <= 1 && (pos.z - ccz).abs() <= 1;
+                if near || !self.prev_visible.contains(pos) {
+                    self.occlusion.insert(*pos, true);
+                }
+            }
+            self.prev_visible.clear();
+            self.prev_visible.extend(self.visible.iter().copied());
+            // Fluides : de l'arrière vers l'avant (le mélange alpha n'est pas commutatif).
+            self.fluid_order.clear();
+            let occlusion = &self.occlusion;
+            self.fluid_order.extend(
+                self.visible
+                    .iter()
+                    .copied()
+                    .filter(|p| occlusion.get(p).copied().unwrap_or(true)),
+            );
+            let dist2 = |p: &ChunkPos| {
+                let dx = (p.x * 16 + 8) as f32 - cam.x;
+                let dz = (p.z * 16 + 8) as f32 - cam.z;
+                dx * dx + dz * dz
+            };
+            self.fluid_order
+                .sort_by(|a, b| dist2(b).total_cmp(&dist2(a)));
+        }
+
         let cmd = token.cmd;
         let slot = &self.slots[token.slot];
         let (frame_set, pp_set, queries, query_capacity) = (
@@ -974,10 +1017,8 @@ impl SceneRenderer {
                 &[frame_set, self.depth_set],
                 &[],
             );
-            for pos in &self.visible {
-                if self.occlusion_visible(*pos) {
-                    self.draw_chunk(cmd, *pos);
-                }
+            for pos in &self.fluid_order {
+                self.draw_chunk(cmd, *pos);
             }
             d.cmd_end_rendering(cmd);
 

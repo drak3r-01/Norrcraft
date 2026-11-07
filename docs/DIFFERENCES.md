@@ -100,3 +100,18 @@ du Java à reproduire » de chaque spec) :
   réaffectation qui quitte l'écran, titres centrés approximativement, densité d'arbres « Auto »
   affichée « -0.0010 », médium AIR d'un mob repassé en LAND à l'édition. (`nb-ui.md` §5)
 * Bloc inconnu dans un inventaire sauvegardé : ignoré au chargement.
+
+## Corrections visuelles volontaires (passe 2026-11-07)
+
+Écarts assumés par rapport au Java, sans changement de gameplay :
+
+* **Ombres** : seuils 200000/100000 dans `shadow.vert` (`fix_shadow_layer_thresholds` vaut
+  maintenant `true` par défaut) : feuilles et plantes n'échantillonnent plus une couche de
+  texture invalide.
+* **Meshing** : une fusion greedy n'a lieu que le long d'un axe où l'AO et la lumière lissée sont
+  constantes (sinon le dégradé s'étirait sur tout le quad) ; la diagonale d'un quad suit la
+  luminosité des coins (plus de zébrures d'AO), même sens d'enroulement.
+* **Occlusion** : les chunks autour de la caméra ne sont jamais masqués (leur boîte, vue de
+  l'intérieur, donnait 0 échantillon en grotte et faisait clignoter le chunk) ; un chunk qui
+  rentre dans le frustum repart de « visible » ; entrées des chunks déchargés purgées.
+* **Fluides** : chunks dessinés de l'arrière vers l'avant (mélange alpha correct entre chunks).

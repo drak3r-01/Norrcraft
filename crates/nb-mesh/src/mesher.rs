@@ -111,6 +111,7 @@ const CORNER_NEIGHBORS: [[[[i32; 3]; 3]; 4]; 6] = [
 ];
 
 const QUAD_INDICES: [usize; 6] = [0, 1, 2, 2, 3, 0];
+const FLIPPED_QUAD_INDICES: [usize; 6] = [1, 2, 3, 3, 0, 1];
 const FLUID_DROP: f32 = -0.15;
 
 /// `calcAO(side1, side2, corner)`.
@@ -215,7 +216,7 @@ pub fn mesh_chunk(
         column_biomes,
         start_x,
         start_z,
-        out: Vec::with_capacity(8192 / 9),
+        out: Vec::with_capacity(1 << 15),
     };
     for y in 0..SY {
         m.slice_y(y, Face::PosY);
@@ -228,6 +229,18 @@ pub fn mesh_chunk(
     MeshOutput { vertices: m.out }
 }
 
+/// Constance d'une valeur de coin (4 octets empaquetés, coin 0 dans les bits 24..31) le long des
+/// deux axes du quad : `(arêtes 0-1 et 2-3, arêtes 1-2 et 3-0)`.
+///
+/// Un quad fusionné n'interpole qu'entre ses 4 coins : fusionner des cellules le long d'un axe
+/// n'est correct que si l'AO et la lumière ne varient pas le long de cet axe ; sinon le dégradé
+/// s'étire sur tout le quad au lieu de se répéter par cellule.
+#[inline]
+fn edge_const(p: u32) -> (bool, bool) {
+    let c = |i: u32| (p >> (24 - 8 * i)) & 0xFF;
+    (c(0) == c(1) && c(2) == c(3), c(1) == c(2) && c(3) == c(0))
+}
+
 #[derive(Clone, Copy, Default)]
 struct Cell {
     mask: bool,
@@ -236,12 +249,25 @@ struct Cell {
     ao: u32,
     light: u32,
     surface: bool,
+    /// AO et lumière constantes le long des arêtes 0-1/2-3 (axe A) et 1-2/3-0 (axe B).
+    const_a: bool,
+    const_b: bool,
 }
 
 impl Cell {
     #[inline]
     fn same(&self, o: &Cell) -> bool {
         self.ty == o.ty && self.biome == o.biome && self.ao == o.ao && self.light == o.light
+    }
+
+    /// Calcule les drapeaux de constance à partir de l'AO et de la lumière.
+    #[inline]
+    fn with_consts(mut self) -> Self {
+        let (a1, b1) = edge_const(self.ao);
+        let (a2, b2) = edge_const(self.light);
+        self.const_a = a1 && a2;
+        self.const_b = b1 && b2;
+        self
     }
 }
 
@@ -331,7 +357,10 @@ impl Mesher<'_> {
                         ao: self.face_ao(lx, y, lz, face),
                         light: self.face_light(lx, y, lz, face),
                         surface: false,
-                    };
+                        const_a: false,
+                        const_b: false,
+                    }
+                    .with_consts();
                 }
             }
         }
@@ -346,7 +375,7 @@ impl Mesher<'_> {
                 let surface_top = face == Face::PosY && is_fluid;
 
                 let mut width = 1;
-                if !surface_top {
+                if !surface_top && c.const_b {
                     while lz + width < SZ {
                         let o = &cells[at(lx, lz + width)];
                         if !(o.mask && o.same(&c)) {
@@ -356,7 +385,7 @@ impl Mesher<'_> {
                     }
                 }
                 let mut height = 1;
-                let mut done = surface_top;
+                let mut done = surface_top || !c.const_a;
                 while lx + height < SX && !done {
                     for w in 0..width {
                         let o = &cells[at(lx + height, lz + w)];
@@ -416,7 +445,10 @@ impl Mesher<'_> {
                             ao: self.face_ao(lx, y, lz, face),
                             light: self.face_light(lx, y, lz, face),
                             surface,
-                        };
+                            const_a: false,
+                            const_b: false,
+                        }
+                        .with_consts();
                     }
                 }
             }
@@ -427,8 +459,14 @@ impl Mesher<'_> {
                     if !c.mask {
                         continue;
                     }
+                    // Axe horizontal : arêtes 1-2/3-0 pour +Z, 0-1/2-3 sinon (cf. `emit_quad`).
+                    let (const_h, const_v) = if face == Face::PosZ {
+                        (c.const_b, c.const_a)
+                    } else {
+                        (c.const_a, c.const_b)
+                    };
                     let mut width = 1;
-                    if !c.surface {
+                    if !c.surface && const_h {
                         while u + width < max_u {
                             let o = &cells[at(y, u + width)];
                             if !(o.mask && o.same(&c) && o.surface == c.surface) {
@@ -438,7 +476,7 @@ impl Mesher<'_> {
                         }
                     }
                     let mut height = 1;
-                    let mut done = false;
+                    let mut done = !const_v;
                     while y + height < SY && !done {
                         let row_surface = cells[at(y + height, u)].surface;
                         if row_surface != c.surface {
@@ -583,7 +621,15 @@ impl Mesher<'_> {
         let light_f: [f32; 4] =
             std::array::from_fn(|i| light_scale(((c.light >> (24 - 8 * i)) & 0xFF) as i32));
 
-        for i in QUAD_INDICES {
+        // Diagonale choisie selon la luminosité des coins : évite l'anisotropie du dégradé
+        // (zébrures d'AO) quand les coins opposés diffèrent. Même sens d'enroulement.
+        let b: [f32; 4] = std::array::from_fn(|i| ao_f[i] * light_f[i]);
+        let indices = if b[0] + b[2] < b[1] + b[3] {
+            FLIPPED_QUAD_INDICES
+        } else {
+            QUAD_INDICES
+        };
+        for i in indices {
             let pp = positions[i];
             let (ao, l) = (ao_f[i], light_f[i]);
             self.out.push(ChunkVertex {
