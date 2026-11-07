@@ -54,7 +54,8 @@ pub use frame::{
 };
 pub use jem::parse_jem;
 pub use mob_model::{
-    load_all_mob_models, load_mob_model, ColorBox, MobModelCpu, MobModelDesc, MobRoots, MobVertex,
+    load_all_mob_models, load_mob_model, player_model_id, ColorBox, MobModelCpu, MobModelDesc,
+    MobRoots, MobVertex, PLAYER_MODEL_IDS,
 };
 pub use nb_core::ChunkPos;
 pub use nb_mesh::ChunkVertex;

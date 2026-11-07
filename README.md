@@ -23,6 +23,7 @@ sauvegardes, packs de ressources.
 | `nb-world` | Bruit, biomes, génération, chunks, lumière, chargement asynchrone, sauvegardes |
 | `nb-mesh`  | Greedy meshing, lumière locale, AO, ordonnanceur multi-thread, quadtree/frustum (sans GPU) |
 | `nb-ecs`   | Entités, systèmes (joueur, physique, IA, apparition, santé), inventaire, commandes |
+| `nb-net`   | Réseau local : protocole TCP, transport, découverte UDP (sans dépendance de jeu) |
 | `nb-gfx`   | Rendu Vulkan 1.3 : ombres, scène, fluides, mobs, particules, bloom, post-traitement, interface |
 | `nb-ui`    | Widgets, police `stb_easy_font`, HUD, inventaire, chat, écrans (pur CPU)  |
 | `nb-game`  | États, boucle fixe 60 Hz, entrées, chat, pont monde → maillage → rendu    |
@@ -151,6 +152,7 @@ l'`InputManager`. Les touches sont des **positions physiques QWERTY** comme dans
 | Poser un bloc | clic droit | non |
 | Case de la barre | 1 à 9, molette | non |
 | Ouvrir le chat / une commande | T ou `/` (y compris `/` du pavé) | non |
+| Liste des joueurs (partie LAN) | Tab (maintenu) | non |
 | Valider / annuler le chat | Entrée (ou Entrée du pavé) / Échap | non |
 
 Commandes (monde créé avec « Allow Cheats ») : `/help`, `/time set <day|noon|sunset|night|
@@ -268,3 +270,10 @@ Grille de craft 2×2 dans l'inventaire (E), établi 3×3 et fonderie (clic droit
 recettes. Tout est décrit et modifiable dans `docs/CRAFT.md` (données : `assets/items.json`,
 `assets/recipes.json`, `assets/blocks_craft.json` ; textures provisoires :
 `scripts/gen_craft_textures.py`, `scripts/gen_craft_hud.py`).
+
+## Phase 11 : jeu en réseau local
+
+Multijoueur LAN **optionnel**, sans serveur dédié : un joueur héberge depuis le menu pause
+(**Échap → OPEN TO LAN**), les autres le rejoignent depuis **MULTIPLAYER** (liste automatique des
+parties du réseau, ou adresse saisie). Jusqu'à 8 joueurs, monde, blocs, mobs et chat partagés.
+Guide, ports, fonctionnement et limites : [`docs/LAN.md`](docs/LAN.md).

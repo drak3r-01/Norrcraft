@@ -20,6 +20,9 @@ pub struct EntityWorld {
     by_id: BTreeMap<EntityId, hecs::Entity>,
     /// Position (yeux) fournie au `MobSpawnSystem` avant chaque tick (`setPlayerPosition`).
     pub spawn_origin: Vec3,
+    /// Positions (yeux) des joueurs distants d'une partie LAN : le `MobSpawnSystem` fait aussi
+    /// apparaître et disparaître des mobs autour d'eux.
+    pub extra_origins: Vec<Vec3>,
 }
 
 impl std::fmt::Debug for EntityWorld {

@@ -15,6 +15,7 @@ use nb_gfx::{
 };
 use nb_world::World;
 
+use crate::net::Avatar;
 use crate::state::GameState;
 
 /// Un mob à dessiner (`MobRenderer.render` : entités `(Transform, MobType)`, ordre ECS).
@@ -40,6 +41,8 @@ pub struct RenderView<'a> {
     pub heat_intensity: f32,
     pub highlight_block: Option<IVec3>,
     pub mobs: Vec<MobInstance>,
+    /// Autres joueurs d'une partie LAN.
+    pub avatars: Vec<Avatar>,
     pub particles: &'a [Particle],
     /// [`Self::mobs`] convertis pour nb-gfx (config introuvable → ignoré).
     pub gfx_mobs: Vec<nb_gfx::MobInstance<'a>>,
@@ -105,6 +108,21 @@ pub fn gfx_mobs<'a>(mobs: &[MobInstance], reg: &'a MobRegistry) -> Vec<nb_gfx::M
                 pitch_rad: m.pitch,
                 missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
             })
+        })
+        .collect()
+}
+
+/// Avatars des autres joueurs pour nb-gfx. Le modèle porte une couleur par numéro de joueur ;
+/// le lacet de la caméra (degrés, 0 = vers −Z) devient le lacet du modèle (face vers +Z).
+pub fn gfx_avatars(avatars: &[Avatar]) -> Vec<nb_gfx::MobInstance<'static>> {
+    avatars
+        .iter()
+        .map(|a| nb_gfx::MobInstance {
+            model_id: nb_gfx::player_model_id(a.id),
+            position: a.pos.as_vec3(),
+            yaw_rad: std::f32::consts::PI - a.yaw_deg.to_radians(),
+            pitch_rad: 0.0,
+            missing_scale: Vec3::new(0.6, 1.8, 0.6),
         })
         .collect()
 }
@@ -209,6 +227,7 @@ pub fn build_view<'a>(
     particle_layers: &ParticleLayers,
     sky: &SkyClock,
     aspect: f32,
+    avatars: Vec<Avatar>,
 ) -> RenderView<'a> {
     let player = sim.player.and_then(|p| sim.entities.copy::<Player>(p));
     let cam = player.map(|p| p.camera).unwrap_or_else(|| {
@@ -235,7 +254,12 @@ pub fn build_view<'a>(
         eye_fluid: eye_fluid(world, reg, fluid, cam.position),
         heat_intensity: heat,
         highlight_block: highlight,
-        gfx_mobs: gfx_mobs(&mobs, mob_reg),
+        gfx_mobs: {
+            let mut g = gfx_mobs(&mobs, mob_reg);
+            g.extend(gfx_avatars(&avatars));
+            g
+        },
+        avatars,
         gfx_particles: gfx_particles(particles, particle_layers),
         mobs,
         particles,
@@ -246,6 +270,38 @@ pub fn build_view<'a>(
 mod tests {
     use super::*;
     use nb_data::ParticleRegistry;
+
+    #[test]
+    fn avatars_face_where_the_camera_looks() {
+        let mk = |yaw| Avatar {
+            id: 2,
+            name: "Lea".into(),
+            pos: DVec3::new(1.0, 70.0, 2.0),
+            yaw_deg: yaw,
+            pitch_deg: 30.0,
+        };
+        // Le modèle regarde vers +Z quand son lacet est nul : (sin, cos) du lacet = direction.
+        let dir = |a: &Avatar| {
+            let g = &gfx_avatars(std::slice::from_ref(a))[0];
+            (g.yaw_rad.sin(), g.yaw_rad.cos())
+        };
+        let cam_dir = |yaw_deg: f32| {
+            let y = yaw_deg.to_radians();
+            (y.sin(), -y.cos())
+        };
+        for yaw in [0.0, 90.0, 180.0, -45.0, 300.0] {
+            let (mx, mz) = dir(&mk(yaw));
+            let (cx, cz) = cam_dir(yaw);
+            assert!(
+                (mx - cx).abs() < 1e-5 && (mz - cz).abs() < 1e-5,
+                "yaw {yaw}"
+            );
+        }
+        let g = gfx_avatars(&[mk(10.0)]);
+        assert_eq!(g[0].model_id, "nb_player_2");
+        assert_eq!(g[0].position, Vec3::new(1.0, 70.0, 2.0));
+        assert_eq!(g[0].pitch_rad, 0.0, "le corps ne s'incline pas");
+    }
 
     #[test]
     fn mobs_and_particles_convert_for_gfx() {

@@ -18,9 +18,12 @@ use nb_world::{FileChunkStorage, InMemoryChunkStorage, World, WorldConfig};
 use crate::chat::Chat;
 use crate::chunks::{sorted_active_positions, WorldChunks};
 use crate::input::{Action, InputManager};
+use crate::net::{LanBrowser, LanView, NetMode};
 use crate::render::{build_view, ParticleLayers, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
+
+mod lan;
 use crate::ui::{ItemIcons, NewWorld, NullUi, Ui, UiCommand, UiFrame, UiView};
 
 /// Demandes faites à la plateforme (fenêtre, GPU) ; la logique reste sans effet de bord.
@@ -76,6 +79,10 @@ pub struct GameOptions {
     pub window_size: (u32, u32),
     /// Threads de maillage (`None` = `max(1, cœurs/2)`).
     pub mesh_threads: Option<usize>,
+    /// Port TCP d'une partie LAN hébergée (`0` = un port libre).
+    pub lan_port: u16,
+    /// Port UDP de la découverte des parties (`None` = port par défaut ; tests).
+    pub lan_discovery_port: Option<u16>,
 }
 
 impl GameOptions {
@@ -88,6 +95,8 @@ impl GameOptions {
             persist_settings: true,
             window_size: (1280, 720),
             mesh_threads: None,
+            lan_port: nb_net::DEFAULT_GAME_PORT,
+            lan_discovery_port: None,
         }
     }
 }
@@ -162,6 +171,12 @@ pub struct Game {
     trace: Option<Vec<Step>>,
     last_error: Option<String>,
     particle_layers: ParticleLayers,
+    /// Partie en réseau local (hôte, client ou rien).
+    net: NetMode,
+    lan_browser: LanBrowser,
+    lan_view: LanView,
+    /// Dernier message de l'écran Multiplayer (texte, erreur ?).
+    lan_message: Option<(String, bool)>,
 }
 
 impl std::fmt::Debug for Game {
@@ -246,6 +261,10 @@ impl Game {
             trace: None,
             last_error: None,
             particle_layers: ParticleLayers::builtin(),
+            net: NetMode::Off,
+            lan_browser: LanBrowser::for_options(&opts),
+            lan_view: LanView::default(),
+            lan_message: None,
             opts,
         };
         g.apply_initial_settings();
@@ -453,6 +472,7 @@ impl Game {
             &self.particle_layers,
             &self.sky,
             self.aspect,
+            self.avatars(),
         )
     }
 
@@ -489,6 +509,7 @@ impl Game {
             chat_open: self.chat.is_active(),
             current_world: s.name.as_deref(),
             saves_root: &self.opts.saves_root,
+            lan: &self.lan_view,
         }
     }
 
@@ -521,13 +542,18 @@ impl Game {
 
         self.step(Step::Chat);
         {
+            let role = self.net.role();
+            let mut outgoing = Vec::new();
             let (chat, input, session, sky) = (
                 &mut self.chat,
                 &mut self.input,
                 &mut self.session,
                 &mut self.sky,
             );
-            chat.update(dt, input, |cmd| session.execute_command(cmd, sky));
+            chat.update(dt, input, |cmd| {
+                Self::chat_submit(session, sky, role, &mut outgoing, cmd)
+            });
+            self.net_send_chat(outgoing);
         }
 
         if self.resized {
@@ -536,8 +562,12 @@ impl Game {
             self.resized = false;
         }
 
+        self.net_pre_tick(dt);
         self.step(Step::State(self.state));
+        let ev_start = self.events.len();
         self.update_state(dt);
+        self.net_post_tick(dt, ev_start);
+        self.refresh_lan_view();
 
         self.step(Step::Chunks);
         let pos = self.session.camera().position;
@@ -560,7 +590,7 @@ impl Game {
             return;
         }
         let cm = self.session.world.chunk_manager();
-        let active = sorted_active_positions(cm);
+        let active = self.visible_chunks(sorted_active_positions(cm));
         let actions = self.meshes.update(
             &mut WorldChunks(cm),
             &active,
@@ -572,7 +602,7 @@ impl Game {
 
     fn update_state(&mut self, dt: f64) {
         match self.state {
-            GameState::MainMenu => {
+            GameState::MainMenu | GameState::Multiplayer => {
                 self.menu_rotation += (dt * 10.0) as f32;
                 let rot = self.menu_rotation;
                 self.session.update_camera(|c| {
@@ -598,8 +628,11 @@ impl Game {
                     Some(self.settings.sensitivity),
                     Some(self.settings.fov),
                 );
-                self.session
-                    .tick(&pi, &self.regs, &mut self.events, dt as f32);
+                // Client LAN : on attend les premiers chunks de l'hôte avant de simuler.
+                if !self.lan_waiting_terrain() {
+                    self.session
+                        .tick(&pi, &self.regs, &mut self.events, dt as f32);
+                }
                 // Clic droit sur un établi / une fonderie : ouvre l'écran de la station.
                 let station = self.events[first_new_event.min(self.events.len())..]
                     .iter()
@@ -624,6 +657,7 @@ impl Game {
                     self.switch_state(GameState::Playing);
                     return;
                 }
+                self.lan_idle_tick(dt);
             }
             GameState::Inventory => {
                 if self.input.is_just_pressed(Action::Inventory)
@@ -633,6 +667,7 @@ impl Game {
                     self.switch_state(GameState::Playing);
                     return;
                 }
+                self.lan_idle_tick(dt);
             }
             GameState::WorldSelect
             | GameState::Settings
@@ -710,6 +745,11 @@ impl Game {
             GameState::MobSettings => {
                 self.requests.push(PlatformRequest::SetCursorGrab(false));
             }
+            GameState::Multiplayer => {
+                self.requests.push(PlatformRequest::SetCursorGrab(false));
+                self.reset_camera_to_default();
+                self.lan_browser.start();
+            }
         }
     }
 
@@ -718,6 +758,11 @@ impl Game {
             GameState::MainMenu => self.reset_camera_to_default(),
             GameState::Inventory => self.close_craft_screen(),
             GameState::Settings => self.input.cancel_rebind(),
+            GameState::Multiplayer => {
+                self.lan_browser.stop();
+                self.lan_message = None;
+                self.cancel_join();
+            }
             _ => {}
         }
     }
@@ -770,8 +815,12 @@ impl Game {
                 // Correctif (décision de Gabriel) : le monde est sauvegardé puis déchargé. Le
                 // Java le laissait chargé (`currentWorldName` posé) et pouvait le resauvegarder
                 // plus tard sous un nom périmé (dossier d'un monde renommé/supprimé recréé).
-                self.unload_to_menu_world();
-                self.switch_state(GameState::MainMenu);
+                if self.is_lan_client() {
+                    self.leave_client(None);
+                } else {
+                    self.unload_to_menu_world();
+                    self.switch_state(GameState::MainMenu);
+                }
             }
             UiCommand::Quit => {
                 self.quit = true;
@@ -873,6 +922,11 @@ impl Game {
                 // `despawnAll` + `clearDirty`.
                 self.despawn_mobs_if_dirty();
             }
+            UiCommand::OpenToLan => self.open_to_lan(),
+            UiCommand::CloseLan => self.close_lan(),
+            UiCommand::JoinLan { address, name } => self.join_lan(&address, &name),
+            UiCommand::CancelJoin => self.cancel_join(),
+            UiCommand::RefreshLan => self.lan_browser.refresh(),
             UiCommand::LeaveMobSettings => {
                 self.requests.push(PlatformRequest::ReloadMobModels);
                 self.despawn_mobs_if_dirty();
@@ -1024,6 +1078,12 @@ impl Game {
     /// Sauvegarde du monde nommé, arrêt de son gestionnaire de chunks et libération des
     /// maillages (`chunkMeshes.clear()` ; la génération incrémentée écarte ceux en vol).
     fn release_session(&mut self) {
+        self.net_stop();
+        self.release_session_core();
+    }
+
+    /// [`Self::release_session`] sans toucher à la partie réseau.
+    fn release_session_core(&mut self) {
         self.save_current();
         self.session.shutdown();
         let cm = self.session.world.chunk_manager();
@@ -1039,6 +1099,11 @@ impl Game {
             return;
         }
         self.release_session();
+        self.install_menu_world();
+    }
+
+    /// Monde du menu neuf à la place de la session courante (déjà libérée).
+    fn install_menu_world(&mut self) {
         let fov = self.session.camera().fov;
         let seed = self
             .opts
@@ -1063,6 +1128,7 @@ impl Game {
 
     /// Fermeture (`Main.cleanup`) : sauvegarde du monde nommé et arrêt des threads.
     pub fn shutdown(mut self) {
+        self.net_stop();
         self.save_current();
         self.session.shutdown();
         let Game { meshes, .. } = self;

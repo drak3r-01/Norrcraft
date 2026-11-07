@@ -20,6 +20,8 @@ pub const MIN_SPAWN_RADIUS: i32 = 16;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MobSpawnSystem {
     pub timer: f32,
+    /// Tour de rôle entre les joueurs (partie LAN) : un joueur par passe d'apparition.
+    pub round: usize,
 }
 
 /// `nextInt(bound)` qui renvoie `None` là où le Java lèverait une exception (`bound ≤ 0`).
@@ -38,18 +40,29 @@ impl System for MobSpawnSystem {
             return;
         }
         self.timer = 0.0;
-        let origin = world.spawn_origin;
+        // Un seul joueur en solo ; en partie LAN, l'hôte puis les joueurs distants.
+        let mut origins = vec![world.spawn_origin];
+        origins.extend(world.extra_origins.iter().copied());
+        let origin = origins[self.round % origins.len()];
+        self.round = self.round.wrapping_add(1);
+        let players = origins.len() as i32;
 
-        // Despawn : distance horizontale en f32 (B21).
+        // Despawn : distance horizontale en f32 (B21), au joueur le plus proche.
         let r = ctx.config.mob_despawn_radius as f32;
         let max_dist_sq = r * ctx.config.mob_despawn_radius as f32;
         for id in world.query_ids::<(&MobType, &Transform)>() {
             let Some(t) = world.copy::<Transform>(id) else {
                 continue;
             };
-            let dx = t.pos.x as f32 - origin.x;
-            let dz = t.pos.z as f32 - origin.z;
-            if dx * dx + dz * dz > max_dist_sq {
+            let nearest_sq = origins
+                .iter()
+                .map(|o| {
+                    let dx = t.pos.x as f32 - o.x;
+                    let dz = t.pos.z as f32 - o.z;
+                    dx * dx + dz * dz
+                })
+                .fold(f32::MAX, f32::min);
+            if nearest_sq > max_dist_sq {
                 world.destroy(id);
                 ctx.events.push(EcsEvent::MobDespawned { entity: id });
             }
@@ -62,7 +75,8 @@ impl System for MobSpawnSystem {
                 .into_iter()
                 .filter(|&id| world.get::<MobType>(id).is_some_and(|m| m.mob_id == cfg.id))
                 .count() as i32;
-            if count < cfg.max_count {
+            // Le plafond de chaque espèce grandit avec le nombre de joueurs.
+            if count < cfg.max_count.saturating_mul(players) {
                 let spawner = Spawner {
                     blocks: &*ctx.blocks,
                     reg: ctx.block_reg,
@@ -70,7 +84,14 @@ impl System for MobSpawnSystem {
                     origin_z: floor_f(origin.z),
                     radius,
                 };
-                spawner.try_spawn(world, cfg, count, &mut ctx.rngs.spawn, ctx.events);
+                spawner.try_spawn(
+                    world,
+                    cfg,
+                    count,
+                    cfg.max_count.saturating_mul(players),
+                    &mut ctx.rngs.spawn,
+                    ctx.events,
+                );
             }
         }
     }
@@ -93,6 +114,7 @@ impl Spawner<'_> {
         world: &mut EntityWorld,
         cfg: &MobConfig,
         current: i32,
+        cap: i32,
         rng: &mut JavaRandom,
         events: &mut Vec<EcsEvent>,
     ) {
@@ -119,7 +141,7 @@ impl Spawner<'_> {
             if self.find_spawn_y(cfg, cx, cz) < 0 {
                 continue;
             }
-            let room = cfg.max_count - current;
+            let room = cap - current;
             let range = cfg.group_size_max - cfg.group_size_min;
             let Some(extra) = next_int(rng, (range + 1).min(room)) else {
                 return;

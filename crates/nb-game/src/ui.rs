@@ -16,6 +16,7 @@ use nb_world::WorldConfig;
 
 use crate::chat::ChatMessage;
 use crate::input::InputManager;
+use crate::net::LanView;
 use crate::state::{GameState, HudState, SettingsTab};
 
 /// Demande de création de monde (`WorldSelectState`, bouton « Create »).
@@ -87,6 +88,19 @@ pub enum UiCommand {
     ResetMobRegistry(Box<MobRegistry>),
     /// Sortie de l'écran des mobs (`applyAndLeave`) → SETTINGS.
     LeaveMobSettings,
+    /// Menu pause « OPEN TO LAN » : le monde courant devient une partie multijoueur.
+    OpenToLan,
+    /// Menu pause « CLOSE LAN » : retour au solo, les invités sont renvoyés.
+    CloseLan,
+    /// Écran Multiplayer : rejoindre `address` (`hôte[:port]`) sous le nom `name`.
+    JoinLan {
+        address: String,
+        name: String,
+    },
+    /// Écran Multiplayer : annuler la connexion en cours.
+    CancelJoin,
+    /// Écran Multiplayer : relancer la recherche des parties.
+    RefreshLan,
 }
 
 /// Couche d'atlas de l'icône de chaque objet pur (les blocs utilisent la table de maillage).
@@ -152,6 +166,8 @@ pub struct UiView<'a> {
     pub chat_open: bool,
     pub current_world: Option<&'a str>,
     pub saves_root: &'a std::path::Path,
+    /// Partie en réseau local : rôle, joueurs, parties trouvées, état de la connexion.
+    pub lan: &'a LanView,
 }
 
 /// Écrans (nb-ui). Toutes les méthodes ont un défaut neutre.

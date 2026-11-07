@@ -51,7 +51,7 @@ pub use chunk::{
 pub use config::{GeneratorKind, OreConfig, OreRange, WorldConfig, WorldType};
 pub use generator::WorldGenerator;
 pub use light::{compute_light, LightContext, LightTable};
-pub use manager::{ChunkManager, DEFAULT_RENDER_DISTANCE};
+pub use manager::{BlockEdit, ChunkManager, DEFAULT_RENDER_DISTANCE};
 pub use noise::{hash_position, java_string_hash, Noise};
 pub use storage::{ChunkStorage, FileChunkStorage, InMemoryChunkStorage};
 pub use structures::{StructureKind, StructureSite};

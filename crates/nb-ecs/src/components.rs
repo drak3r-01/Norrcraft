@@ -182,6 +182,27 @@ impl CameraState {
     }
 }
 
+/// Joueur d'un autre ordinateur, côté hôte d'une partie LAN. Il n'a ni `Player` (pas d'entrée
+/// locale, pas de physique : sa position vient du réseau) ni inventaire, mais les mobs le voient
+/// (cible, séparation) et lui infligent des dégâts.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct RemotePlayer {
+    /// Identifiant réseau du joueur (l'hôte est 0).
+    pub client: u16,
+    pub creative: bool,
+}
+
+/// Mob répliqué côté client : l'hôte décide de tout, le client affiche. Le mob glisse vers
+/// `target` (dernier instantané reçu) pour masquer les 20 Hz de la réplication.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct NetMob {
+    /// Identifiant de l'entité chez l'hôte.
+    pub net_id: u32,
+    pub target: DVec3,
+    pub target_yaw: f32,
+    pub target_pitch: f32,
+}
+
 /// `PlayerComponent`.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Player {

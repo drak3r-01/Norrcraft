@@ -178,6 +178,22 @@ impl WorldSession {
         )
     }
 
+    /// Place le joueur local (pieds) : arrivée dans une partie LAN, téléportation.
+    pub fn place_player(&mut self, pos: [f64; 3]) {
+        let Some(id) = self.sim.player else { return };
+        let e = &mut self.sim.entities;
+        if let Some(t) = e.get_mut::<Transform>(id) {
+            t.pos = nb_core::glam::DVec3::new(pos[0], pos[1], pos[2]);
+        }
+        if let Some(p) = e.get_mut::<nb_ecs::Player>(id) {
+            p.camera.position = Vec3::new(
+                pos[0] as f32,
+                (pos[1] + f64::from(EYE_OFFSET)) as f32,
+                pos[2] as f32,
+            );
+        }
+    }
+
     /// Inventaire du joueur (copie).
     pub fn inventory(&self) -> Option<nb_ecs::Inventory> {
         let p = self.sim.player?;

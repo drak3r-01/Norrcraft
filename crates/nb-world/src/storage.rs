@@ -66,6 +66,16 @@ impl InMemoryChunkStorage {
         self.len() == 0
     }
 
+    /// Oublie un chunk (monde client : donnée périmée).
+    pub fn remove(&self, pos: ChunkPos) {
+        self.lock().remove(&pos);
+    }
+
+    /// Positions stockées.
+    pub fn positions(&self) -> Vec<ChunkPos> {
+        self.lock().keys().copied().collect()
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<ChunkPos, Voxels>> {
         self.chunks.lock().unwrap_or_else(|e| e.into_inner())
     }

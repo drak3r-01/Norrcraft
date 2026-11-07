@@ -13,10 +13,12 @@ pub enum GameState {
     Settings,
     ResourcePacks,
     MobSettings,
+    /// Parties en réseau local : liste des parties, adresse à saisir (menu principal).
+    Multiplayer,
 }
 
 impl GameState {
-    pub const ALL: [GameState; 8] = [
+    pub const ALL: [GameState; 9] = [
         GameState::MainMenu,
         GameState::WorldSelect,
         GameState::Playing,
@@ -25,13 +27,18 @@ impl GameState {
         GameState::Settings,
         GameState::ResourcePacks,
         GameState::MobSettings,
+        GameState::Multiplayer,
     ];
 
     /// L'état appelle `MasterRenderer.render` (monde 3D visible derrière l'UI).
     pub fn renders_world(self) -> bool {
         matches!(
             self,
-            GameState::MainMenu | GameState::Playing | GameState::Paused | GameState::Inventory
+            GameState::MainMenu
+                | GameState::Playing
+                | GameState::Paused
+                | GameState::Inventory
+                | GameState::Multiplayer
         )
     }
 
@@ -153,7 +160,7 @@ mod tests {
             .iter()
             .filter(|s| s.renders_world())
             .collect();
-        assert_eq!(world.len(), 4);
+        assert_eq!(world.len(), 5);
         assert!(GameState::Inventory.shows_highlight());
         assert!(!GameState::MainMenu.shows_highlight());
     }

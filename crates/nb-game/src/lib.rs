@@ -25,6 +25,7 @@ pub mod chunks;
 pub mod fixed_step;
 pub mod game;
 pub mod input;
+pub mod net;
 pub mod render;
 pub mod screens;
 pub mod session;

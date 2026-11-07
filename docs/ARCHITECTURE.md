@@ -12,6 +12,7 @@ graph BT
   world[nb-world<br/>génération, chunks, lumière, sauvegardes]
   mesh[nb-mesh<br/>greedy meshing, ordonnanceur, culling]
   ecs[nb-ecs<br/>composants, systèmes, commandes]
+  net[nb-net<br/>protocole LAN, TCP, découverte UDP]
   gfx[nb-gfx<br/>Vulkan : ash, winit]
   ui[nb-ui<br/>widgets, écrans, police]
   game[nb-game<br/>états, boucle fixe, entrées]
@@ -27,6 +28,7 @@ graph BT
   game --> mesh
   game --> ecs
   game --> ui
+  game --> net
   game -.->|sans la feature window| gfx
   app --> game
   app --> gfx
@@ -55,9 +57,10 @@ Règles (sens unique, vérifiées par les `Cargo.toml`) :
 | `nb-world` | `noise`, `biome`, `generator`, `chunk`, `light`, `manager` (`ChunkManager`, threads), `storage` (`.nbc`), `save` (`world.json`), `world` |
 | `nb-mesh` | `mesher` (greedy, AO, lumière locale), `light`, `neighborhood` (3×3 snapshots), `scheduler` (`MeshScheduler`, threads), `culling` (quadtree + frustum), `highlight`, `vertex` |
 | `nb-ecs` | `world` (entités), `components`, `schedule`/`sim` (ordre des systèmes), `player`, `physics`, `ai`, `spawn`, `health`, `inventory`, `particles`, `command`, `javafmt` |
+| `nb-net` | `wire` (lecture/écriture bornées), `proto` (messages), `transport` (`NetServer`/`NetClient`, fils par connexion), `discovery` (`Beacon`/`Scanner`), `names` |
 | `nb-gfx` | `vk/` (contexte, scène, pipelines, ressources), `window/` (surface, swapchain), `atlas`, `packs`, `mob_model`, `jem`, `sky`, `camera`, `frame`, `ui_pass` |
 | `nb-ui` | `widgets`, `font` (stb_easy_font), `draw` (`DrawList`), `hud`, `inventory`, `chat`, `screens/` (menus, monde, réglages, packs, mobs), `textures` |
-| `nb-game` | `game` (`Game` : état complet), `state`, `fixed_step`, `input`, `chat`, `chunks` (pont monde → maillage), `render` (`RenderView`), `screens`/`ui` (`NbUi`) |
+| `nb-game` | `game` (`Game` : état complet), `state`, `fixed_step`, `input`, `chat`, `chunks` (pont monde → maillage), `render` (`RenderView`), `screens`/`ui` (`NbUi`), `net/` (hôte, client, recherche de parties) et `game/lan.rs` (partie LAN, voir `docs/LAN.md`) |
 | `nb-app` | `main` (arguments, boucle winit, mode hors écran), `driver` (pilote commun fenêtre/hors écran), `keymap` (winit → GLFW), `script` (entrées simulées des tests) |
 
 ## 2. Boucle principale

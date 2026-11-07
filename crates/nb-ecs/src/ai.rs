@@ -7,8 +7,8 @@ use nb_core::JavaRandom;
 use nb_data::{MobConfig, MobMedium, MobRegistry};
 
 use crate::components::{
-    AggressiveAi, Collider, EntityId, GameMode, Health, MobType, PassiveAi, Player, Transform,
-    Velocity,
+    AggressiveAi, Collider, EntityId, GameMode, Health, MobType, PassiveAi, Player, RemotePlayer,
+    Transform, Velocity,
 };
 use crate::jmath::{floor_i, jmax};
 use crate::physics::BlockEnv;
@@ -322,6 +322,20 @@ pub fn trigger_player_flee(
 #[derive(Debug, Default, Clone, Copy)]
 pub struct AggressiveAiSystem;
 
+/// Mode de jeu d'un joueur, local ou distant.
+fn player_mode(world: &EntityWorld, p: EntityId) -> Option<GameMode> {
+    if let Some(pc) = world.copy::<Player>(p) {
+        return Some(pc.game_mode);
+    }
+    world.copy::<RemotePlayer>(p).map(|r| {
+        if r.creative {
+            GameMode::Creative
+        } else {
+            GameMode::Survival
+        }
+    })
+}
+
 fn dist_sq(a: DVec3, b: DVec3) -> f64 {
     let (dx, dy, dz) = (b.x - a.x, b.y - a.y, b.z - a.z);
     dx * dx + dy * dy + dz * dz
@@ -338,7 +352,9 @@ impl System for AggressiveAiSystem {
             return;
         }
         let preys = world.query_ids::<(&PassiveAi, &Transform, &Health)>();
-        let players = world.query_ids::<(&Player, &Transform, &Velocity, &Collider)>();
+        // Joueur local d'abord, puis les joueurs distants (partie LAN), par identifiant.
+        let mut players = world.query_ids::<(&Player, &Transform, &Velocity, &Collider)>();
+        players.extend(world.query_ids::<(&RemotePlayer, &Transform, &Velocity, &Collider)>());
         let water = ctx.block_reg.ids().water;
         let mobs: &MobRegistry = ctx.mobs;
 
@@ -382,14 +398,14 @@ impl System for AggressiveAiSystem {
             if cfg.aggro_player_range > 0.0 {
                 let range = f64::from(cfg.aggro_player_range);
                 for &p in &players {
-                    let (Some(pc), Some(pt), Some(cc)) = (
-                        world.copy::<Player>(p),
+                    let (Some(mode), Some(pt), Some(cc)) = (
+                        player_mode(world, p),
                         world.copy::<Transform>(p),
                         world.copy::<Collider>(p),
                     ) else {
                         continue;
                     };
-                    if pc.game_mode != GameMode::Survival {
+                    if mode != GameMode::Survival {
                         continue;
                     }
                     if cfg.medium == MobMedium::Water {

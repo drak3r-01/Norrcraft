@@ -1,6 +1,6 @@
 //! Monde (partie `nb-world` de `World.java`, spec §12) : chunks, biomes, configuration, spawn.
 
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use nb_core::glam::Vec3;
 use nb_data::{BlockId, BlockRegistry};
@@ -21,6 +21,8 @@ pub struct World {
     chunks: ChunkManager,
     biomes: BiomeSystem,
     cfg: RwLock<WorldConfig>,
+    /// Centres supplémentaires gardés chargés (joueurs distants d'une partie LAN).
+    extras: Mutex<Vec<(Vec3, i32)>>,
 }
 
 impl std::fmt::Debug for World {
@@ -61,6 +63,7 @@ impl World {
             chunks,
             biomes,
             cfg: RwLock::new(cfg),
+            extras: Mutex::new(Vec::new()),
         }
     }
 
@@ -69,7 +72,13 @@ impl World {
     }
 
     pub fn update(&self, player_pos: Vec3) {
-        self.chunks.update(player_pos);
+        let extras = self.extras.lock().unwrap_or_else(|e| e.into_inner());
+        self.chunks.update_with_extras(player_pos, &extras);
+    }
+
+    /// Joueurs distants `(position, rayon en chunks)` dont les chunks restent chargés.
+    pub fn set_extra_centers(&self, centers: Vec<(Vec3, i32)>) {
+        *self.extras.lock().unwrap_or_else(|e| e.into_inner()) = centers;
     }
 
     pub fn block(&self, x: i32, y: i32, z: i32) -> BlockId {

@@ -152,3 +152,12 @@ Hors fidélité Java, comme la génération (`docs/STRUCTURES.md`, `docs/FLORE.m
   ce comportement.
 * **Prédation** : un hostile terrestre ou aquatique poursuit la proie passive la plus proche de
   son milieu (comportement Java, désormais visible avec les loups et les requins).
+
+## Réseau local (phase 11)
+
+Ajout sans équivalent Java, entièrement optionnel (voir `docs/LAN.md`). Effets sur le jeu solo :
+aucun tant que « OPEN TO LAN » n'est pas utilisé. Parties en réseau : le menu pause propose
+OPEN TO LAN / CLOSE LAN (mondes sauvegardés seulement) et LEAVE GAME pour un invité ; le monde
+ne s'arrête plus quand pause ou inventaire sont ouverts (sinon l'hôte figerait ses amis) ; le
+chat envoie le texte saisi aux autres joueurs (une ligne commençant par `/` reste une commande,
+réservée à l'hôte) et garde 7 lignes visibles au lieu de 4.

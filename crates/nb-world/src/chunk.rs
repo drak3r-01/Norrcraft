@@ -79,6 +79,11 @@ impl Chunk {
         self.pos
     }
 
+    /// Remplace tous les voxels (réseau : chunk modifié reçu de l'hôte).
+    pub fn replace_voxels(&mut self, voxels: &[BlockId; CHUNK_VOLUME]) {
+        self.voxels.copy_from_slice(voxels);
+    }
+
     /// Identifiant brut du bloc ; hors limites → air.
     #[inline]
     pub fn block(&self, x: i32, y: i32, z: i32) -> BlockId {
@@ -242,6 +247,13 @@ impl ChunkEntry {
             self.flags.mark_all();
         }
         ok
+    }
+
+    /// Remplace tous les voxels et pose les trois drapeaux (chunk reçu par le réseau).
+    pub fn replace_voxels(&self, voxels: &[BlockId; CHUNK_VOLUME]) {
+        self.write().replace_voxels(voxels);
+        self.edits.fetch_add(1, Ordering::AcqRel);
+        self.flags.mark_all();
     }
 
     /// Compteur d'écritures (voir [`ChunkEntry::edits`]).

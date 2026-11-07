@@ -92,8 +92,8 @@ const ROW1: f64 = 610.0;
 const CREATE_NEW: (f64, f64) = (700.0, ROW1);
 const CREATE_CONFIRM: (f64, f64) = (300.0, ROW1);
 const SEED_FIELD: (f64, f64) = (300.0, 180.0);
-// Pause : RESUME y 180, SETTINGS y 240, MAIN MENU y 300.
-const MAIN_MENU_BTN: (f64, f64) = (640.0, 320.0);
+// Pause (monde nommé) : RESUME y 180, SETTINGS y 240, OPEN TO LAN y 300, MAIN MENU y 360.
+const MAIN_MENU_BTN: (f64, f64) = (640.0, 380.0);
 const PAUSE_SETTINGS: (f64, f64) = (640.0, 260.0);
 
 #[test]
@@ -243,8 +243,8 @@ const FORWARD_BTN: (f64, f64) = (550.0, 250.0);
 fn key_rebind_goes_through_listener_before_update() {
     let dir = TempDir::new("rebind");
     let mut g = game(&dir);
-    // Menu → SETTINGS (bouton 2).
-    click(&mut g, 640.0, 440.0);
+    // Menu → SETTINGS (bouton 3, après PLAY et MULTIPLAYER).
+    click(&mut g, 640.0, 505.0);
     assert_eq!(g.state(), GameState::Settings);
     click(&mut g, CONTROLS_TAB.0, CONTROLS_TAB.1);
     click(&mut g, FORWARD_BTN.0, FORWARD_BTN.1);
@@ -262,7 +262,7 @@ fn key_rebind_goes_through_listener_before_update() {
 
     // Échap pendant une réaffectation : consommé par l'écouteur, puis revu enfoncé par
     // l'écran qui quitte les réglages (bogue Java conservé), sans rien lier.
-    click(&mut g, 640.0, 440.0);
+    click(&mut g, 640.0, 505.0);
     click(&mut g, CONTROLS_TAB.0, CONTROLS_TAB.1);
     click(&mut g, FORWARD_BTN.0, FORWARD_BTN.1);
     assert!(g.input.is_rebinding());

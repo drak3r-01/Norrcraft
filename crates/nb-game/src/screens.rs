@@ -13,9 +13,10 @@ use nb_data::keys::KEY_ESCAPE;
 use nb_data::MobRegistry;
 use nb_ecs::{Button, GameMode, ItemStack};
 use nb_ui::screens::{
-    MainMenu, MenuAction, MobAction, MobSettingsScreen, PackAction, PackEntry, PauseMenu,
-    ResourcePackScreen, SettingsAction, SettingsScreen, WorldAction, WorldEntry, WorldGenParams,
-    WorldSelectScreen, WorldType as UiWorldType,
+    draw_player_list, draw_terrain_loading, LanPause, MainMenu, MenuAction, MobAction,
+    MobSettingsScreen, MultiplayerAction, MultiplayerScreen, MultiplayerView, PackAction,
+    PackEntry, PauseMenu, PlayerRow, ResourcePackScreen, ServerRow, SettingsAction, SettingsScreen,
+    WorldAction, WorldEntry, WorldGenParams, WorldSelectScreen, WorldType as UiWorldType,
 };
 use nb_ui::{
     ClickButton, DrawList, Hud, HudView, InventoryAction, InventoryScreen, SlotView, TypingBuffers,
@@ -41,6 +42,7 @@ pub fn from_ui_state(s: nb_ui::GameState) -> GameState {
         U::Settings => GameState::Settings,
         U::ResourcePacks => GameState::ResourcePacks,
         U::MobSettings => GameState::MobSettings,
+        U::Multiplayer => GameState::Multiplayer,
     }
 }
 
@@ -56,6 +58,7 @@ pub fn to_ui_state(s: GameState) -> nb_ui::GameState {
         GameState::Settings => U::Settings,
         GameState::ResourcePacks => U::ResourcePacks,
         GameState::MobSettings => U::MobSettings,
+        GameState::Multiplayer => U::Multiplayer,
     }
 }
 
@@ -180,6 +183,8 @@ pub fn ui_input(view: &UiView<'_>, input: &InputManager, dt: f64) -> UiInput {
         esc_down: input.is_key_down(KEY_ESCAPE),
         pause_pressed: input.is_just_pressed(Action::Pause),
         inventory_pressed: input.is_just_pressed(Action::Inventory),
+        enter_pressed: input.is_just_pressed(Action::SubmitChat),
+        cancel_pressed: input.is_just_pressed(Action::CancelChat),
         dt,
     }
 }
@@ -253,6 +258,61 @@ fn hud_view<'a>(view: &UiView<'a>) -> HudView<'a> {
     }
 }
 
+/// Ce que le menu pause propose pour le réseau local.
+fn lan_pause(view: &UiView<'_>) -> LanPause {
+    use crate::net::LanRole;
+    let lan = view.lan;
+    match lan.role {
+        LanRole::Off if view.current_world.is_some() => LanPause::CanOpen,
+        LanRole::Off => LanPause::Hidden,
+        LanRole::Host => LanPause::Hosting {
+            address: lan.addresses.first().cloned().unwrap_or_default(),
+            players: lan.players.iter().map(|p| p.name.clone()).collect(),
+        },
+        LanRole::Client => LanPause::Joined {
+            host: lan
+                .players
+                .iter()
+                .find(|p| p.is_host)
+                .map(|p| p.name.clone())
+                .unwrap_or_default(),
+            ping_ms: lan
+                .players
+                .iter()
+                .find(|p| p.is_self)
+                .and_then(|p| p.ping_ms),
+        },
+    }
+}
+
+fn server_rows(view: &UiView<'_>) -> Vec<ServerRow> {
+    view.lan
+        .servers
+        .iter()
+        .map(|s| ServerRow {
+            title: s.world.clone(),
+            subtitle: format!(
+                "Hosted by {} - {}/{} players - {}",
+                s.host, s.players, s.max_players, s.address
+            ),
+            address: s.address.clone(),
+            full: s.players >= s.max_players,
+        })
+        .collect()
+}
+
+fn menu_action_cmd(a: MenuAction) -> UiCommand {
+    match a {
+        MenuAction::SwitchTo(nb_ui::GameState::Settings) => UiCommand::OpenSettings,
+        MenuAction::SwitchTo(nb_ui::GameState::Playing) => UiCommand::Resume,
+        MenuAction::SwitchTo(s) => UiCommand::SwitchState(from_ui_state(s)),
+        MenuAction::Quit => UiCommand::Quit,
+        MenuAction::SaveAndMainMenu => UiCommand::SaveAndMainMenu,
+        MenuAction::OpenLan => UiCommand::OpenToLan,
+        MenuAction::CloseLan => UiCommand::CloseLan,
+    }
+}
+
 fn settings_tab_cmd(ctx: &UiContext) -> UiCommand {
     UiCommand::OpenSettingsTab(if ctx.pending_controls_tab {
         SettingsTab::Controls
@@ -272,6 +332,7 @@ pub struct NbUi {
     settings: Option<SettingsScreen>,
     packs: Option<ResourcePackScreen>,
     mobs: MobSettingsScreen,
+    multiplayer: MultiplayerScreen,
 }
 
 impl Default for NbUi {
@@ -291,6 +352,7 @@ impl NbUi {
             settings: None,
             packs: None,
             mobs: MobSettingsScreen::default(),
+            multiplayer: MultiplayerScreen::new(),
         }
     }
 
@@ -374,8 +436,16 @@ impl Ui for NbUi {
                 ));
             }
             GameState::MobSettings => self.mobs.enter(),
+            GameState::Multiplayer => {
+                let mut b = buffers_of(input);
+                self.multiplayer.enter(
+                    &mut b,
+                    &view.settings.player_name,
+                    &view.settings.last_server,
+                );
+                write_buffers(b, input);
+            }
         }
-        let _ = input;
     }
 
     fn exit(&mut self, state: GameState, input: &mut InputManager) {
@@ -394,6 +464,11 @@ impl Ui for NbUi {
                 if let Some(s) = &mut self.settings {
                     s.rebinding = None;
                 }
+            }
+            GameState::Multiplayer => {
+                let mut b = buffers_of(input);
+                self.multiplayer.exit(&mut b);
+                write_buffers(b, input);
             }
             _ => {}
         }
@@ -414,24 +489,14 @@ impl Ui for NbUi {
             GameState::MainMenu => {
                 let mut ctx = Self::ctx(view);
                 if let Some(a) = self.main.update(&ui, &mut ctx) {
-                    out.push(match a {
-                        MenuAction::SwitchTo(nb_ui::GameState::Settings) => UiCommand::OpenSettings,
-                        MenuAction::SwitchTo(s) => UiCommand::SwitchState(from_ui_state(s)),
-                        MenuAction::Quit => UiCommand::Quit,
-                        MenuAction::SaveAndMainMenu => UiCommand::SaveAndMainMenu,
-                    });
+                    out.push(menu_action_cmd(a));
                 }
             }
             GameState::Paused => {
                 let mut ctx = Self::ctx(view);
+                self.pause.set_lan(lan_pause(view));
                 if let Some(a) = self.pause.update(&ui, &mut ctx) {
-                    out.push(match a {
-                        MenuAction::SwitchTo(nb_ui::GameState::Settings) => UiCommand::OpenSettings,
-                        MenuAction::SwitchTo(nb_ui::GameState::Playing) => UiCommand::Resume,
-                        MenuAction::SwitchTo(s) => UiCommand::SwitchState(from_ui_state(s)),
-                        MenuAction::Quit => UiCommand::Quit,
-                        MenuAction::SaveAndMainMenu => UiCommand::SaveAndMainMenu,
-                    });
+                    out.push(menu_action_cmd(a));
                 }
             }
             GameState::Playing => {
@@ -470,6 +535,29 @@ impl Ui for NbUi {
                 write_buffers(b, input);
                 if let Some(c) = a.and_then(|a| Self::world_cmd(view, a)) {
                     out.push(c);
+                }
+            }
+            GameState::Multiplayer => {
+                let rows = server_rows(view);
+                let mv = MultiplayerView {
+                    servers: &rows,
+                    connecting: view.lan.connecting.as_deref(),
+                    message: view.lan.message.as_ref().map(|(t, e)| (t.as_str(), *e)),
+                    search_problem: None,
+                };
+                let mut b = buffers_of(input);
+                let a = self.multiplayer.update(&ui, &mut b, &mv);
+                write_buffers(b, input);
+                match a {
+                    Some(MultiplayerAction::Back) => {
+                        out.push(UiCommand::SwitchState(GameState::MainMenu))
+                    }
+                    Some(MultiplayerAction::Refresh) => out.push(UiCommand::RefreshLan),
+                    Some(MultiplayerAction::Join { address, name }) => {
+                        out.push(UiCommand::JoinLan { address, name })
+                    }
+                    Some(MultiplayerAction::CancelJoin) => out.push(UiCommand::CancelJoin),
+                    None => {}
                 }
             }
             GameState::Settings => {
@@ -542,7 +630,20 @@ impl Ui for NbUi {
         let (w, h) = (ui.width, ui.height);
         match view.state {
             GameState::MainMenu => self.main.draw(dl, &ui),
-            GameState::Paused => self.pause.draw(dl, &ui),
+            GameState::Paused => {
+                self.pause.set_lan(lan_pause(view));
+                self.pause.draw(dl, &ui)
+            }
+            GameState::Multiplayer => {
+                let rows = server_rows(view);
+                let mv = MultiplayerView {
+                    servers: &rows,
+                    connecting: view.lan.connecting.as_deref(),
+                    message: view.lan.message.as_ref().map(|(t, e)| (t.as_str(), *e)),
+                    search_problem: None,
+                };
+                self.multiplayer.draw(dl, &ui, &buffers_of(input), &mv);
+            }
             GameState::Playing => self.hud.draw(dl, w, h, &hud_view(view)),
             GameState::Inventory => {
                 self.inventory.set_station(view.craft_station);
@@ -583,8 +684,27 @@ impl Ui for NbUi {
             }
             GameState::MobSettings => self.mobs.draw(dl, &ui, view.mobs, &buffers_of(input)),
         }
-        // `chatController.render` : après l'écran, dans tous les états.
+        // Partie réseau : attente du terrain à l'arrivée, liste des joueurs (Tab).
         dl.set_scissor(None);
+        if view.state.renders_world() && view.state != GameState::MainMenu {
+            if view.lan.loading_terrain {
+                draw_terrain_loading(dl, w, h, view.lan.terrain_progress);
+            } else if !view.lan.players.is_empty() && input.is_key_down(nb_data::keys::KEY_TAB) {
+                let rows: Vec<PlayerRow> = view
+                    .lan
+                    .players
+                    .iter()
+                    .map(|p| PlayerRow {
+                        name: p.name.clone(),
+                        is_self: p.is_self,
+                        is_host: p.is_host,
+                        ping_ms: p.ping_ms,
+                    })
+                    .collect();
+                draw_player_list(dl, w, h, &rows);
+            }
+        }
+        // `chatController.render` : après l'écran, dans tous les états.
         if !view.chat_log.is_empty() {
             let log: Vec<nb_ui::ChatMessage> = view
                 .chat_log

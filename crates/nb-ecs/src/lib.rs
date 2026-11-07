@@ -40,7 +40,7 @@ pub use blocks::{BlockAccess, MemoryBlocks, WorldBlocks};
 pub use command::{execute_command, TimeControl};
 pub use components::{
     AggressiveAi, CameraState, Collider, EntityId, GameMode, Health, InventoryComp, MobType,
-    PassiveAi, Player, Transform, Velocity,
+    NetMob, PassiveAi, Player, RemotePlayer, Transform, Velocity,
 };
 pub use crafting::{Button, CraftingGrid, GRID_BASE, OUTPUT_SLOT};
 pub use input::{ActionSet, GameAction, PlayerInput};

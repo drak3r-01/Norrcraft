@@ -75,10 +75,88 @@ impl MobModelDesc {
         }
     }
 
-    /// Tous les mobs du registre, dans son ordre.
+    /// Tous les mobs du registre, dans son ordre, puis les huit avatars de joueurs LAN.
     pub fn from_registry(reg: &MobRegistry) -> Vec<Self> {
-        reg.all().iter().map(Self::from_config).collect()
+        let mut v: Vec<Self> = reg.all().iter().map(Self::from_config).collect();
+        v.extend(player_descs());
+        v
     }
+}
+
+/// Identifiants des modèles d'avatar (un par couleur de chandail, selon le numéro du joueur).
+pub const PLAYER_MODEL_IDS: [&str; 8] = [
+    "nb_player_0",
+    "nb_player_1",
+    "nb_player_2",
+    "nb_player_3",
+    "nb_player_4",
+    "nb_player_5",
+    "nb_player_6",
+    "nb_player_7",
+];
+
+/// Couleurs de chandail des avatars.
+const SHIRTS: [[f32; 3]; 8] = [
+    [0.15, 0.60, 0.55],
+    [0.80, 0.28, 0.25],
+    [0.90, 0.70, 0.15],
+    [0.30, 0.45, 0.85],
+    [0.60, 0.35, 0.75],
+    [0.35, 0.70, 0.30],
+    [0.90, 0.50, 0.15],
+    [0.85, 0.45, 0.65],
+];
+
+/// Modèle d'identifiant de l'avatar du joueur `id` (l'hôte est 0).
+pub fn player_model_id(id: u16) -> &'static str {
+    PLAYER_MODEL_IDS[usize::from(id) % PLAYER_MODEL_IDS.len()]
+}
+
+/// Avatar de joueur : tête, corps, bras et jambes en boîtes colorées, 1,8 bloc de haut, face
+/// vers +Z comme les mobs.
+pub fn player_boxes(shirt: [f32; 3]) -> Vec<ColorBox> {
+    const S: f32 = 0.9; // 32 px → 28,8 px = 1,8 bloc
+    let skin = [0.93, 0.76, 0.62];
+    let hair = [0.25, 0.16, 0.08];
+    let pants = [0.22, 0.27, 0.55];
+    let shoes = [0.16, 0.16, 0.18];
+    let eye = [0.10, 0.10, 0.20];
+    // [x, y, z, largeur, hauteur, profondeur] en pixels avant échelle.
+    let rows: [([f32; 6], [f32; 3]); 13] = [
+        ([-4.0, 0.0, -2.0, 4.0, 12.0, 4.0], pants),
+        ([0.0, 0.0, -2.0, 4.0, 12.0, 4.0], pants),
+        ([-4.1, 0.0, -2.1, 4.2, 2.0, 4.2], shoes),
+        ([-0.1, 0.0, -2.1, 4.2, 2.0, 4.2], shoes),
+        ([-4.0, 12.0, -2.0, 8.0, 12.0, 4.0], shirt),
+        ([-8.0, 12.0, -2.0, 4.0, 12.0, 4.0], shirt),
+        ([4.0, 12.0, -2.0, 4.0, 12.0, 4.0], shirt),
+        ([-8.1, 11.9, -2.1, 4.2, 3.0, 4.2], skin),
+        ([3.9, 11.9, -2.1, 4.2, 3.0, 4.2], skin),
+        ([-4.0, 24.0, -4.0, 8.0, 8.0, 8.0], skin),
+        ([-4.2, 29.5, -4.2, 8.4, 2.5, 8.4], hair),
+        ([-3.0, 27.0, 4.05, 2.0, 2.0, 0.2], eye),
+        ([1.0, 27.0, 4.05, 2.0, 2.0, 0.2], eye),
+    ];
+    rows.iter()
+        .map(|(b, c)| ColorBox {
+            min_px: [b[0] * S, b[1] * S, b[2] * S],
+            size_px: [b[3] * S, b[4] * S, b[5] * S],
+            rgba: [c[0], c[1], c[2], 1.0],
+        })
+        .collect()
+}
+
+/// Descriptions des huit avatars de joueurs.
+pub fn player_descs() -> Vec<MobModelDesc> {
+    PLAYER_MODEL_IDS
+        .iter()
+        .zip(SHIRTS)
+        .map(|(id, shirt)| MobModelDesc {
+            id: (*id).to_owned(),
+            built_in: true,
+            geometry: Some(player_boxes(shirt)),
+        })
+        .collect()
 }
 
 /// Modèle CPU : sommets opaques puis transparents ; `texture = None` → mode couleur (texture
@@ -660,11 +738,40 @@ mod tests {
     }
 
     #[test]
+    fn player_avatars_are_drawable_and_face_forward() {
+        let descs = player_descs();
+        assert_eq!(descs.len(), 8);
+        for d in &descs {
+            let m = build_geometry(d.geometry.as_ref().unwrap()).unwrap();
+            assert_eq!(m.vertices.len(), 13 * 36);
+            let (min_y, max_y) = m.vertices.iter().fold((f32::MAX, f32::MIN), |(a, b), v| {
+                (a.min(v.pos[1]), b.max(v.pos[1]))
+            });
+            assert!(min_y.abs() < 1e-4, "pieds au sol : {min_y}");
+            assert!((max_y - 1.8).abs() < 0.01, "1,8 bloc de haut : {max_y}");
+            // Les yeux sont en +Z (avant du modèle).
+            let eyes_z = m
+                .vertices
+                .iter()
+                .filter(|v| v.tint[..3] == [0.10, 0.10, 0.20])
+                .map(|v| v.pos[2])
+                .fold(f32::MIN, f32::max);
+            assert!(eyes_z > 0.2, "yeux vers +Z : {eyes_z}");
+        }
+        // Couleurs de chandail distinctes d'un joueur à l'autre.
+        let shirts: std::collections::HashSet<[u32; 3]> =
+            SHIRTS.iter().map(|c| c.map(f32::to_bits)).collect();
+        assert_eq!(shirts.len(), 8);
+        assert_eq!(player_model_id(0), "nb_player_0");
+        assert_eq!(player_model_id(9), "nb_player_1", "au-delà de 8, on boucle");
+    }
+
+    #[test]
     fn geometry_and_builtin_descs() {
         let reg = MobRegistry::builtin();
         let descs = MobModelDesc::from_registry(&reg);
         // Trois mobs d'origine + les animaux de la phase 9, tous intégrés et tous dessinables.
-        assert_eq!(descs.len(), reg.all().len());
+        assert_eq!(descs.len(), reg.all().len() + PLAYER_MODEL_IDS.len());
         assert!(descs.len() >= 40);
         assert!(descs.iter().all(|d| d.built_in));
         for d in &descs {

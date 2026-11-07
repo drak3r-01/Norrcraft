@@ -861,8 +861,10 @@ dependencies = [
  "nb-ecs",
  "nb-gfx",
  "nb-mesh",
+ "nb-net",
  "nb-ui",
  "nb-world",
+ "serde_json",
 ]
 
 [[package]]
@@ -892,6 +894,13 @@ dependencies = [
  "crossbeam-channel",
  "nb-core",
  "nb-data",
+]
+
+[[package]]
+name = "nb-net"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
 ]
 
 [[package]]

@@ -143,6 +143,15 @@ impl Schedule {
         s
     }
 
+    /// Ordonnancement d'un client LAN : entrée du joueur local seulement. Mobs, apparitions et
+    /// santé des mobs viennent de l'hôte (réplication).
+    pub fn client() -> Self {
+        let mut s = Self::new();
+        s.push(Box::new(crate::player::PlayerInputSystem));
+        s.push(Box::new(crate::health::PlayerHealthSystem));
+        s
+    }
+
     /// `addSystem`.
     pub fn push(&mut self, s: Box<dyn System>) {
         self.systems.push(s);

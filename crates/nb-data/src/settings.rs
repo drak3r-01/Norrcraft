@@ -103,6 +103,10 @@ pub struct GameSettings {
     pub window_width: i32,
     pub window_height: i32,
     pub key_bindings: BTreeMap<Action, i32>,
+    /// Nom affiché aux autres joueurs d'une partie LAN.
+    pub player_name: String,
+    /// Dernière adresse saisie dans « Rejoindre » (`adresse:port`).
+    pub last_server: String,
 }
 
 impl Default for GameSettings {
@@ -119,6 +123,8 @@ impl Default for GameSettings {
             window_width: 1280,
             window_height: 720,
             key_bindings: Action::ALL.iter().map(|&a| (a, a.default_key())).collect(),
+            player_name: "Player".to_owned(),
+            last_server: String::new(),
         }
     }
 }
@@ -166,6 +172,12 @@ impl GameSettings {
         if let Some(v) = int("windowHeight") {
             s.window_height = v;
         }
+        if let Some(v) = root.get("playerName").and_then(Value::as_str) {
+            s.player_name = v.to_owned();
+        }
+        if let Some(v) = root.get("lastServer").and_then(Value::as_str) {
+            s.last_server = v.to_owned();
+        }
         for action in Action::ALL {
             if let Some(code) = int(&format!("key_{}", action.name())) {
                 s.key_bindings.insert(action, code);
@@ -187,6 +199,8 @@ impl GameSettings {
         map.insert("resourcePack".into(), self.resource_pack.clone().into());
         map.insert("windowWidth".into(), self.window_width.into());
         map.insert("windowHeight".into(), self.window_height.into());
+        map.insert("playerName".into(), self.player_name.clone().into());
+        map.insert("lastServer".into(), self.last_server.clone().into());
         for (action, code) in &self.key_bindings {
             map.insert(format!("key_{}", action.name()), (*code).into());
         }

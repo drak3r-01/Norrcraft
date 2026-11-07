@@ -15,7 +15,7 @@ use nb_core::glam::Vec3;
 use nb_core::{ChunkPos, Result};
 use nb_data::{BlockId, BlockRegistry};
 
-use crate::chunk::{Chunk, ChunkEntry, SharedChunk, CHUNK_SIZE_X, CHUNK_SIZE_Z};
+use crate::chunk::{Chunk, ChunkEntry, SharedChunk, CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_VOLUME};
 use crate::config::WorldConfig;
 use crate::generator::WorldGenerator;
 use crate::light::{LightContext, LightTable};
@@ -46,6 +46,22 @@ struct Inner {
     player_chunk_z: AtomicI32,
     shutdown: AtomicBool,
     light_table: LightTable,
+    /// Journal des écritures de blocs (réseau) : `None` = désactivé (solo).
+    edit_log: Mutex<Option<Vec<BlockEdit>>>,
+    /// Centres supplémentaires `(chunk x, chunk z, rayon)` : joueurs distants d'un hôte LAN.
+    extra_centers: Mutex<Vec<(i32, i32, i32)>>,
+    /// Monde client : les chunks viennent tous de l'hôte, rien n'est généré ni sauvegardé.
+    remote: AtomicBool,
+}
+
+/// Une écriture de bloc en coordonnées monde (journal d'éditions, voir
+/// [`ChunkManager::enable_edit_log`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockEdit {
+    pub x: i32,
+    pub y: i32,
+    pub z: i32,
+    pub id: BlockId,
 }
 
 impl Inner {
@@ -82,8 +98,14 @@ impl Inner {
         let r = self.render_distance.load(Ordering::Relaxed);
         let px = self.player_chunk_x.load(Ordering::Relaxed);
         let pz = self.player_chunk_z.load(Ordering::Relaxed);
-        (i64::from(pos.x) - i64::from(px)).abs() > i64::from(r) + 1
-            || (i64::from(pos.z) - i64::from(pz)).abs() > i64::from(r) + 1
+        let far = |cx: i32, cz: i32, r: i32| {
+            (i64::from(pos.x) - i64::from(cx)).abs() > i64::from(r) + 1
+                || (i64::from(pos.z) - i64::from(cz)).abs() > i64::from(r) + 1
+        };
+        far(px, pz, r)
+            && lock(&self.extra_centers)
+                .iter()
+                .all(|&(x, z, r)| far(x, z, r))
     }
 
     fn save(&self, entry: &ChunkEntry) -> Result<()> {
@@ -116,6 +138,8 @@ impl Inner {
         };
         let chunk = match stored {
             Some(v) => Chunk::from_voxels(pos, v.as_slice()),
+            // Monde client : un chunk absent du stockage n'existe pas encore (l'hôte l'enverra).
+            None if self.remote.load(Ordering::Acquire) => return,
             None => {
                 let mut c = Chunk::new(pos);
                 generator.generate_chunk(&mut c);
@@ -249,6 +273,9 @@ impl ChunkManager {
             player_chunk_z: AtomicI32::new(0),
             shutdown: AtomicBool::new(false),
             light_table: LightTable::new(&registry),
+            edit_log: Mutex::new(None),
+            extra_centers: Mutex::new(Vec::new()),
+            remote: AtomicBool::new(false),
         });
         let (gen_tx, gen_rx) = unbounded::<ChunkPos>();
         let (light_tx, light_rx) = unbounded::<ChunkPos>();
@@ -331,6 +358,23 @@ impl ChunkManager {
 
     /// Appelé chaque frame (spec §11.2) : déchargements, puis chargements et lumière.
     pub fn update(&self, player_pos: Vec3) {
+        self.update_with_extras(player_pos, &[]);
+    }
+
+    /// Comme [`Self::update`], avec des centres supplémentaires `(position, rayon en chunks)` :
+    /// les joueurs distants d'une partie LAN gardent leurs chunks chargés sur l'hôte.
+    pub fn update_with_extras(&self, player_pos: Vec3, extras: &[(Vec3, i32)]) {
+        let extra_chunks: Vec<(i32, i32, i32)> = extras
+            .iter()
+            .map(|(p, r)| {
+                (
+                    (p.x / CHUNK_SIZE_X as f32).floor() as i32,
+                    (p.z / CHUNK_SIZE_Z as f32).floor() as i32,
+                    (*r).max(1),
+                )
+            })
+            .collect();
+        *lock(&self.inner.extra_centers) = extra_chunks.clone();
         let pcx = (player_pos.x / CHUNK_SIZE_X as f32).floor() as i32;
         let pcz = (player_pos.z / CHUNK_SIZE_Z as f32).floor() as i32;
         self.inner.player_chunk_x.store(pcx, Ordering::Relaxed);
@@ -343,6 +387,17 @@ impl ChunkManager {
                 expected.push(ChunkPos::new(pcx.wrapping_add(x), pcz.wrapping_add(z)));
             }
         }
+        for &(ex, ez, er) in &extra_chunks {
+            for x in -er..=er {
+                for z in -er..=er {
+                    let p = ChunkPos::new(ex.wrapping_add(x), ez.wrapping_add(z));
+                    if !expected.contains(&p) {
+                        expected.push(p);
+                    }
+                }
+            }
+        }
+        let remote = self.inner.remote.load(Ordering::Acquire);
         let expected_set: HashSet<ChunkPos> = expected.iter().copied().collect();
 
         let to_unload: Vec<ChunkPos> = self
@@ -356,6 +411,8 @@ impl ChunkManager {
 
         for pos in expected {
             match self.inner.active_get(pos) {
+                // Monde client : seuls les chunks reçus de l'hôte sont chargés.
+                None if remote && !self.inner.storage.has_chunk(pos) => {}
                 None => {
                     if !lock(&self.inner.generating).contains(&pos) {
                         self.load_chunk_async(pos);
@@ -407,7 +464,8 @@ impl ChunkManager {
             .unwrap_or_else(|e| e.into_inner())
             .remove(&pos);
         if let Some(entry) = removed {
-            if entry.flags.is_dirty() {
+            // Monde client : l'hôte fait foi, on ne garde rien (une copie périmée serait relue).
+            if entry.flags.is_dirty() && !self.inner.remote.load(Ordering::Acquire) {
                 if let Err(e) = self.inner.save(&entry) {
                     eprintln!("échec de sauvegarde du chunk {pos:?} : {e}");
                 }
@@ -465,10 +523,80 @@ impl ChunkManager {
     }
 
     /// Écrit un bloc (chunk absent → ignoré) et marque les voisins de bord à remailler.
+    /// Si le journal d'éditions est actif, l'écriture y est consignée.
     pub fn set_block(&self, x: i32, y: i32, z: i32, id: BlockId) {
+        if !self.write_block(x, y, z, id) {
+            return;
+        }
+        if let Some(log) = lock(&self.inner.edit_log).as_mut() {
+            log.push(BlockEdit { x, y, z, id });
+        }
+    }
+
+    /// Comme [`Self::set_block`] mais sans journal : application d'une modification reçue du
+    /// réseau (sinon elle serait renvoyée à son expéditeur). `false` si le chunk est absent.
+    pub fn set_block_quiet(&self, x: i32, y: i32, z: i32, id: BlockId) -> bool {
+        self.write_block(x, y, z, id)
+    }
+
+    /// Mode client : plus aucune génération locale ni sauvegarde, les chunks viennent de
+    /// [`Self::install_chunk`].
+    pub fn set_remote(&self, on: bool) {
+        self.inner.remote.store(on, Ordering::Release);
+    }
+
+    pub fn is_remote(&self) -> bool {
+        self.inner.remote.load(Ordering::Acquire)
+    }
+
+    /// Active (vide) ou désactive le journal des écritures de blocs.
+    pub fn enable_edit_log(&self, on: bool) {
+        *lock(&self.inner.edit_log) = on.then(Vec::new);
+    }
+
+    /// Écritures consignées depuis le dernier appel (vide si le journal est désactivé).
+    pub fn take_edits(&self) -> Vec<BlockEdit> {
+        lock(&self.inner.edit_log)
+            .as_mut()
+            .map(std::mem::take)
+            .unwrap_or_default()
+    }
+
+    /// Voxels du chunk : chunk actif, sinon stockage. `None` si le chunk n'a jamais été écrit.
+    pub fn voxels_of(&self, pos: ChunkPos) -> Option<Box<[BlockId; CHUNK_VOLUME]>> {
+        if let Some(c) = self.inner.active_get(pos) {
+            return Some(Box::new(*c.read().voxels()));
+        }
+        let _g = lock(&self.inner.storage_lock);
+        if self.inner.storage.has_chunk(pos) {
+            self.inner.storage.load_chunk(pos).ok().flatten()
+        } else {
+            None
+        }
+    }
+
+    /// Remplace le contenu d'un chunk (reçu du réseau) : chunk actif réécrit et remaillé, sinon
+    /// enregistré dans le stockage pour son prochain chargement. Les quatre voisins sont
+    /// remaillés (faces de bord).
+    pub fn install_chunk(&self, pos: ChunkPos, voxels: &[BlockId; CHUNK_VOLUME]) {
+        if let Some(c) = self.inner.active_get(pos) {
+            if c.read().voxels() == voxels {
+                return; // identique : ni remaillage ni recalcul de lumière
+            }
+            c.replace_voxels(voxels);
+            self.inner.mark_neighbors_mesh_dirty(pos);
+        } else {
+            let _g = lock(&self.inner.storage_lock);
+            if let Err(e) = self.inner.storage.save_chunk(pos, voxels) {
+                eprintln!("réseau : chunk {pos:?} non enregistré : {e}");
+            }
+        }
+    }
+
+    fn write_block(&self, x: i32, y: i32, z: i32, id: BlockId) -> bool {
         let (cx, cz) = (chunk_coord(x), chunk_coord(z));
         let Some(c) = self.inner.active_get(ChunkPos::new(cx, cz)) else {
-            return;
+            return false;
         };
         let lx = x.wrapping_sub(cx.wrapping_mul(16));
         let lz = z.wrapping_sub(cz.wrapping_mul(16));
@@ -485,6 +613,7 @@ impl ChunkManager {
         if lz == CHUNK_SIZE_Z as i32 - 1 {
             self.inner.mark_mesh_dirty(ChunkPos::new(cx, cz + 1));
         }
+        true
     }
 
     pub fn mark_mesh_dirty(&self, pos: ChunkPos) {

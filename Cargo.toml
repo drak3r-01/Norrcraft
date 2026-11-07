@@ -9,6 +9,7 @@ members = [
     "crates/nb-gfx",
     "crates/nb-ui",
     "crates/nb-game",
+    "crates/nb-net",
     "crates/nb-app",
 ]
 
@@ -45,6 +46,7 @@ nb-ecs = { path = "crates/nb-ecs" }
 nb-gfx = { path = "crates/nb-gfx" }
 nb-ui = { path = "crates/nb-ui" }
 nb-game = { path = "crates/nb-game" }
+nb-net = { path = "crates/nb-net" }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "warn"

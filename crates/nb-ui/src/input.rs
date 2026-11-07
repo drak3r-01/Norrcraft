@@ -25,6 +25,10 @@ pub struct UiInput {
     pub pause_pressed: bool,
     /// Action `INVENTORY` venant d'être pressée.
     pub inventory_pressed: bool,
+    /// Entrée venant d'être pressée pendant une saisie (valider un champ).
+    pub enter_pressed: bool,
+    /// Échap venu d'être pressé pendant une saisie (annuler).
+    pub cancel_pressed: bool,
     pub dt: f64,
 }
 

@@ -11,6 +11,7 @@ pub enum GameState {
     Settings,
     ResourcePacks,
     MobSettings,
+    Multiplayer,
 }
 
 /// Champs de `GameContext` lus / écrits par les écrans.

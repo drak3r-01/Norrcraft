@@ -29,11 +29,16 @@ pub struct ChatView<'a> {
     pub input: Option<&'a str>,
 }
 
+/// Lignes de journal conservées en partie réseau (le chat des autres joueurs défile plus vite).
+pub const MAX_LOG_MESSAGES_NET: usize = 7;
+
 #[derive(Clone, Debug, Default)]
 pub struct Chat {
     log: Vec<ChatMessage>,
     active: bool,
     log_timer: f32,
+    /// Partie LAN : le texte sans « / » est un message pour les autres joueurs.
+    net_mode: bool,
 }
 
 impl Chat {
@@ -47,6 +52,34 @@ impl Chat {
 
     pub fn log(&self) -> &[ChatMessage] {
         &self.log
+    }
+
+    /// Partie LAN : la saisie commence vide (texte = message, « / » = commande) et le journal
+    /// garde plus de lignes.
+    pub fn set_net_mode(&mut self, on: bool) {
+        self.net_mode = on;
+    }
+
+    fn max_lines(&self) -> usize {
+        if self.net_mode {
+            MAX_LOG_MESSAGES_NET
+        } else {
+            MAX_LOG_MESSAGES
+        }
+    }
+
+    /// Ajoute une ligne au journal (message d'un autre joueur, information système) et le
+    /// rend visible quelques secondes.
+    pub fn push(&mut self, text: impl Into<String>, color: ChatColor) {
+        self.log.push(ChatMessage {
+            text: text.into(),
+            color,
+        });
+        let excess = self.log.len().saturating_sub(self.max_lines());
+        self.log.drain(..excess);
+        if !self.active {
+            self.log_timer = LOG_DISPLAY_SECONDS;
+        }
     }
 
     pub fn log_timer(&self) -> f32 {
@@ -65,22 +98,27 @@ impl Chat {
             input.set_typing_mode(true);
             let buf = input.command_buffer_mut();
             buf.clear();
-            buf.push('/');
+            if !self.net_mode {
+                buf.push('/');
+            }
         }
         if self.active {
             if input.is_just_pressed(Action::SubmitChat) {
                 let command = input.command_buffer().to_owned();
-                self.log.push(ChatMessage {
-                    text: command.clone(),
-                    color: ChatColor::White,
-                });
+                // Un message de chat revient par le réseau (« <nom> texte ») : pas d'écho brut.
+                if !(self.net_mode && !command.starts_with('/')) {
+                    self.log.push(ChatMessage {
+                        text: command.clone(),
+                        color: ChatColor::White,
+                    });
+                }
                 if let Some(feedback) = execute(&command) {
                     self.log.push(ChatMessage {
                         text: feedback,
                         color: ChatColor::Yellow,
                     });
                 }
-                let excess = self.log.len().saturating_sub(MAX_LOG_MESSAGES);
+                let excess = self.log.len().saturating_sub(self.max_lines());
                 self.log.drain(..excess);
                 self.close(input);
             } else if input.is_just_pressed(Action::CancelChat) {
@@ -171,5 +209,61 @@ mod tests {
         c.update(6.0, &mut i, |_| None);
         assert!(c.view(&i).log.is_empty());
         assert!(c.view(&i).input.is_none());
+    }
+
+    #[test]
+    fn net_mode_starts_empty_and_does_not_echo_messages() {
+        let mut i = InputManager::new();
+        let mut c = Chat::new();
+        c.set_net_mode(true);
+        press(&mut i, glfw::KEY_T);
+        c.update(1.0 / 60.0, &mut i, |_| unreachable!());
+        assert!(c.is_active());
+        assert_eq!(
+            i.command_buffer(),
+            "",
+            "saisie vide : le texte est un message"
+        );
+        for ch in "salut".chars() {
+            i.char_event(ch);
+        }
+        i.update();
+        c.update(1.0 / 60.0, &mut i, |_| unreachable!());
+        press(&mut i, keys::KEY_ENTER);
+        let mut seen = String::new();
+        c.update(1.0 / 60.0, &mut i, |cmd| {
+            seen = cmd.to_owned();
+            None
+        });
+        assert_eq!(seen, "salut");
+        assert!(c.log().is_empty(), "le message reviendra du réseau");
+        // Une commande est répétée dans le journal comme d'habitude.
+        press(&mut i, glfw::KEY_T);
+        c.update(1.0 / 60.0, &mut i, |_| unreachable!());
+        for ch in "/help".chars() {
+            i.char_event(ch);
+        }
+        i.update();
+        c.update(1.0 / 60.0, &mut i, |_| unreachable!());
+        press(&mut i, keys::KEY_ENTER);
+        c.update(1.0 / 60.0, &mut i, |_| Some("aide".into()));
+        assert_eq!(c.log().len(), 2);
+    }
+
+    #[test]
+    fn pushed_lines_show_up_and_the_log_is_bounded() {
+        let mut c = Chat::new();
+        for n in 0..10 {
+            c.push(format!("ligne {n}"), ChatColor::White);
+        }
+        assert_eq!(c.log().len(), MAX_LOG_MESSAGES);
+        assert_eq!(c.log().last().unwrap().text, "ligne 9");
+        assert!(c.log_timer() > 0.0, "visible quelques secondes");
+        c.set_net_mode(true);
+        for n in 0..10 {
+            c.push(format!("m{n}"), ChatColor::Yellow);
+        }
+        assert_eq!(c.log().len(), MAX_LOG_MESSAGES_NET);
+        assert_eq!(c.log()[0].text, "m3");
     }
 }

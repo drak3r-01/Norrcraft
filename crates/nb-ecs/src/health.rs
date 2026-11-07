@@ -5,7 +5,7 @@ use nb_data::MobRegistry;
 use nb_world::WorldConfig;
 
 use crate::ai::trigger_player_flee;
-use crate::components::{EntityId, Health, PassiveAi, Player, Transform, Velocity};
+use crate::components::{EntityId, Health, PassiveAi, Player, RemotePlayer, Transform, Velocity};
 use crate::player::respawn_player;
 use crate::schedule::{EcsEvent, System, TickCtx};
 use crate::world::EntityWorld;
@@ -25,6 +25,10 @@ impl System for HealthSystem {
             if world.copy::<Health>(id).is_some_and(|h| h.alive) {
                 continue;
             }
+            // Un joueur distant (partie LAN) meurt chez lui : l'hôte ne le détruit pas.
+            if world.has::<RemotePlayer>(id) {
+                continue;
+            }
             if world.has::<Player>(id) {
                 ctx.events.push(EcsEvent::PlayerDied);
                 respawn_player(world, id, ctx.config);
@@ -36,6 +40,28 @@ impl System for HealthSystem {
         for id in dead {
             world.destroy(id);
             ctx.events.push(EcsEvent::MobDied { entity: id });
+        }
+    }
+}
+
+/// `HealthSystem` d'un client LAN : seule la mort du joueur local est gérée (réapparition). Les
+/// mobs répliqués ne sont jamais détruits ici : l'hôte décide de leur mort.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PlayerHealthSystem;
+
+impl System for PlayerHealthSystem {
+    fn name(&self) -> &'static str {
+        "PlayerHealth"
+    }
+
+    fn run(&mut self, world: &mut EntityWorld, ctx: &mut TickCtx<'_>, _dt: f32) {
+        for id in world.query_ids::<(&Health, &Player)>() {
+            if world.copy::<Health>(id).is_some_and(|h| h.alive) {
+                continue;
+            }
+            ctx.events.push(EcsEvent::PlayerDied);
+            respawn_player(world, id, ctx.config);
+            ctx.events.push(EcsEvent::PlayerRespawned);
         }
     }
 }

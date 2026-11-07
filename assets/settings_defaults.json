@@ -9,6 +9,8 @@
   "resourcePack": "Default",
   "windowWidth": 1280,
   "windowHeight": 720,
+  "playerName": "Player",
+  "lastServer": "",
   "key_FORWARD": 87,
   "key_BACKWARD": 83,
   "key_LEFT": 65,

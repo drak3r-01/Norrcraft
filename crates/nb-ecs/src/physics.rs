@@ -8,7 +8,9 @@ use nb_core::glam::{IVec3, Vec3};
 use nb_data::{BlockId, BlockRegistry, MobBehaviorType, MobMedium, MobRegistry};
 
 use crate::blocks::BlockAccess;
-use crate::components::{Collider, EntityId, Health, MobType, Player, Transform, Velocity};
+use crate::components::{
+    Collider, EntityId, Health, MobType, Player, RemotePlayer, Transform, Velocity,
+};
 use crate::jmath::{floor_f, floor_i, lerp, signum};
 use crate::schedule::{System, TickCtx};
 use crate::world::EntityWorld;
@@ -404,7 +406,7 @@ impl System for PhysicsSystem {
         let jump_force = ctx.config.jump_force;
         let fall_damage = ctx.config.fall_damage_enabled;
         for id in world.query_ids::<(&Transform, &Velocity, &Collider)>() {
-            if world.has::<Player>(id) {
+            if world.has::<Player>(id) || world.has::<RemotePlayer>(id) {
                 continue;
             }
             let water = matches!(mob_kind(world, ctx.mobs, id), Some((MobMedium::Water, _)));
@@ -468,7 +470,7 @@ pub fn push_apart_entities(world: &mut EntityWorld, mobs: &MobRegistry) {
             Some(Info {
                 id,
                 col: world.copy::<Collider>(id)?,
-                player: world.has::<Player>(id),
+                player: world.has::<Player>(id) || world.has::<RemotePlayer>(id),
                 aggressive_water: kind == Some((MobMedium::Water, MobBehaviorType::Aggressive)),
                 passive_water: kind == Some((MobMedium::Water, MobBehaviorType::Passive)),
             })

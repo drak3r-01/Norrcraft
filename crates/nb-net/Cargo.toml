@@ -1,0 +1,11 @@
+[package]
+name = "nb-net"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+crossbeam-channel.workspace = true
+
+[lints]
+workspace = true
