@@ -135,7 +135,7 @@ SceneRenderer::record_frame (chaque frame)
   3. scène B1 : fluides (profondeur en lecture seule)
   4. scène B2 : mobs + particules
   5. bloom : 10 passes de flou ping-pong en demi-résolution
-  6. composite pp.frag : distorsion, bloom, chaleur, brouillard, ciel, nuages, aurores, ACES
+  6. composite pp.frag : distorsion, bloom, chaleur, brouillard, ciel (soleil, lune, étoiles, aurores à rideaux), nuages, ACES + tramage
   7. overlay : contour du bloc visé puis interface nb-ui (ui_pass) → présentation
 ```
 

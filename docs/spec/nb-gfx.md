@@ -257,7 +257,10 @@ sunHeight = -lightDir.y
 | `baseFog` | (0.8,0.5,0.3) → (0.45,0.65,0.9) | (0.05,0.1,0.15) → (0.8,0.5,0.3) | (0.05,0.1,0.15) → (0.02,0.04,0.08) |
 | `ambientColor` | (0.3,0.25,0.25) → (0.4,0.4,0.4) | (0.1,0.1,0.15) → (0.3,0.25,0.25) | (0.1,0.1,0.15) → (0.05,0.05,0.08) |
 | `lightColor` | (0.5,0.3,0.2) → (0.6,0.6,0.6) | (0.1,0.15,0.2) → (0.5,0.3,0.2) | (0.1,0.15,0.2) → (0.05,0.08,0.1) |
-| `auroraIntensity` | 0 | 0 | `t` |
+| `auroraIntensity` | 0 | 0 | `smoothstep(min((-h-0.1)/0.3, 1))` |
+| `night` (étoiles, lune) | `smoothstep` de 0 à 1 entre `h = 0.12` et `h = -0.22` (même fonction sur toute la journée) | | |
+
+**[DÉVIATION Rust]** par rapport au Java : la montée des aurores est plus rapide (`t` → `smoothstep` sur 0,3 de hauteur de soleil au lieu de 0,5) et `night` / `moon_up` sont ajoutés pour les étoiles et le disque lunaire (`env.w`, `flags.z`).
 
 Fonctions continues aux frontières. Implémenter comme fonction pure `sky_params(time_of_day) -> SkyParams`.
 
@@ -474,7 +477,7 @@ Toutes les lectures suivantes (`scene`, `bloomBlur`, `depthMap`) utilisent l'uv 
 ### 13.5 Ciel
 - `g = clamp(pow(max(0, viewDir.y + 0.05), 0.6), 0, 1)` ; `sky = mix(horizon, zenith, g)`.
 - Aurores si air et `auroraIntensity > 0` : `sky += getAurora(cam, viewDir, t, uv, phase) * auroraIntensity`.
-  `getAurora` : si `rd.y < 0.02` → 0 ; couche `y ∈ [80, 200]` ; `d1 = max((80 - ro.y)/rd.y, 0)`, `d2 = (200 - ro.y)/rd.y`, si `d2 ≤ 0` → 0 ; 30 pas de `(d2-d1)/30`, départ tramé `d1 + step*hash(uv*1000)`. Par pas : `p = ro + rd*t` ; `q = (p.xz + p.y*0.5)*0.002` ; `mask = smoothstep(0.4, 0.75, fbm(q*0.5 + phase*0.2))` ; si `mask > 0` : `n1 = fbm(q*1.5 + t*0.01)` ; `w = q + (n1, fbm(q + 1))*1.5` ; `wave = sin(w.x*6 + w.y*4 + t*0.2)*0.5 + 0.5` ; `ribbon = smoothstep(0.35,0.85,wave)*smoothstep(0.2,0.8,n1)` ; si `ribbon > 0` : `h = (p.y-80)/120` ; `prof = smoothstep(0,0.2,h)*smoothstep(1,0.3,h)` ; `c = mix((0.1,0.9,0.4),(0.4,0.1,0.8),h)` ; `red = fbm(q*2 - t*0.01)` ; `c = mix((0.9,0.1,0.2), c, smoothstep(0,0.2,h + red*0.1))` ; `a = ribbon*prof*mask*mix(0.3,1.2,rd.y)*0.8` ; accumulation avant→arrière `col += c*a*(1-A) ; A += a*(1-A)` ; arrêt si `A > 0.95`. Retour `col*1.5`.
+  **[DÉVIATION Rust — remplace le `getAurora` Java (30 pas × fbm, ~500 lectures de texture par pixel)]** Deux feuilles verticales (rideaux) entre 260 et 620 blocs au-dessus de la caméra, définies par leur seule trace horizontale (pli sinusoïdal, bord net d'un côté). Le rayon de vue (20–32 pas) cherche les changements de signe de l'écart à la feuille (sécante en deux passes) : à chaque croisement, émission = dégradé vertical (rose / vert / violet) × rayons verticaux × luminosité lente × `exp(-3.2·h)` × éclaircissement de biais ; plus un halo gaussien diffus. Sortie `1 - exp(-x)`, ×`auroraIntensity`. Sans texture ; voir `pp.frag`. Le disque du soleil / de la lune et les étoiles (`night`) sont ajoutés au même endroit, et le halo (`sunDot^64`) est atténué de 70 % la nuit.
 - `sunDot = max(dot(viewDir, normalize(-uLightDir)), 0)` ; `halo = sunDot^64 * sunCol` (0 si `fluidState > 0`) ; `fogCol = sky + halo`.
 - Eau : `wc = pow(uFogColor, 2.2)` ; `df = clamp(exp(-(64 - cam.y)*0.06), 0.02, 1)` ; `fogCol = mix((0.02,0.06,0.15), wc, df) + sunCol*max(0,viewDir.y)^8*0.15*df`.
 - Lave : `fogCol = pow(uFogColor, 2.2)`.
@@ -723,6 +726,8 @@ pub struct SkyParams {
     pub zenith: Vec3, pub horizon: Vec3, pub sun_color: Vec3,
     pub base_fog: Vec3, pub ambient: Vec3, pub light_color: Vec3,
     pub aurora_intensity: f32,
+    pub night: f32,       // étoiles / lune (0 jour, 1 nuit)
+    pub moon_up: bool,    // la lumière principale vient de la lune
 }
 pub fn sky_params(time_of_day: f32) -> SkyParams;   // §7.2–7.3
 pub fn heat_from_nearest_lava_dist_sq(min_dist_sq: f32) -> f32; // §8.2 (256 si aucune lave)

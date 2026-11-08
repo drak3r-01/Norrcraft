@@ -85,7 +85,15 @@ pub struct SkyParams {
     pub base_fog: Vec3,
     pub ambient: Vec3,
     pub light_color: Vec3,
+    /// Intensité des aurores boréales : `0` le jour et au crépuscule, `1` en pleine nuit
+    /// (montée douce entre `h = -0.1` et `h = -0.4`).
     pub aurora_intensity: f32,
+    /// Visibilité des étoiles et de la lune : `0` de jour, `1` en pleine nuit (`smoothstep`
+    /// entre `h = 0.12` et `h = -0.22`).
+    pub night: f32,
+    /// `true` quand la lumière principale (`shadow_light_dir`) vient de la lune : le soleil est
+    /// sous l'horizon et le disque affiché au ciel est celui de la lune.
+    pub moon_up: bool,
 }
 
 #[inline]
@@ -137,8 +145,13 @@ pub fn sky_params(time_of_day: f32) -> SkyParams {
         base_fog = lerp(v(0.05, 0.1, 0.15), v(0.02, 0.04, 0.08), t);
         ambient = lerp(v(0.1, 0.1, 0.15), v(0.05, 0.05, 0.08), t);
         light_color = lerp(v(0.1, 0.15, 0.2), v(0.05, 0.08, 0.1), t);
-        aurora = t;
+        let a = ((-h - 0.1) / 0.3).min(1.0);
+        aurora = a * a * (3.0 - 2.0 * a);
     }
+    let night = {
+        let n = ((0.12 - h) / 0.34).clamp(0.0, 1.0);
+        n * n * (3.0 - 2.0 * n)
+    };
     SkyParams {
         light_dir,
         shadow_light_dir,
@@ -149,6 +162,8 @@ pub fn sky_params(time_of_day: f32) -> SkyParams {
         ambient,
         light_color,
         aurora_intensity: aurora,
+        night,
+        moon_up: light_dir.y > 0.0,
     }
 }
 

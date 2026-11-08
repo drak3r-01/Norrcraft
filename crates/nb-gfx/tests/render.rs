@@ -1017,3 +1017,123 @@ fn demo_world_with_builtin_mobs_and_particles() {
     assert!(top_left, "tête / bois du renne attendus à gauche");
     assert_no_validation_errors();
 }
+
+/// Ciel nocturne : aurores (dominante verte/cyan au-dessus de l'horizon), étoiles, lune ; rien
+/// de tout cela de jour. Les images 960×540 (`renders/night_*.png`) servent à l'inspection.
+#[test]
+fn night_sky_aurora_stars_and_moon() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let (w, h) = (960, 540);
+    let mut r = OffscreenRenderer::new(ctx, assets(), w, h, &GfxSettings::default()).unwrap();
+    let views = [
+        ("night_n", 0.0, 35.0),
+        ("night_e", 90.0, 35.0),
+        ("night_s", 180.0, 25.0),
+        ("night_w", 270.0, 45.0),
+        ("night_zenith", 0.0, 80.0),
+        ("night_low", 45.0, 10.0),
+    ];
+    let mut best = 0.0f32;
+    for (name, yaw, up) in views {
+        let cam = Camera {
+            position: Vec3::new(0.0, 70.0, 0.0),
+            pitch_deg: -up,
+            yaw_deg: yaw,
+            ..Camera::default()
+        };
+        let mut clock = SkyClock::new();
+        clock.set_time(300.0);
+        clock.aurora_phase = 3.0;
+        let mut input = frame(&cam, &clock);
+        input.time_seconds = 40.0;
+        let img = render_settled(&mut r, &input);
+        save(name, &img);
+        // Part de pixels « aurore » : vert nettement au-dessus du rouge et du bleu.
+        let green = img
+            .pixels()
+            .filter(|p| p[1] > 60 && i32::from(p[1]) > i32::from(p[0]) + 25 && p[1] > p[2])
+            .count() as f32
+            / (w * h) as f32;
+        best = best.max(green);
+        let stars = img
+            .pixels()
+            .filter(|p| p[0] > 110 && p[1] > 110 && p[2] > 110)
+            .count();
+        eprintln!("{name} : aurore {green:.3}, pixels clairs {stars}");
+    }
+    assert!(best > 0.02, "aucune aurore visible (max {best})");
+
+    // Le jour : ni aurore ni étoile, ciel inchangé sauf soleil.
+    let cam = Camera {
+        position: Vec3::new(0.0, 70.0, 0.0),
+        pitch_deg: -35.0,
+        yaw_deg: 0.0,
+        ..Camera::default()
+    };
+    let clock = SkyClock::new();
+    let day = render_settled(&mut r, &frame(&cam, &clock));
+    save("day_sky_up", &day);
+    let greens = day
+        .pixels()
+        .filter(|p| i32::from(p[1]) > i32::from(p[0]) + 25 && p[1] > p[2])
+        .count();
+    assert_eq!(greens, 0, "aurore de jour");
+    assert_no_validation_errors();
+}
+
+/// Mesure indicative (lavapipe, CPU) du coût du post-traitement la nuit :
+/// `cargo test -p nb-gfx --test render bench_night_sky -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn bench_night_sky() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let mut r = OffscreenRenderer::new(ctx, assets(), 960, 540, &GfxSettings::default()).unwrap();
+    let cam = Camera {
+        position: Vec3::new(0.0, 70.0, 0.0),
+        pitch_deg: -35.0,
+        yaw_deg: 0.0,
+        ..Camera::default()
+    };
+    let mut clock = SkyClock::new();
+    clock.set_time(300.0);
+    let input = frame(&cam, &clock);
+    for _ in 0..3 {
+        r.render(&input).unwrap();
+    }
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        r.render(&input).unwrap();
+    }
+    eprintln!("nuit : {:.1} ms / frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    clock.set_time(900.0);
+    let input = frame(&cam, &clock);
+    let t = std::time::Instant::now();
+    for _ in 0..20 {
+        r.render(&input).unwrap();
+    }
+    eprintln!("jour : {:.1} ms / frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+}
+
+/// Soleil bas sur l'horizon (disque + halo) : image d'inspection `renders/sunset_sun.png`.
+#[test]
+fn sunset_sun_disc() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let mut r = OffscreenRenderer::new(ctx, assets(), 960, 540, &GfxSettings::default()).unwrap();
+    let mut clock = SkyClock::new();
+    clock.set_time(1165.0);
+    let sky = clock.params();
+    // Regarde vers le soleil (direction opposée à la lumière), un peu au-dessus de l'horizon.
+    let sun = -sky.shadow_light_dir;
+    let yaw = sun.x.atan2(-sun.z).to_degrees();
+    let cam = Camera {
+        position: Vec3::new(0.0, 70.0, 0.0),
+        pitch_deg: -sun.y.asin().to_degrees(),
+        yaw_deg: yaw,
+        ..Camera::default()
+    };
+    let img = render_settled(&mut r, &frame(&cam, &clock));
+    save("sunset_sun", &img);
+    let bright = img.pixels().filter(|p| p[0] > 245 && p[1] > 225).count();
+    assert!(bright > 50, "disque solaire absent ({bright})");
+    assert_no_validation_errors();
+}
