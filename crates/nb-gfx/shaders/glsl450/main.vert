@@ -1,7 +1,9 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-// Port Vulkan de shaders/gl330/main.vert. Seule modification (§18.1 point 1) :
-// `projection` = P_vk et `lightSpaceMatrix` = L_vk.
+// Port Vulkan de shaders/gl330/main.vert. Modifications : (§18.1 point 1) `projection` = P_vk et
+// `lightSpaceMatrix` = L_vk ; houle de l'eau d'amplitude réduite (0.07 + 0.035 au lieu de 0.2 + 0.1) :
+// le détail des vagues vient maintenant des normales calculées dans fluid.frag, la géométrie ne
+// fait que suivre la grande houle (silhouette sans facettes visibles).
 #include "frame.glsl"
 layout (location = 0) in vec3 aPos;
 layout (location = 1) in vec2 aTexCoord;
@@ -25,11 +27,11 @@ void main() {
         fluid = 1.0;
         if (pos.y - floor(pos.y) > 0.7) {
             if (aColor.r > 0.6 && aColor.b < 0.2) {
-                float w1 = sin(pos.x * 0.8 + uTime * 0.3) * cos(pos.z * 0.8 + uTime * 0.3) * 0.06f;
+                float w1 = sin(pos.x * 0.8 + uTime * 0.3) * cos(pos.z * 0.8 + uTime * 0.3) * 0.03f;
                 pos.y += w1;
             } else {
-                float w1 = sin(pos.x * 2.5 + uTime * 2.0) * cos(pos.z * 2.5 + uTime * 2.0) * 0.2f;
-                float w2 = sin(pos.x * 1.25 - uTime * 1.6) * sin(pos.z * 1.75 + uTime * 2.2) * 0.1f;
+                float w1 = sin(pos.x * 2.5 + uTime * 2.0) * cos(pos.z * 2.5 + uTime * 2.0) * 0.07f;
+                float w2 = sin(pos.x * 1.25 - uTime * 1.6) * sin(pos.z * 1.75 + uTime * 2.2) * 0.035f;
                 pos.y += w1 + w2;
             }
         }

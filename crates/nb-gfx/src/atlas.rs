@@ -116,6 +116,11 @@ impl TextureArrayCpu {
             .unwrap_or(self.missing_layer)
     }
 
+    /// Couche de `lava_still` (−1 si absente) : `fluid.frag` s'en sert pour distinguer lave et eau.
+    pub fn lava_layer(&self) -> i32 {
+        self.names.get("lava_still").map_or(-1, |&l| l as i32)
+    }
+
     pub fn layer_count(&self) -> u32 {
         self.layers.len() as u32
     }
@@ -164,8 +169,13 @@ pub fn mip_level_count(w: u32, h: u32) -> u32 {
     32 - w.max(h).max(1).leading_zeros()
 }
 
-/// Chaîne de mips RGBA8 par moyenne de boîtes 2×2 (équivalent `glGenerateMipmap`,
-/// déviation mineure acceptée §5.1). `out[0]` = niveau 0 (copie).
+/// Chaîne de mips RGBA8 par moyenne de boîtes 2×2 (équivalent `glGenerateMipmap`, déviation
+/// mineure acceptée §5.1). `out[0]` = niveau 0 (copie).
+///
+/// La couleur est moyennée pondérée par l'alpha : les texels transparents (souvent blancs ou
+/// noirs dans les PNG) ne déteignent plus sur les bords des feuilles et des herbes aux mips
+/// supérieurs (sinon un liseré clair ou sombre apparaît autour des découpes). Pour des textures
+/// opaques le résultat est identique à la moyenne simple.
 pub fn mip_chain(level0: &[u8], w: u32, h: u32) -> Vec<(u32, u32, Vec<u8>)> {
     let mut out = vec![(w, h, level0.to_vec())];
     let (mut cw, mut ch) = (w, h);
@@ -177,15 +187,36 @@ pub fn mip_chain(level0: &[u8], w: u32, h: u32) -> Vec<(u32, u32, Vec<u8>)> {
             for x in 0..nw {
                 let sx = [(2 * x).min(cw - 1), (2 * x + 1).min(cw - 1)];
                 let sy = [(2 * y).min(ch - 1), (2 * y + 1).min(ch - 1)];
-                for c in 0..4 {
-                    let mut sum = 0u32;
-                    for yy in sy {
-                        for xx in sx {
-                            sum += u32::from(prev[((yy * cw + xx) * 4 + c) as usize]);
+                let mut rgb = [0u32; 3];
+                let mut a_sum = 0u32;
+                for yy in sy {
+                    for xx in sx {
+                        let i = ((yy * cw + xx) * 4) as usize;
+                        let a = u32::from(prev[i + 3]);
+                        for c in 0..3 {
+                            rgb[c] += u32::from(prev[i + c]) * a;
                         }
+                        a_sum += a;
                     }
-                    next[((y * nw + x) * 4 + c) as usize] = ((sum + 2) / 4) as u8;
                 }
+                let o = ((y * nw + x) * 4) as usize;
+                if a_sum == 0 {
+                    // Quatre texels transparents : moyenne simple de leur couleur.
+                    for c in 0..3 {
+                        let mut s = 0u32;
+                        for yy in sy {
+                            for xx in sx {
+                                s += u32::from(prev[((yy * cw + xx) * 4) as usize + c]);
+                            }
+                        }
+                        next[o + c] = ((s + 2) / 4) as u8;
+                    }
+                } else {
+                    for c in 0..3 {
+                        next[o + c] = ((rgb[c] + a_sum / 2) / a_sum) as u8;
+                    }
+                }
+                next[o + 3] = ((a_sum + 2) / 4) as u8;
             }
         }
         out.push((nw, nh, next));
@@ -323,6 +354,17 @@ mod tests {
         assert_eq!((chain[1].0, chain[1].1), (2, 2));
         assert!(chain[1].2.chunks(4).all(|p| p == [128, 0, 0, 255]));
         assert_eq!(chain[2].2, vec![128, 0, 0, 255]);
+    }
+
+    #[test]
+    fn mips_do_not_bleed_transparent_colour() {
+        // 2×2 : un texel vert opaque, trois texels blancs transparents.
+        let l0 = [0, 255, 0, 255, 255, 255, 255, 0, 255, 255, 255, 0, 255, 255, 255, 0];
+        let chain = mip_chain(&l0, 2, 2);
+        assert_eq!(chain[1].2, vec![0, 255, 0, 64]);
+        // Entièrement transparent : couleur moyenne conservée, alpha nul.
+        let clear = [200u8, 100, 50, 0].repeat(4);
+        assert_eq!(mip_chain(&clear, 2, 2)[1].2, vec![200, 100, 50, 0]);
     }
 
     #[test]

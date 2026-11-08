@@ -1,15 +1,16 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-// Terrain : passe opaque (uRenderPass = 0, couches alpha-testées) et passe fluides (= 1, mélangée).
-// Écrit la couleur HDR (location 0) et la source du bloom (location 1).
+// Terrain : passe opaque (couches alpha-testées). Les fluides (eau, lave) ont leur propre shader,
+// fluid.frag. Écrit la couleur HDR (location 0) et la source du bloom (location 1).
 //
 // Port Vulkan de shaders/gl330/main.frag. Modifications (liste fermée §18.1) :
-//  - `uRenderPass` devient une constante de spécialisation (une pipeline par passe) ;
+//  - la passe fluides est sortie dans fluid.frag (elle échantillonne aussi une copie de l'image) ;
 //  - ShadowCalculation : p.z = ndc.z (pas de *0.5+0.5, la profondeur Vulkan est déjà dans [0,1]) ;
-//  - getLinearDepth : coefficients de P_gl (u.projGl), formule inchangée.
-// Remanié pour la lisibilité (constantes nommées, sections) sans changer le résultat.
+// Remanié pour la lisibilité (constantes nommées, sections) sans changer le résultat, sauf :
+//  - la couleur des texels de bord n'est plus « dépremultipliée » : la chaîne de mips est désormais
+//    calculée avec une couleur pondérée par l'alpha (atlas.rs), ce qui supprime le liseré clair
+//    autour des feuilles et des herbes.
 #include "frame.glsl"
-layout (constant_id = 0) const int uRenderPass = 0;
 layout (location = 0) out vec4 FragColor;
 layout (location = 1) out vec4 BrightColor;
 layout (location = 0) in vec2 TexCoord;
@@ -21,25 +22,27 @@ layout (location = 5) in float IsFluid;
 layout (location = 6) in float IsLeaf;
 layout (set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout (set = 0, binding = 2) uniform sampler2D shadowMap;
-layout (set = 1, binding = 0) uniform sampler2D opaqueDepth;
 
-const int PASS_OPAQUE = 0;
-const int PASS_FLUID  = 1;
+// Variation de teinte à grande échelle de la végétation teintée par le biome (herbe, feuilles) :
+// sans elle, de vastes aplats d'un vert uniforme donnent un aspect plastique.
+const float VEG_SATURATION_MIN = 0.40;
+
+float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+
+float valueNoise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+               mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x), f.y);
+}
 
 // Feuillage : rétro-éclairage (transmission de la lumière à travers les feuilles).
 const float LEAF_SSS_POWER    = 3.0;
 const float LEAF_SSS_STRENGTH = 0.6;
-// Fluides : reflet du soleil et absorption.
-const float FLUID_SPEC_POWER = 48.0;
-const float FLUID_R0         = 0.02;   // réflectance de Fresnel à incidence normale
-const float WATER_DENSITY    = 0.08;
-const float LAVA_DENSITY     = 1.5;
-
-// Profondeur [0,1] (fenêtre GL) -> distance à l'œil.
-float getLinearDepth(float depth) {
-    float zNdc = depth * 2.0 - 1.0;
-    return u.projGl.y / (zNdc + u.projGl.x);
-}
 
 // Part d'ombre [0,1] : PCF 3x3 sur la carte d'ombre.
 float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal) {
@@ -64,27 +67,31 @@ void main() {
     vec3 lightDir = u.lightDir.xyz;
     vec3 ambient = u.ambientColor.xyz;
     vec3 lightColor = u.lightColor.xyz;
-    bool fluid = IsFluid > 0.5;
     bool leaf = IsLeaf > 0.5;
 
-    // Chaque passe ne dessine que sa moitié de la géométrie.
-    if (uRenderPass == PASS_OPAQUE && fluid) discard;
-    if (uRenderPass == PASS_FLUID && !fluid) discard;
+    // Les fluides sont dessinés par fluid.frag.
+    if (IsFluid > 0.5) discard;
 
     // ------------------------------------------------------------------ albédo
     vec4 texColor = texture(textureArray, vec3(TexCoord, Layer));
-    float alpha = texColor.a;
-    if (uRenderPass == PASS_OPAQUE) {
-        // Alpha-test net, lissé par fwidth (bords des feuilles et plantes sans crénelage).
-        if (texColor.a < 0.01) discard;
-        texColor.rgb = clamp(texColor.rgb / texColor.a, 0.0, 1.0);
-        alpha = (texColor.a - 0.5) / max(fwidth(texColor.a), 0.0001) + 0.5;
-        if (alpha < 0.5) discard;
-    } else if (alpha < 0.05) {
-        discard;
-    }
+    // Alpha-test net, lissé par fwidth (bords des feuilles et plantes sans crénelage).
+    if (texColor.a < 0.01) discard;
+    float alpha = (texColor.a - 0.5) / max(fwidth(texColor.a), 0.0001) + 0.5;
+    if (alpha < 0.5) discard;
     vec3 linearTex = pow(texColor.rgb, vec3(2.2));
     vec3 albedo = linearTex * Color;
+    // Végétation (couleur de sommet saturée : teinte de biome) : patchs plus secs / plus sombres. Le facteur moyen
+    // (~0,8) compense le x2,2 de la teinte du mailleur, qui saturait les verts après tonemapping.
+    float vMax = max(max(Color.r, Color.g), Color.b);
+    float vMin = min(min(Color.r, Color.g), Color.b);
+    if ((vMax - vMin) > VEG_SATURATION_MIN * vMax) {
+        vec2 q = FragPos.xz + vec2(FragPos.y * 0.37, -FragPos.y * 0.29);
+        float n = 0.6 * valueNoise(q * 0.05) + 0.4 * valueNoise(q * 0.23 + 7.0);
+        n = smoothstep(0.30, 0.70, n);
+        albedo *= mix(vec3(0.60, 0.76, 0.64), vec3(1.00, 0.93, 0.74), n);
+        // Petite variation par bloc (comme les herbes du jeu d'origine).
+        albedo *= 0.94 + 0.12 * hash21(floor(q * 1.0001));
+    }
 
     // ------------------------------------------------------------------ normale + ombre
     vec3 normal = normalize(cross(dFdx(FragPos), dFdy(FragPos)));
@@ -100,34 +107,10 @@ void main() {
         float wrapLight = max(0.0, dot(normal, lightDir) * 0.5 + 0.5);
         finalColor += albedo * lightColor * sss * wrapLight * (1.0 - shadow * 0.7);
     }
-
-    // ------------------------------------------------------------------ fluides
-    float spec = 0.0;
-    bool isLava = fluid && linearTex.r > 0.6 && linearTex.b < 0.2;
-    if (fluid) {
-        // Épaisseur d'eau traversée : écart de profondeur avec le terrain opaque dessous.
-        float opaqueDepthVal = texelFetch(opaqueDepth, ivec2(gl_FragCoord.xy), 0).r;
-        float thickness = max(getLinearDepth(opaqueDepthVal) - getLinearDepth(gl_FragCoord.z), 0.0);
-
-        vec3 reflectDir = reflect(normalize(lightDir), normal);
-        spec = pow(max(dot(viewDir, reflectDir), 0.0), FLUID_SPEC_POWER);
-        float cosTheta = max(dot(viewDir, normal), 0.0);
-        float fresnel = FLUID_R0 + (1.0 - FLUID_R0) * pow(1.0 - cosTheta, 5.0);
-        float density = isLava ? LAVA_DENSITY : WATER_DENSITY;
-        float depthAlpha = 1.0 - exp(-thickness * density);
-        alpha = clamp(mix(depthAlpha, 1.0, fresnel), isLava ? 0.9 : 0.3, 0.98);
-
-        vec3 deepColor    = albedo * (isLava ? vec3(2.5, 1.0, 0.1) : vec3(0.25));
-        vec3 shallowColor = albedo * (isLava ? vec3(3.0, 1.5, 0.2) : vec3(1.0));
-        finalColor = mix(shallowColor, deepColor, depthAlpha);
-        finalColor += lightColor * 2.0 * spec * (1.0 - shadow);
-    }
-    FragColor = vec4(finalColor, alpha);
+    FragColor = vec4(finalColor, 1.0);
 
     // ------------------------------------------------------------------ source du bloom
-    if (isLava) {
-        BrightColor = vec4(FragColor.rgb * 1.8, 1.0);
-    } else if (spec > 0.2 || (leaf && finalColor.g > 1.2)) {
+    if (leaf && finalColor.g > 1.2) {
         BrightColor = vec4(FragColor.rgb, 1.0);
     } else {
         BrightColor = vec4(0.0, 0.0, 0.0, 1.0);

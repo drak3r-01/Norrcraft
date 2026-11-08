@@ -146,7 +146,8 @@ pub struct FrameUniforms {
     pub proj_gl: [f32; 4],
     /// x = auroraIntensity, y = auroraPhase, z = heatIntensity, w = nuit (étoiles, lune).
     pub env: [f32; 4],
-    /// x = fluidState, y = correctif des seuils d'ombre, z = 1 si la lune éclaire (sinon soleil).
+    /// x = fluidState, y = correctif des seuils d'ombre, z = 1 si la lune éclaire (sinon soleil),
+    /// w = couche d'atlas de la lave (−1 si absente ; renseignée par le renderer de scène).
     pub flags: [i32; 4],
 }
 

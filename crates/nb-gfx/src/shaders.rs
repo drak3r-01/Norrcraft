@@ -14,6 +14,7 @@ macro_rules! spv {
 
 pub const MAIN_VERT: &[u8] = spv!("main.vert");
 pub const MAIN_FRAG: &[u8] = spv!("main.frag");
+pub const FLUID_FRAG: &[u8] = spv!("fluid.frag");
 pub const SHADOW_VERT: &[u8] = spv!("shadow.vert");
 pub const SHADOW_FRAG: &[u8] = spv!("shadow.frag");
 pub const HL_VERT: &[u8] = spv!("hl.vert");
@@ -43,6 +44,7 @@ mod tests {
         for s in [
             MAIN_VERT,
             MAIN_FRAG,
+            FLUID_FRAG,
             SHADOW_VERT,
             SHADOW_FRAG,
             HL_VERT,

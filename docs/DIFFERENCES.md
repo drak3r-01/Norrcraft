@@ -116,6 +116,32 @@ du Java à reproduire » de chaque spec) :
   rentre dans le frustum repart de « visible » ; entrées des chunks déchargés purgées.
 * **Fluides** : chunks dessinés de l'arrière vers l'avant (mélange alpha correct entre chunks).
 
+## Rendu : eau, lave, atmosphère, mobs (passe 2026-11-08)
+
+Écarts assumés par rapport au Java, sans changement de gameplay (détails dans les en-têtes des
+shaders `crates/nb-gfx/shaders/glsl450`) :
+
+* **Eau** (`fluid.frag`, nouveau) : vagues à normales analytiques (6 sinus, octaves fines
+  atténuées avec la distance), **réfraction** (copie de la couleur du terrain opaque, décalage
+  selon la pente et l'épaisseur, jamais de pixel situé devant la surface), absorption de
+  Beer-Lambert par canal, réflexion du ciel pondérée par Fresnel, reflet et scintillement du
+  soleil / de la lune, écume de berge. La houle des sommets est réduite (0,07 + 0,035 au lieu de
+  0,2 + 0,1). Coût : une copie plein écran de l'image HDR, uniquement les frames où un chunk
+  contient un fluide visible.
+* **Lave** : texture déformée par deux champs d'écoulement, plaques de croûte froides, veines
+  très chaudes ; identifiée par sa couche d'atlas (`flags.w`) et non par la couleur du texel
+  (les texels sombres étaient traités comme de l'eau) ; bloom nettement réduit.
+* **Ombres** : l'eau, la lave et les plantes en croix (herbes, fleurs) ne projettent plus d'ombre
+  (leurs ombres découpées tachetaient les mobs et le sol : les mobs semblaient transparents).
+* **Mips de l'atlas** : couleur moyennée pondérée par l'alpha et plus de « dépremultiplication »
+  dans `main.frag` : fin du liseré clair autour des feuilles et des herbes.
+* **Mobs et particules** écrivent `(0, 0, 0, alpha)` dans le bright buffer : le bloom du terrain
+  derrière eux (lave) ne se superpose plus à leur silhouette.
+* **Jour** : horizon et zénith plus saturés, ombre bleutée / soleil chaud (éclairement total
+  inchangé), brume à extinction par canal et densité décroissante avec l'altitude, lobe de
+  diffusion large du soleil, tonemapping ACES mélangé à une courbe qui conserve la teinte,
+  disque solaire à cœur blanc ; variation de teinte à grande échelle de l'herbe et des feuilles.
+
 ## Génération du monde « Norrblock » (passe 2026-11-07)
 
 Décision de Gabriel : la contrainte « à l'identique » est levée **pour la génération** (le reste

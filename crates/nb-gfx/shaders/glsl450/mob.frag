@@ -4,7 +4,8 @@
 // soleil/lune avec ombres, puis tonemapping dans le composite). Le Java dessinait les mobs sans
 // aucun éclairage ni conversion linéaire, ce qui les rendait plats, saturés et lumineux la nuit.
 // `pc.params.x` = niveau de lumière du lieu (0..1, ciel ouvert = 1, grotte = bas).
-// Seule la sortie location 0 est écrite ; la pipeline n'attache pas le bright buffer (§14.1).
+// Location 1 (bright buffer) = (0, 0, 0, alpha) : le bloom du terrain derrière un mob est masqué
+// (lave, feuillage lumineux) au lieu de se superposer au mob.
 #include "frame.glsl"
 layout (location = 0) in vec2 vUV;
 layout (location = 1) in vec4 vTint;
@@ -14,6 +15,7 @@ layout (set = 0, binding = 2) uniform sampler2D shadowMap;
 layout (set = 1, binding = 0) uniform sampler2D uTexture;
 layout (push_constant) uniform Push { mat4 model; vec4 params; } pc;
 layout (location = 0) out vec4 FragColor;
+layout (location = 1) out vec4 BrightColor;
 
 // Part d'ombre [0,1] : PCF 3x3, comme le terrain (faces des mobs sans normale : biais fixe).
 float mobShadow(vec4 ls) {
@@ -37,4 +39,5 @@ void main() {
     // Lumière du lieu appliquée à l'ambiant et au soleil, comme la lumière des sommets du terrain.
     vec3 lit = albedo * vBrightness * light * (u.ambientColor.xyz + u.lightColor.xyz * (1.0 - shadow));
     FragColor = vec4(lit, texColor.a);
+    BrightColor = vec4(0.0, 0.0, 0.0, texColor.a);
 }

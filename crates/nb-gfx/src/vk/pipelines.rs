@@ -259,11 +259,16 @@ fn pipeline_layout(
 pub struct Pipelines {
     /// Set 0 des passes 3D : UBO, atlas blocs, shadow map.
     pub frame_set_layout: vk::DescriptorSetLayout,
-    /// Une seule texture (opaqueDepth, source du flou).
+    /// Une seule texture (source du flou, texture factice de la passe opaque).
     pub texture_set_layout: vk::DescriptorSetLayout,
+    /// Set 1 des fluides : `opaqueDepth` (profondeur du terrain opaque) + `refractTex` (copie de la
+    /// couleur HDR du terrain opaque, pour la réfraction).
+    pub fluid_set_layout: vk::DescriptorSetLayout,
     /// Composite : UBO + scene, bloomBlur, depthMap, cloudTexture, noiseTexture.
     pub pp_set_layout: vk::DescriptorSetLayout,
     pub terrain_layout: vk::PipelineLayout,
+    /// Fluides : set 0 (UBO, atlas, ombres) + set 1 (profondeur + copie de couleur).
+    pub fluid_layout: vk::PipelineLayout,
     pub hl_layout: vk::PipelineLayout,
     pub blur_layout: vk::PipelineLayout,
     pub pp_layout: vk::PipelineLayout,
@@ -295,8 +300,10 @@ impl Pipelines {
         let tex = (T::COMBINED_IMAGE_SAMPLER, S::FRAGMENT);
         let frame_set_layout = set_layout(ctx, &[ubo, tex, tex])?;
         let texture_set_layout = set_layout(ctx, &[tex])?;
+        let fluid_set_layout = set_layout(ctx, &[tex, tex])?;
         let pp_set_layout = set_layout(ctx, &[ubo, tex, tex, tex, tex, tex])?;
         let terrain_layout = pipeline_layout(ctx, &[frame_set_layout, texture_set_layout], None)?;
+        let fluid_layout = pipeline_layout(ctx, &[frame_set_layout, fluid_set_layout], None)?;
         let hl_layout = pipeline_layout(ctx, &[frame_set_layout], Some((S::VERTEX, 64)))?;
         let blur_layout = pipeline_layout(ctx, &[texture_set_layout], Some((S::FRAGMENT, 4)))?;
         let pp_layout = pipeline_layout(ctx, &[pp_set_layout], None)?;
@@ -331,24 +338,24 @@ impl Pipelines {
                 layout: terrain_layout,
             },
         )?;
-        let terrain = |pass: i32, depth_write: bool| Desc {
+        let terrain = |fs: &'static [u8], layout: vk::PipelineLayout, depth_write: bool| Desc {
             vs: shaders::MAIN_VERT,
-            fs: shaders::MAIN_FRAG,
-            render_pass_constant: Some(pass),
+            fs,
+            render_pass_constant: None,
             vertex: Vertex::Chunk { color: true },
             topology: vk::PrimitiveTopology::TRIANGLE_LIST,
             cull: vk::CullModeFlags::BACK,
             depth: Some((true, depth_write)),
             depth_format: DEPTH_FORMAT,
             colors: &[],
-            layout: terrain_layout,
+            layout,
         };
         let opaque_colors = [hdr(false, true), hdr(false, true)];
         let opaque = build(
             ctx,
             &Desc {
                 colors: &opaque_colors,
-                ..terrain(0, true)
+                ..terrain(shaders::MAIN_FRAG, terrain_layout, true)
             },
         )?;
         let fluid_colors = [hdr(true, true), hdr(true, true)];
@@ -356,7 +363,7 @@ impl Pipelines {
             ctx,
             &Desc {
                 colors: &fluid_colors,
-                ..terrain(1, false)
+                ..terrain(shaders::FLUID_FRAG, fluid_layout, false)
             },
         )?;
         let masked = [hdr(false, false), hdr(false, false)];
@@ -428,11 +435,12 @@ impl Pipelines {
                 layout: hl_layout,
             },
         )?;
-        // Passe B2 (§14.1, §15, §18.4.4) : les shaders n'écrivent que la location 0. Le bright
-        // buffer doit rester inchangé ([JAVA-BUG] GL « indéfini ») : plutôt qu'un
-        // colorWriteMask = 0 sur un attachement 1 que le shader n'écrit pas (sortie indéfinie,
-        // qui exige independentBlend et a produit des halos de bloom parasites sous lavapipe),
-        // la passe B2 n'attache que `colorBuffer` : résultat voulu, sans valeur indéfinie.
+        // Passe B2 (§14.1, §15, §18.4.4) : mobs et particules écrivent la couleur ET le bright buffer.
+        // [DÉVIATION] Le Java laissait le bright buffer intact (« indéfini » en GL), si bien que le
+        // bloom du terrain situé derrière un mob (lave, feuillage lumineux) se superposait au mob. Les
+        // shaders écrivent maintenant (0, 0, 0, alpha) en location 1 : avec le même mélange que la
+        // couleur, le bloom est masqué par les mobs et particules opaques, atténué par les
+        // translucides. Aucune valeur indéfinie, pas de colorWriteMask nul.
         let mob_desc = |depth_write: bool, colors| Desc {
             vs: shaders::MOB_VERT,
             fs: shaders::MOB_FRAG,
@@ -445,8 +453,8 @@ impl Pipelines {
             colors,
             layout: mob_layout,
         };
-        let opaque_b2 = [hdr(false, true)];
-        let blended_b2 = [hdr(true, true)];
+        let opaque_b2 = [hdr(false, true), hdr(false, true)];
+        let blended_b2 = [hdr(true, true), hdr(true, true)];
         let mob_opaque = build(ctx, &mob_desc(true, &opaque_b2))?;
         let mob_transparent = build(ctx, &mob_desc(false, &blended_b2))?;
         let particle = build(
@@ -467,8 +475,10 @@ impl Pipelines {
         Ok(Self {
             frame_set_layout,
             texture_set_layout,
+            fluid_set_layout,
             pp_set_layout,
             terrain_layout,
+            fluid_layout,
             hl_layout,
             blur_layout,
             pp_layout,
@@ -507,6 +517,7 @@ impl Pipelines {
             }
             for l in [
                 self.terrain_layout,
+                self.fluid_layout,
                 self.hl_layout,
                 self.blur_layout,
                 self.pp_layout,
@@ -518,6 +529,7 @@ impl Pipelines {
             for l in [
                 self.frame_set_layout,
                 self.texture_set_layout,
+                self.fluid_set_layout,
                 self.pp_set_layout,
             ] {
                 ctx.device.destroy_descriptor_set_layout(l, None);

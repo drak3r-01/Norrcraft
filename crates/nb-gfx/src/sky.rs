@@ -121,12 +121,19 @@ pub fn sky_params(time_of_day: f32) -> SkyParams {
     let (zenith, horizon, sun_color, base_fog, ambient, light_color, aurora);
     if h > 0.1 {
         let t = ((h - 0.1) / 0.5).min(1.0);
-        zenith = lerp(v(0.8, 0.4, 0.4), v(0.12, 0.32, 0.75), t);
-        horizon = lerp(v(0.9, 0.6, 0.3), v(0.65, 0.8, 0.95), t);
+        // Courbe en racine pour le ciel : la dominante chaude de l'aube disparaît plus vite (sinon un
+        // ciel violet persiste tard dans la matinée).
+        let ts = t.sqrt();
+        // Jour : zénith bleu franc, horizon bleu clair mais plus saturé (le Java donnait un horizon
+        // presque blanc après tonemapping, d'où un voile « plastique » à moyenne distance).
+        zenith = lerp(v(0.8, 0.4, 0.4), v(0.09, 0.27, 0.70), ts);
+        horizon = lerp(v(0.9, 0.6, 0.3), v(0.46, 0.65, 0.90), ts);
         sun_color = lerp(v(1.8, 0.8, 0.4), v(3.0, 2.4, 1.8), t);
         base_fog = lerp(v(0.8, 0.5, 0.3), v(0.45, 0.65, 0.9), t);
-        ambient = lerp(v(0.3, 0.25, 0.25), v(0.4, 0.4, 0.4), t);
-        light_color = lerp(v(0.5, 0.3, 0.2), v(0.6, 0.6, 0.6), t);
+        // Ombre bleutée (ciel) et soleil chaud : même éclairement total qu'avant (≈ 1,0) mais plus
+        // de contraste et de relief entre zones ombragées et ensoleillées.
+        ambient = lerp(v(0.3, 0.25, 0.25), v(0.29, 0.35, 0.46), t);
+        light_color = lerp(v(0.5, 0.3, 0.2), v(0.70, 0.64, 0.50), t);
         aurora = 0.0;
     } else if h > -0.1 {
         let t = (h + 0.1) / 0.2;
@@ -194,11 +201,11 @@ mod tests {
         let p = sky_params(900.0);
         close(p.light_dir, [0.0, -0.957_826_3, -0.287_347_9]);
         close(p.shadow_light_dir, [0.0, -0.957_826_3, -0.287_347_9]);
-        close(p.zenith, [0.12, 0.32, 0.75]);
-        close(p.horizon, [0.65, 0.8, 0.95]);
+        close(p.zenith, [0.09, 0.27, 0.70]);
+        close(p.horizon, [0.46, 0.65, 0.90]);
         close(p.sun_color, [3.0, 2.4, 1.8]);
-        close(p.ambient, [0.4, 0.4, 0.4]);
-        close(p.light_color, [0.6, 0.6, 0.6]);
+        close(p.ambient, [0.29, 0.35, 0.46]);
+        close(p.light_color, [0.70, 0.64, 0.50]);
         close(p.base_fog, [0.45, 0.65, 0.9]);
         assert_eq!(p.aurora_intensity, 0.0);
     }

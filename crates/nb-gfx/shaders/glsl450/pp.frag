@@ -13,8 +13,14 @@
 //    ray-marching fbm (≈ 20 pas sans aucune lecture de texture) ;
 //  - ajouts : disque de soleil / de lune, étoiles, tramage final contre le banding.
 //
-// Le dégradé de ciel, le halo solaire, le brouillard, le filtre chaud et ACES sont inchangés
-// (ils sont vérifiés pixel à pixel par tests/render.rs).
+// Atmosphère de jour (refonte « moins plastique, moins blanc ») :
+//  - brume à extinction par canal (le bleu s'éteint plus vite que le rouge), densité réduite en
+//    altitude : les reliefs lointains se détachent au lieu de se fondre dans un voile blanc ;
+//  - lobe de diffusion du soleil large (halo chaud autour de l'astre, aussi sur le terrain) ;
+//  - tonemapping ACES mélangé à une courbe qui conserve la teinte (les couleurs vives ne virent
+//    plus au blanc), légère saturation.
+// Le dégradé de ciel, le halo solaire et le filtre chaud restent vérifiés pixel à pixel par
+// tests/render.rs, dont les références CPU reprennent ces formules.
 #include "frame.glsl"
 
 layout (location = 0) out vec4 FragColor;
@@ -51,7 +57,13 @@ const float MOON_RADIUS_COS_OUT = 0.99935;   // rayon apparent ≈ 0.036 rad
 const float MOON_RADIUS_COS_IN  = 0.99955;
 const float STAR_GRID           = 110.0;     // cases de ~0,5° sur la sphère céleste
 
-const vec3  WARM_FILTER = vec3(1.15, 1.05, 0.95);
+const vec3  WARM_FILTER = vec3(1.10, 1.04, 0.97);
+
+// Brume : extinction relative par canal (R, V, B) et décroissance avec l'altitude moyenne du trajet.
+const vec3  AIR_EXTINCTION   = vec3(0.92, 1.00, 1.18);
+const float FOG_HEIGHT_BASE  = 62.0;
+const float FOG_HEIGHT_SCALE = 0.012;
+const float SUN_SCATTER      = 0.055;   // intensité du lobe de diffusion large du soleil
 
 // ----------------------------------------------------------------------------------------------
 // Utilitaires
@@ -221,7 +233,9 @@ vec3 getCelestialDisc(vec3 rd, vec3 bodyDir, bool moon, vec3 sunColor) {
         return vec3(0.78, 0.84, 1.00) * 1.7 * disc * fade;
     }
     float disc = smoothstep(SUN_RADIUS_COS_OUT, SUN_RADIUS_COS_IN, c);
-    return sunColor * 5.0 * disc * fade;
+    // Coeur blanc-chaud : sans cela le tonemapping qui conserve la teinte donnait un disque orange
+    // plat au coucher du soleil.
+    return (sunColor * 0.5 + vec3(1.5)) * 5.0 * disc * fade;
 }
 
 // ----------------------------------------------------------------------------------------------
@@ -269,6 +283,21 @@ vec4 getClouds(vec3 camPos, vec3 rd, float time, float depth, float dist,
 vec3 ACESFilm(vec3 x) {
     const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
     return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+// ACES par canal (désature les hautes lumières) mélangé à ACES appliqué à la luminance seule (garde
+// la teinte), puis saturation légère. Évite l'aspect plastique blanc des verts et bleus vifs.
+const float TONE_HUE_KEEP   = 0.60;
+const float TONE_SATURATION = 1.04;
+vec3 tonemap(vec3 x) {
+    const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+    vec3 perChannel = ACESFilm(x);
+    float l = dot(x, LUMA);
+    vec3 hueKeep = x * (ACESFilm(vec3(l)).x / max(l, 1e-4));
+    hueKeep /= max(1.0, max(hueKeep.r, max(hueKeep.g, hueKeep.b)));
+    vec3 c = mix(perChannel, hueKeep, TONE_HUE_KEEP);
+    float g = dot(c, LUMA);
+    return clamp(mix(vec3(g), c, TONE_SATURATION), 0.0, 1.0);
 }
 
 void main() {
@@ -325,7 +354,18 @@ void main() {
         fogDensity = 0.3;
         fogFalloff = 1.0;
     }
-    float fogFactor = clamp(exp(-pow(dist * fogDensity, fogFalloff)), 0.0, 1.0);
+    // Air : densité réduite avec l'altitude moyenne du trajet, extinction plus rapide du bleu.
+    float fogFactor;
+    vec3 fogTrans;
+    if (fluid == FLUID_AIR) {
+        float hAvg = 0.5 * (camPos.y + (depth < 1.0 ? worldPos.y : camPos.y));
+        float heightK = exp(-max(hAvg - FOG_HEIGHT_BASE, 0.0) * FOG_HEIGHT_SCALE);
+        fogTrans = clamp(exp(-pow(dist * fogDensity * heightK, fogFalloff) * AIR_EXTINCTION), 0.0, 1.0);
+        fogFactor = dot(fogTrans, vec3(1.0 / 3.0));
+    } else {
+        fogFactor = clamp(exp(-pow(dist * fogDensity, fogFalloff)), 0.0, 1.0);
+        fogTrans = vec3(fogFactor);
+    }
 
     // ------------------------------------------------------------------ ciel (couleur du fond)
     vec3 zenithColor = u.zenithColor.xyz;
@@ -335,8 +375,11 @@ void main() {
 
     float skyGradient = clamp(pow(max(0.0, viewDir.y + 0.05), 0.6), 0.0, 1.0);
     vec3 skyColor = mix(horizonColor, zenithColor, skyGradient);
-    // Halo du soleil (plein) ou de la lune (atténué : la nuit il écrasait les étoiles).
-    vec3 sunHalo = fluid == FLUID_AIR ? pow(sunDot, 64.0) * uSunColor * mix(1.0, 0.3, night) : vec3(0.0);
+    // Halo du soleil (plein) ou de la lune (atténué) + lobe de diffusion large (visible aussi sur la
+    // brume du terrain, qui reprend cette couleur).
+    vec3 sunHalo = fluid == FLUID_AIR
+        ? (pow(sunDot, 64.0) * mix(1.0, 0.3, night) + pow(sunDot, 7.0) * SUN_SCATTER * (1.0 - night)) * uSunColor
+        : vec3(0.0);
 
     // Éléments du ciel : seulement là où le fond est visible (ni sous l'eau, ni derrière du
     // terrain proche entièrement noyé dans le brouillard).
@@ -365,7 +408,7 @@ void main() {
     } else if (fluid == FLUID_LAVA) {
         finalFogColor = pow(uFogColor, vec3(2.2));
     }
-    hdrColor = mix(finalFogColor, hdrColor, fogFactor);
+    hdrColor = mix(finalFogColor, hdrColor, fogTrans);
 
     // ------------------------------------------------------------------ nuages
     if (fluid == FLUID_AIR && viewDir.y > 0.0) {
@@ -392,7 +435,7 @@ void main() {
     }
 
     // ------------------------------------------------------------------ tonemapping + sortie
-    vec3 mapped = pow(ACESFilm(hdrColor), vec3(1.0 / 2.2));
+    vec3 mapped = pow(tonemap(hdrColor), vec3(1.0 / 2.2));
     // Tramage triangulaire d'amplitude ±1/255 : supprime le banding des dégradés sombres (ciel
     // nocturne, aurores) sans changer la couleur moyenne.
     float n1 = interleavedGradientNoise(gl_FragCoord.xy);

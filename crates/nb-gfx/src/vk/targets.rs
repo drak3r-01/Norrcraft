@@ -15,6 +15,8 @@ pub struct HdrTargets {
     pub color: Image,
     /// `brightBuffer` (source du bloom).
     pub bright: Image,
+    /// Copie de `color` après le terrain opaque (source de la réfraction des fluides).
+    pub refract: Image,
     /// `depthBuffer`, échantillonné par les fluides et le composite.
     pub depth: Image,
     /// `pingpong[0..2]`, `(W/2) × (H/2)`.
@@ -30,13 +32,23 @@ impl HdrTargets {
         Ok(Self {
             color: Image::new(
                 ctx,
-                ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage),
+                ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage | vk::ImageUsageFlags::TRANSFER_SRC),
                 "hdr-color",
             )?,
             bright: Image::new(
                 ctx,
                 ImageDesc::color_2d(w, h, HDR_COLOR_FORMAT, usage),
                 "hdr-bright",
+            )?,
+            refract: Image::new(
+                ctx,
+                ImageDesc::color_2d(
+                    w,
+                    h,
+                    HDR_COLOR_FORMAT,
+                    vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+                ),
+                "hdr-refract",
             )?,
             depth: Image::new(
                 ctx,
@@ -67,6 +79,7 @@ impl HdrTargets {
     pub fn destroy(&mut self, ctx: &GpuContext) {
         self.color.destroy(ctx);
         self.bright.destroy(ctx);
+        self.refract.destroy(ctx);
         self.depth.destroy(ctx);
         for p in &mut self.ping {
             p.destroy(ctx);

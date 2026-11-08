@@ -245,9 +245,6 @@ fn sky_matches_cpu_reference() {
     c.aspect = W as f32 / H as f32;
     let inv_proj = c.proj_gl().inverse();
     let inv_view = c.view().inverse();
-    let aces = |x: Vec3| {
-        ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(Vec3::ZERO, Vec3::ONE)
-    };
     let mut checked = 0;
     for py in (H / 2 + 4..H).step_by(7) {
         for px in (0..W).step_by(13) {
@@ -264,8 +261,9 @@ fn sky_matches_cpu_reference() {
             let g = (dir.y + 0.05).max(0.0).powf(0.6).clamp(0.0, 1.0);
             let sky_col = sky.horizon.lerp(sky.zenith, g);
             let sun_dot = dir.dot(-sky.shadow_light_dir.normalize()).max(0.0);
-            let col = sky_col + sun_dot.powf(64.0) * sky.sun_color;
-            let mapped = aces(col * Vec3::new(1.15, 1.05, 0.95)).powf(1.0 / 2.2) * 255.0;
+            let halo = sun_dot.powf(64.0) + sun_dot.powf(7.0) * SUN_SCATTER;
+            let col = sky_col + halo * sky.sun_color;
+            let mapped = tonemap(col * WARM).powf(1.0 / 2.2) * 255.0;
             let p = img.get_pixel(px, py);
             for k in 0..3 {
                 let d = (f32::from(p[k]) - mapped[k]).abs();
@@ -283,9 +281,36 @@ fn sky_matches_cpu_reference() {
     assert_no_validation_errors();
 }
 
+/// Miroir CPU de pp.frag : filtre chaud, extinction de brume par canal, tonemapping.
+const WARM: Vec3 = Vec3::new(1.10, 1.04, 0.97);
+const SUN_SCATTER: f32 = 0.055;
+
+fn aces(x: Vec3) -> Vec3 {
+    ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(Vec3::ZERO, Vec3::ONE)
+}
+
+fn tonemap(x: Vec3) -> Vec3 {
+    let luma = Vec3::new(0.2126, 0.7152, 0.0722);
+    let per_channel = aces(x);
+    let l = x.dot(luma);
+    let mut hue_keep = x * (aces(Vec3::splat(l)).x / l.max(1e-4));
+    hue_keep /= hue_keep.max_element().max(1.0);
+    let c = per_channel.lerp(hue_keep, 0.60);
+    let g = c.dot(luma);
+    (Vec3::splat(g).lerp(c, 1.04)).clamp(Vec3::ZERO, Vec3::ONE)
+}
+
+/// Transmittance de la brume d'air (densité 0,002, exposant 1,8) pour un trajet de longueur `dist`
+/// entre la caméra (altitude `cam_y`) et un point d'altitude `frag_y`.
+fn air_transmittance(dist: f32, cam_y: f32, frag_y: f32) -> Vec3 {
+    let h_avg = 0.5 * (cam_y + frag_y);
+    let height_k = (-(h_avg - 62.0).max(0.0) * 0.012).exp();
+    let d = (dist * 0.002 * height_k).powf(1.8);
+    Vec3::new((-d * 0.92).exp(), (-d).exp(), (-d * 1.18).exp())
+}
+
 fn aces_gamma(x: Vec3) -> Vec3 {
-    let a = ((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)).clamp(Vec3::ZERO, Vec3::ONE);
-    a.powf(1.0 / 2.2) * 255.0
+    tonemap(x).powf(1.0 / 2.2) * 255.0
 }
 
 /// Terrain opaque éclairé (main.frag) puis brouillard + tonemapping (pp.frag), comparé à un
@@ -336,11 +361,11 @@ fn lit_terrain_matches_cpu_reference() {
         save(name, &img);
         let sky = sky_params(time);
         let dist = 10.0 / 89f32.to_radians().sin();
-        let fog = (-(dist * 0.002f32).powf(1.8)).exp();
+        let fog = air_transmittance(dist, 70.0, 60.0);
         // Regard quasi vertical vers le bas : ciel = horizon, pas de halo.
         let lit =
             Vec3::new(1.0, 0.0, 1.0) * Vec3::new(0.8, 0.9, 0.7) * (sky.ambient + sky.light_color);
-        let hdr = sky.horizon.lerp(lit, fog) * Vec3::new(1.15, 1.05, 0.95);
+        let hdr = (sky.horizon * (Vec3::ONE - fog) + lit * fog) * WARM;
         let expect = aces_gamma(hdr);
         let p = img.get_pixel(W / 2, H / 2);
         for k in 0..3 {
@@ -664,8 +689,9 @@ fn expected_center(hdr: Vec3, dist: f32) -> Vec3 {
     let sky = sky_params(900.0);
     let g = 0.05f32.powf(0.6);
     let fog_col = sky.horizon.lerp(sky.zenith, g);
-    let fog = (-(dist * 0.002f32).powf(1.8)).exp();
-    aces_gamma(fog_col.lerp(hdr, fog) * Vec3::new(1.15, 1.05, 0.95))
+    // Caméra et mob à la même altitude (70).
+    let fog = air_transmittance(dist, 70.0, 70.0);
+    aces_gamma((fog_col * (Vec3::ONE - fog) + hdr * fog) * WARM)
 }
 
 fn assert_pixel(img: &RgbaImage, x: u32, y: u32, expect: Vec3, what: &str) {

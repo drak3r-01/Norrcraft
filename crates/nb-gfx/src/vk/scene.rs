@@ -237,6 +237,16 @@ fn chunk_aabb() -> Vec<[f32; 3]> {
         .collect()
 }
 
+/// Couche couleur unique, mip 0.
+fn color_layers() -> vk::ImageSubresourceLayers {
+    vk::ImageSubresourceLayers {
+        aspect_mask: vk::ImageAspectFlags::COLOR,
+        mip_level: 0,
+        base_array_layer: 0,
+        layer_count: 1,
+    }
+}
+
 fn image_info(
     view: vk::ImageView,
     sampler: vk::Sampler,
@@ -267,7 +277,7 @@ pub struct SceneRenderer {
     slots: Vec<Slot>,
     /// Set 1 de la passe opaque (texture factice : `opaqueDepth` n'y est pas lu).
     dummy_set: vk::DescriptorSet,
-    /// Set 1 des fluides : profondeur HDR.
+    /// Set 1 des fluides : profondeur HDR du terrain opaque + copie de sa couleur (réfraction).
     depth_set: vk::DescriptorSet,
     /// Sources du flou : bright, ping0, ping1.
     blur_sets: [vk::DescriptorSet; 3],
@@ -337,7 +347,7 @@ impl SceneRenderer {
             },
             vk::DescriptorPoolSize {
                 ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-                descriptor_count: 7 * n + 5,
+                descriptor_count: 7 * n + 6,
             },
         ];
         let pool_ci = vk::DescriptorPoolCreateInfo::default()
@@ -356,7 +366,8 @@ impl SceneRenderer {
             };
         let frame_sets = alloc_sets(pipelines.frame_set_layout, FRAMES_IN_FLIGHT)?;
         let pp_sets = alloc_sets(pipelines.pp_set_layout, FRAMES_IN_FLIGHT)?;
-        let tex_sets = alloc_sets(pipelines.texture_set_layout, 5)?;
+        let tex_sets = alloc_sets(pipelines.texture_set_layout, 4)?;
+        let fluid_sets = alloc_sets(pipelines.fluid_set_layout, 1)?;
 
         let cp_ci = vk::CommandPoolCreateInfo::default()
             .queue_family_index(c.queue_family)
@@ -432,8 +443,8 @@ impl SceneRenderer {
             command_pool,
             slots,
             dummy_set: tex_sets[0],
-            depth_set: tex_sets[1],
-            blur_sets: [tex_sets[2], tex_sets[3], tex_sets[4]],
+            depth_set: fluid_sets[0],
+            blur_sets: [tex_sets[1], tex_sets[2], tex_sets[3]],
             aabb,
             lines,
             mobs,
@@ -771,15 +782,17 @@ impl SceneRenderer {
                 image_info(t.depth.view, self.samplers.nearest_clamp, depth_ro),
                 image_info(t.bright.view, self.samplers.linear_clamp, ro),
                 image_info(t.ping[1].view, self.samplers.linear_clamp, ro),
+                image_info(t.refract.view, self.samplers.linear_clamp, ro),
             )
         });
-        if let Some((color, ping0, depth, bright, ping1)) = &target_infos {
+        if let Some((color, ping0, depth, bright, ping1, refract)) = &target_infos {
             for s in &self.slots {
                 writes.push(tex(s.pp_set, 1, color));
                 writes.push(tex(s.pp_set, 2, ping0));
                 writes.push(tex(s.pp_set, 3, depth));
             }
             writes.push(tex(self.depth_set, 0, depth));
+            writes.push(tex(self.depth_set, 1, refract));
             writes.push(tex(self.blur_sets[0], 0, bright));
             writes.push(tex(self.blur_sets[1], 0, ping0));
             writes.push(tex(self.blur_sets[2], 0, ping1));
@@ -919,8 +932,11 @@ impl SceneRenderer {
             &mut self.shadow_visible,
         );
 
+        // Couche d'atlas de la lave (fluid.frag distingue ainsi lave et eau ; -1 = absente).
+        let mut uniforms = derived.uniforms;
+        uniforms.flags[3] = self.atlas_cpu.lava_layer();
         let slot = &mut self.slots[token.slot];
-        slot.ubo.write(0, bytemuck::bytes_of(&derived.uniforms))?;
+        slot.ubo.write(0, bytemuck::bytes_of(&uniforms))?;
         let needed = if self.occlusion_enabled {
             self.visible.len() as u32
         } else {
@@ -1112,6 +1128,62 @@ impl SceneRenderer {
                 Transition::DEPTH_READ,
             );
 
+            // Réfraction : copie de la couleur du terrain opaque, échantillonnée par les fluides.
+            // Sautée quand aucun chunk n'a de fluide à dessiner.
+            if !self.fluid_order.is_empty() {
+                let copy = vk::ImageCopy {
+                    src_subresource: color_layers(),
+                    src_offset: vk::Offset3D::default(),
+                    dst_subresource: color_layers(),
+                    dst_offset: vk::Offset3D::default(),
+                    extent: vk::Extent3D {
+                        width: extent.width,
+                        height: extent.height,
+                        depth: 1,
+                    },
+                };
+                barrier(
+                    ctx,
+                    cmd,
+                    t.color.raw,
+                    t.color.range(),
+                    Transition::COLOR_ATTACHMENT,
+                    Transition::TRANSFER_SRC,
+                );
+                barrier(
+                    ctx,
+                    cmd,
+                    t.refract.raw,
+                    t.refract.range(),
+                    Transition::SHADER_READ.discard(),
+                    Transition::TRANSFER_DST,
+                );
+                d.cmd_copy_image(
+                    cmd,
+                    t.color.raw,
+                    vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                    t.refract.raw,
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    &[copy],
+                );
+                barrier(
+                    ctx,
+                    cmd,
+                    t.refract.raw,
+                    t.refract.range(),
+                    Transition::TRANSFER_DST,
+                    Transition::SHADER_READ,
+                );
+                barrier(
+                    ctx,
+                    cmd,
+                    t.color.raw,
+                    t.color.range(),
+                    Transition::TRANSFER_SRC,
+                    Transition::COLOR_ATTACHMENT,
+                );
+            }
+
             // Scène B1 : fluides, profondeur en lecture seule + échantillonnée (§18.4.4).
             let colors = [
                 color_attachment(t.color.view, vk::AttachmentLoadOp::LOAD, clear),
@@ -1124,7 +1196,7 @@ impl SceneRenderer {
             d.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
-                self.pipelines.terrain_layout,
+                self.pipelines.fluid_layout,
                 0,
                 &[frame_set, self.depth_set],
                 &[],
@@ -1136,17 +1208,19 @@ impl SceneRenderer {
 
             // 9–10. Scène B2 : mobs (plage opaque avec écriture de profondeur) puis particules
             // (§14.1, §15, §18.4.4). Profondeur repassée en attachement inscriptible, plus
-            // échantillonnée. Seul `colorBuffer` est attaché : le bright buffer reste inchangé
-            // (§14.1, voir `Pipelines`). Passe sautée si rien à dessiner (résultat identique).
+            // échantillonnée. Les deux tampons HDR sont attachés : les mobs et particules masquent le
+            // bloom derrière eux (voir `Pipelines`). Passe sautée si rien à dessiner (résultat identique).
             if !input.mobs.is_empty() || !input.particles.is_empty() {
-                barrier(
-                    ctx,
-                    cmd,
-                    t.color.raw,
-                    t.color.range(),
-                    Transition::COLOR_ATTACHMENT,
-                    Transition::COLOR_ATTACHMENT,
-                );
+                for img in [&t.color, &t.bright] {
+                    barrier(
+                        ctx,
+                        cmd,
+                        img.raw,
+                        img.range(),
+                        Transition::COLOR_ATTACHMENT,
+                        Transition::COLOR_ATTACHMENT,
+                    );
+                }
                 barrier(
                     ctx,
                     cmd,
@@ -1155,11 +1229,10 @@ impl SceneRenderer {
                     Transition::DEPTH_READ,
                     Transition::DEPTH_ATTACHMENT,
                 );
-                let colors = [color_attachment(
-                    t.color.view,
-                    vk::AttachmentLoadOp::LOAD,
-                    clear,
-                )];
+                let colors = [
+                    color_attachment(t.color.view, vk::AttachmentLoadOp::LOAD, clear),
+                    color_attachment(t.bright.view, vk::AttachmentLoadOp::LOAD, clear),
+                ];
                 let depth_att = depth_attachment(t.depth.view, vk::AttachmentLoadOp::LOAD, false);
                 begin_rendering(d, cmd, extent, &colors, Some(&depth_att));
                 set_viewport(d, cmd, extent);

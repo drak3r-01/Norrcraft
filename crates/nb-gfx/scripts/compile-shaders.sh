@@ -11,5 +11,5 @@ for f in glsl450/*.vert glsl450/*.frag; do
   glslangValidator --quiet -V --target-env vulkan1.3 -Iglsl450 -o "spv/$name.spv" "$f"
   spirv-val --target-env vulkan1.3 "spv/$name.spv"
 done
-(cd glsl450 && sha256sum frame.glsl *.vert *.frag) > spv/SOURCES.sha256
+(cd glsl450 && sha256sum *.glsl *.vert *.frag) > spv/SOURCES.sha256
 echo "SPIR-V à jour :"; ls spv
