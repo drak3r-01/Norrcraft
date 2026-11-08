@@ -286,8 +286,38 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default();
+        meta.survival = self.survival_save(regs);
         save::save_metadata(root, &meta)?;
         flushed
+    }
+
+    /// Faim, chaleur, endurance, usure des outils et armure portée.
+    fn survival_save(&self, regs: &Registries) -> Option<save::SurvivalSave> {
+        let p = self.sim.player?;
+        let v = self.sim.entities.copy::<nb_ecs::Vitals>(p)?;
+        let inv = self.inventory()?;
+        let wear = inv
+            .slots()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| s.filter(|s| s.wear > 0).map(|s| (i as i32, s.wear)))
+            .collect();
+        let armor = inv
+            .armor_slots()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, s)| {
+                s.map(|s| (i as u8, regs.items.name_of(s.item).to_owned(), s.wear))
+            })
+            .collect();
+        Some(save::SurvivalSave {
+            hunger: v.hunger,
+            saturation: v.saturation,
+            warmth: v.warmth,
+            stamina: v.stamina,
+            wear,
+            armor,
+        })
     }
 
     /// `WorldSaveManager.applyPlayerState`.
@@ -331,9 +361,36 @@ impl WorldSession {
             for sd in &meta.inventory_slots {
                 // Objet inconnu (pack ou version différente) : case ignorée.
                 if let Some(item) = regs.items.id_of(&sd.block_name) {
-                    inv.0
-                        .set_slot(sd.slot, Some(ItemStack::new(item, sd.count)));
+                    let wear = meta
+                        .survival
+                        .as_ref()
+                        .and_then(|s| s.wear.iter().find(|(i, _)| *i == sd.slot))
+                        .map_or(0, |(_, w)| *w);
+                    inv.0.set_slot(
+                        sd.slot,
+                        Some(ItemStack::new(item, sd.count).with_wear(wear)),
+                    );
                 }
+            }
+            if let Some(sv) = &meta.survival {
+                for (k, name, wear) in &sv.armor {
+                    let (Some(item), Some(slot)) = (
+                        regs.items.id_of(name),
+                        nb_data::ArmorSlot::ALL.get(usize::from(*k)).copied(),
+                    ) else {
+                        continue;
+                    };
+                    inv.0
+                        .set_armor(slot, Some(ItemStack::new(item, 1).with_wear(*wear)));
+                }
+            }
+        }
+        if let Some(sv) = &meta.survival {
+            if let Some(v) = e.get_mut::<nb_ecs::Vitals>(id) {
+                v.hunger = sv.hunger.clamp(0.0, 20.0);
+                v.saturation = sv.saturation.clamp(0.0, 20.0);
+                v.warmth = sv.warmth.clamp(0.0, 100.0);
+                v.stamina = sv.stamina.clamp(0.0, 100.0);
             }
         }
     }

@@ -70,6 +70,33 @@ pub struct InventorySlot {
     pub count: i32,
 }
 
+/// État de survie sauvegardé (absent des anciens mondes : valeurs par défaut au chargement).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SurvivalSave {
+    pub hunger: f32,
+    pub saturation: f32,
+    pub warmth: f32,
+    pub stamina: f32,
+    /// Usure des outils et armures de l'inventaire : `(case, usure)`.
+    pub wear: Vec<(i32, u16)>,
+    /// Armure portée : `(emplacement 0..4, objet, usure)`.
+    pub armor: Vec<(u8, String, u16)>,
+}
+
+impl Default for SurvivalSave {
+    fn default() -> Self {
+        Self {
+            hunger: 20.0,
+            saturation: 5.0,
+            warmth: 100.0,
+            stamina: 100.0,
+            wear: Vec::new(),
+            armor: Vec::new(),
+        }
+    }
+}
+
 fn default_game_mode() -> String {
     "CREATIVE".to_owned()
 }
@@ -97,6 +124,9 @@ pub struct WorldMetadata {
     pub inventory_slots: Vec<InventorySlot>,
     #[serde(default)]
     pub world_config: WorldConfig,
+    /// Faim, chaleur, endurance, usure et armure (mode survie).
+    #[serde(default)]
+    pub survival: Option<SurvivalSave>,
 }
 
 impl WorldMetadata {
@@ -114,6 +144,7 @@ impl WorldMetadata {
             player: None,
             inventory_slots: Vec::new(),
             world_config: WorldConfig::default(),
+            survival: None,
         }
     }
 
