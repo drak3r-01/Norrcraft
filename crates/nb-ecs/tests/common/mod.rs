@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use nb_core::glam::{DVec3, IVec3, Vec3};
-use nb_data::{BlockId, BlockIds, BlockRegistry, MobRegistry, ParticleRegistry};
+use nb_data::{BlockId, BlockIds, BlockRegistry, MobRegistry};
 use nb_ecs::{
     execute_command, CameraState, EcsEvent, EcsRngs, EntityId, GameAction, GameMode, Health,
     InventoryComp, MemoryBlocks, Player, PlayerInput, Simulation, TickCtx, TimeControl, Transform,
@@ -29,7 +29,6 @@ impl TimeControl for FakeTime {
 pub struct Harness {
     pub reg: BlockRegistry,
     pub mobs: MobRegistry,
-    pub ptypes: ParticleRegistry,
     pub cfg: WorldConfig,
     pub blocks: MemoryBlocks,
     pub rngs: EcsRngs,
@@ -56,7 +55,6 @@ impl Harness {
         Self {
             reg,
             mobs,
-            ptypes: ParticleRegistry::builtin(),
             cfg: WorldConfig::default(),
             blocks: MemoryBlocks::new(air),
             rngs: EcsRngs::from_seed(seed),
@@ -125,7 +123,6 @@ impl Harness {
             blocks: &mut self.blocks,
             block_reg: &self.reg,
             mobs: &self.mobs,
-            particle_types: &self.ptypes,
             config: &mut self.cfg,
             input: &self.input,
             rngs: &mut self.rngs,

@@ -875,6 +875,7 @@ dependencies = [
  "nb-gfx",
  "nb-mesh",
  "nb-net",
+ "nb-particles",
  "nb-ui",
  "nb-world",
  "serde_json",

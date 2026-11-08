@@ -19,8 +19,9 @@ use nb_world::{FileChunkStorage, InMemoryChunkStorage, World, WorldConfig};
 use crate::chat::Chat;
 use crate::chunks::{sorted_active_positions_near, WorldChunks};
 use crate::input::{Action, InputManager};
-use crate::net::{LanBrowser, LanView, NetMode};
-use crate::render::{build_view, ParticleLayers, RenderInterp, RenderView};
+use crate::net::{LanBrowser, LanRole, LanView, NetMode};
+use crate::fx::Fx;
+use crate::render::{build_view, RenderInterp, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
 
@@ -171,7 +172,8 @@ pub struct Game {
     ticks: u64,
     trace: Option<Vec<Step>>,
     last_error: Option<String>,
-    particle_layers: ParticleLayers,
+    /// Particules (voir [`crate::fx`]), avancées à la cadence de rendu.
+    fx: Fx,
     /// Partie en réseau local (hôte, client ou rien).
     net: NetMode,
     lan_browser: LanBrowser,
@@ -227,6 +229,7 @@ impl Game {
             GameMode::Creative,
             rngs,
         );
+        let fx = Fx::new(&regs.blocks);
         let threads = opts.mesh_threads.unwrap_or_else(nb_mesh::default_threads);
         let (w, h) = opts.window_size;
         let mut g = Self {
@@ -265,7 +268,7 @@ impl Game {
             ticks: 0,
             trace: None,
             last_error: None,
-            particle_layers: ParticleLayers::builtin(),
+            fx,
             net: NetMode::Off,
             lan_browser: LanBrowser::for_options(&opts),
             lan_view: LanView::default(),
@@ -451,9 +454,19 @@ impl Game {
         &self.block_table
     }
 
-    /// Couches de l'atlas des particules du renderer (par défaut : atlas intégré).
-    pub fn set_particle_layers(&mut self, atlas: &nb_gfx::TextureArrayCpu) {
-        self.particle_layers = ParticleLayers::from_atlas(atlas);
+    /// Atlas des blocs du renderer : couche et teinte des éclats de blocs (à rappeler après un
+    /// changement de pack de ressources).
+    pub fn set_block_atlas(&mut self, atlas: &nb_gfx::TextureArrayCpu) {
+        self.fx.set_block_atlas(&self.regs.blocks, atlas);
+    }
+
+    /// Moteur d effets de particules (météo, tests, outils).
+    pub fn fx(&self) -> &Fx {
+        &self.fx
+    }
+
+    pub fn fx_mut(&mut self) -> &mut Fx {
+        &mut self.fx
     }
 
     /// Taille du framebuffer (callback de redimensionnement) ; traitée au prochain tick.
@@ -483,7 +496,7 @@ impl Game {
             &self.session.sim,
             &self.regs.blocks,
             &self.regs.mobs,
-            &self.particle_layers,
+            self.fx.instances(),
             &self.sky,
             self.aspect,
             self.avatars(),
@@ -537,6 +550,27 @@ impl Game {
         let avatars = self.avatars();
         self.anim
             .update(dt, &cam, &self.regs.mobs, &samples, &avatars);
+        // Particules : temps réel, indépendant du pas fixe.
+        let reg = &self.regs.blocks;
+        let in_water = self
+            .session
+            .sim
+            .player
+            .and_then(|p| self.session.sim.entities.copy::<nb_ecs::Player>(p))
+            .is_some_and(|p| p.fluid_at_eye_level == reg.ids().water);
+        let local_light = crate::render::mob_light(&self.session.world, reg, c.position.as_dvec3());
+        self.fx
+            .set_mob_positions(mobs.iter().map(|m| (m.entity, m.position)));
+        self.fx.frame(
+            dt,
+            &self.session.world,
+            &self.session.sim,
+            cam.eye,
+            cam.forward,
+            &self.sky,
+            local_light,
+            in_water,
+        );
     }
 
     /// Système d'animation des mobs (statistiques, tests).
@@ -630,13 +664,19 @@ impl Game {
         {
             let role = self.net.role();
             let mut outgoing = Vec::new();
-            let (chat, input, session, sky) = (
+            let (chat, input, session, sky, fx) = (
                 &mut self.chat,
                 &mut self.input,
                 &mut self.session,
                 &mut self.sky,
+                &mut self.fx,
             );
             chat.update(dt, input, |cmd| {
+                if role != LanRole::Client {
+                    if let Some(reply) = fx.command(cmd) {
+                        return Some(reply);
+                    }
+                }
                 Self::chat_submit(session, sky, role, &mut outgoing, cmd)
             });
             self.net_send_chat(outgoing);
@@ -652,6 +692,7 @@ impl Game {
         self.step(Step::State(self.state));
         let ev_start = self.events.len();
         self.update_state(dt);
+        self.fx.on_events(self.events.get(ev_start..).unwrap_or(&[]));
         self.net_post_tick(dt, ev_start);
         self.refresh_lan_view();
         self.ticks += 1;
@@ -1206,6 +1247,7 @@ impl Game {
         if self.session.name.is_none() {
             return;
         }
+        self.fx.clear();
         self.release_session();
         self.install_menu_world();
     }

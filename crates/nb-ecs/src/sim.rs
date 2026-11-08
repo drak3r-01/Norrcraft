@@ -6,7 +6,6 @@ use nb_data::BlockId;
 use nb_world::WorldConfig;
 
 use crate::components::{CameraState, EntityId, GameMode, MobType, Player};
-use crate::particles::ParticleManager;
 use crate::player::{init_player, respawn_player};
 use crate::schedule::{Schedule, TickCtx};
 use crate::world::EntityWorld;
@@ -18,7 +17,6 @@ pub const TICK_DT: f32 = (1.0f64 / 60.0) as f32;
 pub struct Simulation {
     pub entities: EntityWorld,
     pub schedule: Schedule,
-    pub particles: ParticleManager,
     pub player: Option<EntityId>,
     /// Dernière position (yeux) utilisée pour le spawn et les particules.
     spawn_player_pos: Vec3,
@@ -36,7 +34,6 @@ impl Simulation {
         Self {
             entities: EntityWorld::new(),
             schedule: Schedule::java_default(),
-            particles: ParticleManager::new(),
             player: None,
             spawn_player_pos: Vec3::ZERO,
         }
@@ -57,21 +54,13 @@ impl Simulation {
             .map(|p| p.camera)
     }
 
-    /// Un tick PLAYING : particules, émission ambiante, position de spawn (= caméra du tick
+    /// Un tick PLAYING : position de spawn (= caméra du tick
     /// précédent), puis les systèmes dans l'ordre Java.
     pub fn tick(&mut self, ctx: &mut TickCtx<'_>, dt: f32) {
         if let Some(cam) = self.camera() {
             self.spawn_player_pos = cam.position;
         }
         let pos = self.spawn_player_pos;
-        self.particles.update(dt);
-        self.particles.generate_ambient(
-            pos,
-            &*ctx.blocks,
-            ctx.block_reg,
-            ctx.particle_types,
-            &mut ctx.rngs.ambient,
-        );
         self.entities.spawn_origin = pos;
         self.schedule.run(&mut self.entities, ctx, dt);
     }

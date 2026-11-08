@@ -11,6 +11,7 @@ nb-data.workspace = true
 nb-world.workspace = true
 nb-mesh.workspace = true
 nb-ecs.workspace = true
+nb-particles.workspace = true
 nb-net.workspace = true
 serde_json.workspace = true
 # Écrans 2D (pur CPU, ne dépend que de nb-core / nb-data) : implémentation de `Ui`.

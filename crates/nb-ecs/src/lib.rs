@@ -28,7 +28,6 @@ pub mod input;
 pub mod inventory;
 pub mod javafmt;
 pub mod jmath;
-pub mod particles;
 pub mod physics;
 pub mod player;
 pub mod schedule;
@@ -45,7 +44,6 @@ pub use components::{
 pub use crafting::{Button, CraftingGrid, GRID_BASE, OUTPUT_SLOT};
 pub use input::{ActionSet, GameAction, PlayerInput};
 pub use inventory::{Inventory, InventoryCursor, ItemStack};
-pub use particles::{Particle, ParticleManager};
 pub use physics::{BlockEnv, RaycastHit};
 pub use schedule::{EcsEvent, EcsRngs, Schedule, System, TickCtx};
 pub use sim::{Simulation, TICK_DT};

@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use nb_core::glam::IVec3;
 use nb_core::JavaRandom;
-use nb_data::{BlockId, BlockRegistry, MobRegistry, ParticleRegistry};
+use nb_data::{BlockId, BlockRegistry, MobRegistry};
 use nb_world::WorldConfig;
 
 use crate::blocks::BlockAccess;
@@ -90,7 +90,6 @@ pub struct TickCtx<'a> {
     pub blocks: &'a mut dyn BlockAccess,
     pub block_reg: &'a BlockRegistry,
     pub mobs: &'a MobRegistry,
-    pub particle_types: &'a ParticleRegistry,
     /// Configuration vivante du monde (gameplay, §18).
     pub config: &'a mut WorldConfig,
     pub input: &'a PlayerInput,

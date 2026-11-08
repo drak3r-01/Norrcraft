@@ -8,11 +8,8 @@ use std::collections::HashMap;
 
 use nb_core::glam::{DVec3, IVec3, Vec3};
 use nb_data::{BlockRegistry, MobRegistry};
-use nb_ecs::{CameraState, EntityId, MobType, Particle, Player, Simulation, Transform};
-use nb_gfx::{
-    heat_from_nearest_lava_dist_sq, Camera, EyeFluid, FrameInput, ParticleInstance, SkyClock,
-    TextureArrayCpu,
-};
+use nb_ecs::{CameraState, EntityId, MobType, Player, Simulation, Transform};
+use nb_gfx::{heat_from_nearest_lava_dist_sq, Camera, EyeFluid, FrameInput, ParticleInstance, SkyClock};
 use nb_world::World;
 
 use crate::anim::{AnimKey, MobAnimSystem};
@@ -82,11 +79,10 @@ pub struct RenderView<'a> {
     pub mobs: Vec<MobInstance>,
     /// Autres joueurs d'une partie LAN.
     pub avatars: Vec<Avatar>,
-    pub particles: &'a [Particle],
     /// [`Self::mobs`] convertis pour nb-gfx (config introuvable → ignoré).
     pub gfx_mobs: Vec<nb_gfx::MobInstance<'a>>,
-    /// [`Self::particles`] converties pour nb-gfx.
-    pub gfx_particles: Vec<ParticleInstance>,
+    /// Instances du moteur de particules (voir [`crate::fx::Fx`]).
+    pub gfx_particles: &'a [ParticleInstance],
 }
 
 impl RenderView<'_> {
@@ -100,41 +96,8 @@ impl RenderView<'_> {
             heat_intensity: self.heat_intensity,
             highlight_block: self.highlight_block,
             mobs: &self.gfx_mobs,
-            particles: &self.gfx_particles,
+            particles: self.gfx_particles,
         }
-    }
-}
-
-/// Couches de l'atlas des particules (`TextureRegistry.getLayer` : insensible à la casse,
-/// absent → couche manquante).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ParticleLayers {
-    names: HashMap<String, u32>,
-    missing: u32,
-}
-
-impl ParticleLayers {
-    pub fn from_atlas(atlas: &TextureArrayCpu) -> Self {
-        Self {
-            names: atlas.names.clone(),
-            missing: atlas.missing_layer,
-        }
-    }
-
-    /// Atlas intégré du renderer (`loadFromClasspath("/textures/particle", …)`).
-    pub fn builtin() -> Self {
-        Self::from_atlas(&nb_gfx::SceneAssets::builtin_particle_atlas())
-    }
-
-    pub fn layer(&self, texture: &str) -> u32 {
-        // Nom déjà en minuscules (cas courant) : pas d'allocation, cette fonction est appelée
-        // pour chaque particule à chaque frame.
-        let layer = if texture.bytes().any(|b| b.is_ascii_uppercase()) {
-            self.names.get(&texture.to_lowercase())
-        } else {
-            self.names.get(texture)
-        };
-        layer.copied().unwrap_or(self.missing)
     }
 }
 
@@ -212,20 +175,7 @@ pub fn gfx_avatars<'a>(
         .collect()
 }
 
-/// `ParticleRenderer.render` : position, `type.scale`, `type.textureLayer`, teinte.
-pub fn gfx_particles(particles: &[Particle], layers: &ParticleLayers) -> Vec<ParticleInstance> {
-    particles
-        .iter()
-        .map(|p| ParticleInstance {
-            position: p.position,
-            scale: p.kind.scale,
-            layer: layers.layer(&p.kind.texture),
-            color: p.color,
-        })
-        .collect()
-}
-
-/// Caméra de rendu depuis l'état ECS.
+/// Caméra de rendu depuis l état ECS.
 pub fn gfx_camera(c: &CameraState, aspect: f32) -> Camera {
     Camera {
         position: c.position,
@@ -344,7 +294,7 @@ pub fn build_view<'a>(
     sim: &'a Simulation,
     reg: &BlockRegistry,
     mob_reg: &'a MobRegistry,
-    particle_layers: &ParticleLayers,
+    fx_particles: &'a [ParticleInstance],
     sky: &SkyClock,
     aspect: f32,
     avatars: Vec<Avatar>,
@@ -379,7 +329,6 @@ pub fn build_view<'a>(
         None
     };
     let mobs = interpolated_mobs(sim, interp);
-    let particles = sim.particles.particles();
     RenderView {
         state,
         camera,
@@ -397,16 +346,14 @@ pub fn build_view<'a>(
             g
         },
         avatars,
-        gfx_particles: gfx_particles(particles, particle_layers),
         mobs,
-        particles,
+        gfx_particles: fx_particles,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nb_data::ParticleRegistry;
 
     #[test]
     fn avatars_face_where_the_camera_looks() {
@@ -441,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn mobs_and_particles_convert_for_gfx() {
+    fn mobs_convert_for_gfx() {
         let reg = MobRegistry::builtin();
         let rein = reg.get("reindeer").expect("renne intégré");
         let mobs = [
@@ -469,24 +416,5 @@ mod tests {
             g[0].missing_scale,
             Vec3::new(rein.width_x, rein.height, rein.width_z)
         );
-
-        let preg = ParticleRegistry::builtin();
-        let layers = ParticleLayers::builtin();
-        let leaf = preg.get("leaf").unwrap();
-        let lava = preg.get("lava").unwrap();
-        let ps = [
-            Particle::new(leaf, Vec3::new(1.0, 2.0, 3.0), Vec3::ZERO, Vec3::splat(0.5)),
-            Particle::new(lava, Vec3::ZERO, Vec3::ZERO, Vec3::X),
-        ];
-        let g = gfx_particles(&ps, &layers);
-        assert_eq!(g[0].position, Vec3::new(1.0, 2.0, 3.0));
-        assert_eq!(g[0].scale, leaf.scale);
-        assert_eq!(g[0].color, Vec3::splat(0.5));
-        let atlas = nb_gfx::SceneAssets::builtin_particle_atlas();
-        assert_eq!(g[0].layer, atlas.layer(&leaf.texture));
-        assert_eq!(g[1].layer, atlas.layer(&lava.texture));
-        assert_ne!(g[0].layer, g[1].layer);
-        assert_ne!(g[1].layer, atlas.missing_layer, "texture de lave connue");
-        assert_eq!(layers.layer("absente"), atlas.missing_layer);
     }
 }

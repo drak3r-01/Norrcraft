@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use common::Harness;
 use nb_core::glam::{DVec3, Vec2, Vec3};
-use nb_data::{BlockRegistry, MobRegistry, ParticleRegistry};
+use nb_data::{BlockRegistry, MobRegistry};
 use nb_ecs::{
     CameraState, EcsRngs, GameAction, GameMode, Health, PlayerInput, Schedule, Simulation, TickCtx,
     Transform, Velocity, WorldBlocks, TICK_DT,
@@ -55,7 +55,7 @@ fn scenario(seed: i64) -> Harness {
 
 type Snapshot = Vec<(i32, [u64; 3], u32, u32, [u32; 3])>;
 
-fn run(h: &mut Harness, ticks: usize) -> (Snapshot, Vec<[u32; 3]>, usize) {
+fn run(h: &mut Harness, ticks: usize) -> (Snapshot, usize) {
     for i in 0..ticks {
         // Entrées scriptées : marche, rotations, sauts, coups.
         h.input.pressed = Default::default();
@@ -89,20 +89,7 @@ fn run(h: &mut Harness, ticks: usize) -> (Snapshot, Vec<[u32; 3]>, usize) {
             ))
         })
         .collect();
-    let parts = h
-        .sim
-        .particles
-        .particles()
-        .iter()
-        .map(|p| {
-            [
-                p.position.x.to_bits(),
-                p.position.y.to_bits(),
-                p.position.z.to_bits(),
-            ]
-        })
-        .collect();
-    (snap, parts, h.events.len())
+    (snap, h.events.len())
 }
 
 #[test]
@@ -112,7 +99,6 @@ fn same_seeds_give_identical_simulations() {
     let ra = run(&mut a, 1500);
     let rb = run(&mut b, 1500);
     assert!(ra.0.len() > 5, "des mobs sont apparus : {}", ra.0.len());
-    assert!(!ra.1.is_empty(), "des particules ambiantes existent");
     assert_eq!(ra, rb);
     assert_eq!(a.blocks.block_at_test(), b.blocks.block_at_test());
 
@@ -166,7 +152,6 @@ fn runs_on_a_real_nb_world() {
     }
 
     let mobs = MobRegistry::builtin();
-    let ptypes = ParticleRegistry::builtin();
     let mut rngs = EcsRngs::from_seed(5);
     let mut events = Vec::new();
     let input = PlayerInput::default();
@@ -185,7 +170,6 @@ fn runs_on_a_real_nb_world() {
             blocks: &mut blocks,
             block_reg: &reg,
             mobs: &mobs,
-            particle_types: &ptypes,
             config: &mut cfg,
             input: &input,
             rngs: &mut rngs,

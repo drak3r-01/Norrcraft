@@ -308,19 +308,8 @@ impl Runner {
     }
 
     fn spawn_particles(&mut self, g: &mut Game, id: &str, n: u32) {
-        let Some(kind) = g.regs.particles.get(id).cloned() else {
-            return self.fail(format!("particule inconnue : {id}"));
-        };
-        let base = Self::ahead(g, 3.0);
-        for i in 0..n {
-            let f = i as f32;
-            let off = Vec3::new((f * 0.37).sin(), (f * 0.23).cos() * 0.5, (f * 0.61).sin()) * 0.8;
-            g.session_mut().sim.particles.spawn(
-                Some(&kind),
-                base + off,
-                Vec3::ZERO,
-                Vec3::new(0.3 + 0.7 * (f * 0.1).sin().abs(), 0.8, 0.2),
-            );
+        if let Err(e) = g.fx_mut().spawn_named(id, n) {
+            self.fail(e);
         }
     }
 }

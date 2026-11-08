@@ -158,7 +158,7 @@ impl Driver {
         let icons = item_icons(b.scene(), &regs);
         let mut game = Game::new(opts, regs, table);
         game.set_item_icons(icons);
-        game.set_particle_layers(b.scene().particle_atlas());
+        game.set_block_atlas(b.scene().block_atlas());
         // Le renderer a été créé avec le registre intégré ; `Game` a pu lire `mobs.json`.
         if game.regs.mobs.to_json() != nb_data::MobRegistry::builtin().to_json() {
             let roots = b.scene().mob_roots().clone();
@@ -214,6 +214,7 @@ impl Driver {
                     }
                     let table = block_table(b.scene(), &self.game.regs);
                     self.game.set_block_table(table);
+                    self.game.set_block_atlas(b.scene().block_atlas());
                     let icons = item_icons(b.scene(), &self.game.regs);
                     self.game.set_item_icons(icons);
                 }

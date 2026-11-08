@@ -6,7 +6,7 @@ use std::collections::HashMap;
 
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3};
+use glam::Vec3;
 use nb_mesh::Frustum;
 
 use super::pipelines::Pipelines;

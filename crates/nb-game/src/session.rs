@@ -157,7 +157,6 @@ impl WorldSession {
             blocks: &mut blocks,
             block_reg: &regs.blocks,
             mobs: &regs.mobs,
-            particle_types: &regs.particles,
             config: &mut cfg,
             input,
             rngs: &mut self.rngs,
