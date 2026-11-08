@@ -225,10 +225,10 @@ impl RecipeBookScreen {
         let total = cards.len();
         let craft_n = cards.iter().filter(|c| c.craftable && c.usable).count();
         dl.text(
-            &format!("{total} recipes - {craft_n} craftable now"),
-            ox + 250.0,
+            &format!("{total} recipes, {craft_n} craftable"),
+            ox + 240.0,
             oy + 20.0,
-            1.6,
+            1.4,
             [0.85, 0.78, 0.6, 1.0],
         );
         let b = self.back_rect();
