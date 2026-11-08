@@ -296,6 +296,7 @@ fn preview_scenes() {
                         pitch_rad: 0.0,
                         missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
                         light: 1.0,
+                        water_surface: nb_gfx::NO_WATER,
                         pose: &[],
                     }
                 })
@@ -460,6 +461,7 @@ fn preview_animations() {
                     pitch_rad: 0.0,
                     missing_scale: Vec3::new(cfg.width_x, cfg.height, cfg.width_z),
                     light: 1.0,
+                    water_surface: nb_gfx::NO_WATER,
                     pose: bytemuck::cast_slice(p),
                 })
                 .collect();

@@ -22,6 +22,7 @@ layout (location = 5) in float IsFluid;
 layout (location = 6) in float IsLeaf;
 layout (set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout (set = 0, binding = 2) uniform sampler2D shadowMap;
+#include "shadow.glsl"
 
 // Variation de teinte à grande échelle de la végétation teintée par le biome (herbe, feuilles) :
 // sans elle, de vastes aplats d'un vert uniforme donnent un aspect plastique.
@@ -44,24 +45,6 @@ float valueNoise(vec2 p) {
 const float LEAF_SSS_POWER    = 3.0;
 const float LEAF_SSS_STRENGTH = 0.6;
 
-// Part d'ombre [0,1] : PCF 3x3 sur la carte d'ombre.
-float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal) {
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords.xy = projCoords.xy * 0.5 + 0.5;
-    if (projCoords.z > 1.0) return 0.0;
-    float currentDepth = projCoords.z;
-    float bias = max(0.005 * (1.0 - dot(normal, -u.lightDir.xyz)), 0.001);
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
-    for (int x = -1; x <= 1; ++x) {
-        for (int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
-        }
-    }
-    return shadow / 9.0;
-}
-
 void main() {
     vec3 camPos = u.cameraPos.xyz;
     vec3 lightDir = u.lightDir.xyz;
@@ -73,13 +56,17 @@ void main() {
     if (IsFluid > 0.5) discard;
 
     // ------------------------------------------------------------------ albédo
-    vec4 texColor = texture(textureArray, vec3(TexCoord, Layer));
+    // Léger biais de mip négatif : troncs et textures de blocs plus nets à distance.
+    vec4 texColor = texture(textureArray, vec3(TexCoord, Layer), -0.5);
     // Alpha-test net, lissé par fwidth (bords des feuilles et plantes sans crénelage).
     if (texColor.a < 0.01) discard;
     float alpha = (texColor.a - 0.5) / max(fwidth(texColor.a), 0.0001) + 0.5;
     if (alpha < 0.5) discard;
     vec3 linearTex = pow(texColor.rgb, vec3(2.2));
     vec3 albedo = linearTex * Color;
+    // Texels de bord à demi transparents (feuilles, plantes) : assombris, sinon un contour clair
+    // cerne la silhouette contre le ciel.
+    albedo *= mix(0.65, 1.0, smoothstep(0.5, 0.95, texColor.a));
     // Végétation (couleur de sommet saturée : teinte de biome) : patchs plus secs / plus sombres. Le facteur moyen
     // (~0,8) compense le x2,2 de la teinte du mailleur, qui saturait les verts après tonemapping.
     float vMax = max(max(Color.r, Color.g), Color.b);
@@ -97,7 +84,7 @@ void main() {
     vec3 normal = normalize(cross(dFdx(FragPos), dFdy(FragPos)));
     vec3 viewDir = normalize(camPos - FragPos);
     if (dot(normal, viewDir) < 0.0) normal = -normal;
-    float shadow = ShadowCalculation(FragPosLightSpace, normal);
+    float shadow = softShadow(FragPos, normal, 0.0);
 
     // ------------------------------------------------------------------ éclairage
     vec3 finalColor = albedo * (ambient + lightColor * (1.0 - shadow));
@@ -109,10 +96,7 @@ void main() {
     }
     FragColor = vec4(finalColor, 1.0);
 
-    // ------------------------------------------------------------------ source du bloom
-    if (leaf && finalColor.g > 1.2) {
-        BrightColor = vec4(FragColor.rgb, 1.0);
-    } else {
-        BrightColor = vec4(0.0, 0.0, 0.0, 1.0);
-    }
+    // Source du bloom : aucune pour le terrain opaque (le feuillage éclairé de face formait un halo
+    // blanc autour des silhouettes contre le ciel) ; seuls les fluides émissifs en produisent.
+    BrightColor = vec4(0.0, 0.0, 0.0, 1.0);
 }

@@ -672,6 +672,7 @@ fn mob_at(id: &str, position: Vec3) -> MobInstance<'_> {
         pitch_rad: 0.0,
         missing_scale: Vec3::new(2.0, 2.0, 2.0),
         light: 1.0,
+        water_surface: nb_gfx::NO_WATER,
         pose: &[],
     }
 }
@@ -968,6 +969,7 @@ fn demo_world_with_builtin_mobs_and_particles() {
             pitch_rad: 0.0,
             missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
             light: 1.0,
+            water_surface: nb_gfx::NO_WATER,
             pose: &[],
         }
     };

@@ -51,7 +51,7 @@ pub mod window;
 pub use atlas::TextureArrayCpu;
 pub use camera::Camera;
 pub use frame::{
-    EyeFluid, FrameInput, FrameUniforms, GfxSettings, MobInstance, ParticleInstance, ShadowQuality,
+    EyeFluid, FrameInput, FrameUniforms, GfxSettings, MobInstance, NO_WATER, ParticleInstance, ShadowQuality,
 };
 pub use jem::parse_jem;
 pub use mob_model::{

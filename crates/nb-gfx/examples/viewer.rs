@@ -128,6 +128,7 @@ fn demo_mobs(t: f32) -> Vec<MobInstance<'static>> {
             pitch_rad: 0.0,
             missing_scale: s,
             light: 1.0,
+            water_surface: nb_gfx::NO_WATER,
             pose: &[],
         }
     };
