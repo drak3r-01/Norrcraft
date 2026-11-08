@@ -33,7 +33,10 @@ fn pool_never_exceeds_capacity() {
 #[test]
 fn particles_expire() {
     let mut s = ParticleSystem::new(1000, 2);
-    s.spawn(&presets::DUST_PUFF, &Emit::at(Vec3::new(0.0, 70.0, 5.0), 50));
+    s.spawn(
+        &presets::DUST_PUFF,
+        &Emit::at(Vec3::new(0.0, 70.0, 5.0), 50),
+    );
     for _ in 0..200 {
         s.update(0.02, &EmptyWorld);
     }
@@ -58,7 +61,10 @@ fn debris_bounces_on_floor_and_never_sinks() {
 #[test]
 fn rain_dies_on_ground_and_splashes() {
     let mut s = ParticleSystem::new(5000, 4);
-    s.spawn(&presets::RAIN, &Emit::at(Vec3::new(0.5, 70.0, 5.5), 200).dir(Vec3::NEG_Y));
+    s.spawn(
+        &presets::RAIN,
+        &Emit::at(Vec3::new(0.5, 70.0, 5.5), 200).dir(Vec3::NEG_Y),
+    );
     for _ in 0..40 {
         s.update(1.0 / 60.0, &Floor);
     }
@@ -71,8 +77,14 @@ fn rain_dies_on_ground_and_splashes() {
 fn instances_are_culled_and_packed() {
     let mut s = ParticleSystem::new(1000, 5);
     s.spawn(&presets::FIREFLY, &Emit::at(Vec3::new(0.0, 66.0, 10.0), 10)); // devant
-    s.spawn(&presets::FIREFLY, &Emit::at(Vec3::new(0.0, 66.0, -10.0), 10)); // derrière
-    s.spawn(&presets::FIREFLY, &Emit::at(Vec3::new(0.0, 66.0, 500.0), 10)); // trop loin
+    s.spawn(
+        &presets::FIREFLY,
+        &Emit::at(Vec3::new(0.0, 66.0, -10.0), 10),
+    ); // derrière
+    s.spawn(
+        &presets::FIREFLY,
+        &Emit::at(Vec3::new(0.0, 66.0, 500.0), 10),
+    ); // trop loin
     let mut out = Vec::new();
     s.write_instances(&view(), &mut out);
     assert_eq!(out.len(), 10);
@@ -82,10 +94,15 @@ fn instances_are_culled_and_packed() {
 #[test]
 fn block_debris_use_block_atlas() {
     let mut s = ParticleSystem::new(100, 6);
-    s.spawn(&presets::BLOCK_DEBRIS, &Emit::at(Vec3::new(0.0, 66.0, 5.0), 5).block(42));
+    s.spawn(
+        &presets::BLOCK_DEBRIS,
+        &Emit::at(Vec3::new(0.0, 66.0, 5.0), 5).block(42),
+    );
     let mut out = Vec::new();
     s.write_instances(&view(), &mut out);
-    assert!(out.iter().all(|g| g.layer == 42 && g.flags & FLAG_BLOCK_ATLAS != 0));
+    assert!(out
+        .iter()
+        .all(|g| g.layer == 42 && g.flags & FLAG_BLOCK_ATLAS != 0));
     assert!(out.iter().all(|g| g.uv[2] == 16 && g.uv[3] == 16));
 }
 
@@ -93,7 +110,10 @@ fn block_debris_use_block_atlas() {
 fn simulation_is_deterministic() {
     let run = || {
         let mut s = ParticleSystem::new(1000, 9);
-        s.spawn(&presets::BLOCK_DEBRIS, &Emit::at(Vec3::new(0.0, 66.0, 5.0), 40).block(1));
+        s.spawn(
+            &presets::BLOCK_DEBRIS,
+            &Emit::at(Vec3::new(0.0, 66.0, 5.0), 40).block(1),
+        );
         for _ in 0..30 {
             s.update(1.0 / 60.0, &Floor);
         }
@@ -136,4 +156,32 @@ fn ambient_rain_only_where_sky_is_open() {
         a.update(&mut s2, &EmptyWorld, &ctx, 1.0 / 60.0);
     }
     assert!(s2.len() > 100);
+}
+
+/// Budget : 30 000 particules mises à jour + exportées sans allocation. Seuil large (CI lente,
+/// build debug optimisé) ; la mesure réelle s'affiche avec `--nocapture`.
+#[test]
+fn throughput_30k_particles() {
+    let mut s = ParticleSystem::new(32768, 11);
+    s.spawn(
+        &presets::RAIN,
+        &Emit::at(Vec3::new(0.0, 100.0, 5.0), 15000).dir(Vec3::NEG_Y),
+    );
+    s.spawn(
+        &presets::SNOW,
+        &Emit::at(Vec3::new(0.0, 90.0, 5.0), 15000).dir(Vec3::NEG_Y),
+    );
+    let mut out = Vec::new();
+    let t = std::time::Instant::now();
+    let frames = 60;
+    for _ in 0..frames {
+        s.update(1.0 / 60.0, &Floor);
+        s.write_instances(&view(), &mut out);
+    }
+    let per = t.elapsed().as_secs_f64() * 1000.0 / frames as f64;
+    println!(
+        "{} particules : {per:.3} ms par frame (update + export)",
+        s.len()
+    );
+    assert!(per < 10.0, "{per} ms");
 }

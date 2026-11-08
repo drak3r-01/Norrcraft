@@ -61,7 +61,13 @@ impl Ambient {
     }
 
     /// Pluie / neige : colonne autour du joueur, uniquement là où `sky_open`.
-    fn weather(&mut self, fx: &mut ParticleSystem, world: &dyn ParticleWorld, c: &AmbientCtx, dt: f32) {
+    fn weather(
+        &mut self,
+        fx: &mut ParticleSystem,
+        world: &dyn ParticleWorld,
+        c: &AmbientCtx,
+        dt: f32,
+    ) {
         const TOP: i32 = 20;
         let room = (0.9 - fx.load()).clamp(0.0, 1.0);
         self.rain_acc += 650.0 * c.rain * room * dt;
@@ -86,7 +92,13 @@ impl Ambient {
     }
 
     /// Lucioles : de nuit, près du sol, en plein air.
-    fn fireflies(&mut self, fx: &mut ParticleSystem, world: &dyn ParticleWorld, c: &AmbientCtx, dt: f32) {
+    fn fireflies(
+        &mut self,
+        fx: &mut ParticleSystem,
+        world: &dyn ParticleWorld,
+        c: &AmbientCtx,
+        dt: f32,
+    ) {
         if c.night < 0.4 || c.rain > 0.2 || c.snow > 0.2 {
             return;
         }
@@ -113,12 +125,22 @@ impl Ambient {
     }
 
     /// Feuillage, lave, magma : cellules tirées au hasard (comme `generateRandomParticles`).
-    fn cells(&mut self, fx: &mut ParticleSystem, world: &dyn ParticleWorld, c: &AmbientCtx, dt: f32) {
+    fn cells(
+        &mut self,
+        fx: &mut ParticleSystem,
+        world: &dyn ParticleWorld,
+        c: &AmbientCtx,
+        dt: f32,
+    ) {
         self.sample_acc += CELL_SAMPLES_PER_SEC * dt;
         let n = self.sample_acc as u32;
         self.sample_acc -= n as f32;
         let r = RADIUS as i32;
-        let (cx, cy, cz) = (c.eye.x.floor() as i32, c.eye.y.floor() as i32, c.eye.z.floor() as i32);
+        let (cx, cy, cz) = (
+            c.eye.x.floor() as i32,
+            c.eye.y.floor() as i32,
+            c.eye.z.floor() as i32,
+        );
         for _ in 0..n {
             if fx.load() > 0.9 {
                 break;
@@ -156,10 +178,11 @@ impl Ambient {
                         fx.spawn(&pre::LAVA_DRIP, &Emit::at(p, 1).dir(Vec3::NEG_Y));
                     }
                 }
-                Cell::Magma => {
-                    if world.cell(x, y + 1, z) == Cell::Air && fx.rng.f32() < 0.07 {
-                        fx.spawn(&pre::EMBER, &Emit::at(base + Vec3::Y * 1.05, 1).dir(Vec3::Y));
-                    }
+                Cell::Magma if world.cell(x, y + 1, z) == Cell::Air && fx.rng.f32() < 0.07 => {
+                    fx.spawn(
+                        &pre::EMBER,
+                        &Emit::at(base + Vec3::Y * 1.05, 1).dir(Vec3::Y),
+                    );
                 }
                 _ => {}
             }

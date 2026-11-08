@@ -563,3 +563,28 @@ fn edited_mobs_are_despawned_when_leaving_mob_settings() {
         .contains(&PlatformRequest::ReloadMobModels));
     g.shutdown();
 }
+
+#[test]
+fn weather_particles_reach_the_render_view() {
+    let dir = TempDir::new("fx");
+    let mut g = game(&dir);
+    g.command(UiCommand::SwitchState(GameState::WorldSelect));
+    g.command(new_world("Fx", GameMode::Creative));
+    assert_eq!(g.state(), GameState::Playing);
+    g.run_ticks(30);
+    g.fx_mut().clear();
+    g.fx_mut().set_weather(1.0, 0.0);
+    for _ in 0..300 {
+        g.animate(1.0 / 60.0);
+    }
+    assert!(g.fx().len() > 50, "la pluie tombe : {}", g.fx().len());
+    let n = g.render_view().gfx_particles.len();
+    assert!(n > 20, "{n} instances dans la vue de rendu");
+    // Ciel dégagé : l'averse finit par disparaître.
+    g.fx_mut().set_weather(0.0, 0.0);
+    for _ in 0..600 {
+        g.animate(1.0 / 60.0);
+    }
+    assert!(g.fx().len() < 100, "{}", g.fx().len());
+    g.shutdown();
+}

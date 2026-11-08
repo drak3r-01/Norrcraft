@@ -116,7 +116,11 @@ fn snow() -> RgbaImage {
         for k in 0..3 {
             let a = k as f32 * std::f32::consts::PI / 3.0;
             let (s, c) = a.sin_cos();
-            d = d.min(seg_dist((x, y), (-c * 0.92, -s * 0.92), (c * 0.92, s * 0.92)));
+            d = d.min(seg_dist(
+                (x, y),
+                (-c * 0.92, -s * 0.92),
+                (c * 0.92, s * 0.92),
+            ));
         }
         // Petites barbes sur chaque branche.
         for k in 0..6 {
@@ -158,7 +162,9 @@ fn flame() -> RgbaImage {
 
 fn streak() -> RgbaImage {
     paint(|x, y| {
-        let a = (1.0 - x.abs() * 3.2).clamp(0.0, 1.0).powi(2) * smooth(-1.0, -0.3, y) * smooth(1.0, 0.85, y);
+        let a = (1.0 - x.abs() * 3.2).clamp(0.0, 1.0).powi(2)
+            * smooth(-1.0, -0.3, y)
+            * smooth(1.0, 0.85, y);
         [1.0, 1.0, 1.0, a]
     })
 }

@@ -7,11 +7,13 @@ use std::sync::Arc;
 
 use nb_core::glam::{DVec3, Vec3};
 use nb_data::BlockRegistry;
-use nb_ecs::{BlockAccess, EcsEvent, EntityId, Player, Simulation, Transform, Velocity, WorldBlocks};
+use nb_ecs::{
+    BlockAccess, EcsEvent, EntityId, Player, Simulation, Transform, Velocity, WorldBlocks,
+};
 use nb_gfx::{SkyClock, TextureArrayCpu};
 use nb_particles::{
-    presets, Ambient, AmbientCtx, BlockLook, Cell, Emit, GpuParticle, ParticleSystem, ParticleWorld,
-    View,
+    presets, Ambient, AmbientCtx, BlockLook, Cell, Emit, GpuParticle, ParticleSystem,
+    ParticleWorld, View,
 };
 use nb_world::World;
 
@@ -330,9 +332,11 @@ impl Fx {
             return;
         };
         let feet = t.pos.as_vec3();
-        let below = fw
-            .world
-            .block(feet.x.floor() as i32, (feet.y - 0.2).floor() as i32, feet.z.floor() as i32);
+        let below = fw.world.block(
+            feet.x.floor() as i32,
+            (feet.y - 0.2).floor() as i32,
+            feet.z.floor() as i32,
+        );
         let walkable = matches!(fw.cells[usize::from(below)], Cell::Solid | Cell::Leaves);
         let tr = &mut self.track;
         if v.grounded && !tr.grounded && tr.vy < -5.0 && walkable && !p.flying {

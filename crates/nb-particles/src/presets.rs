@@ -421,8 +421,14 @@ impl ParticleSystem {
     pub fn water_splash(&mut self, surface: Vec3, speed: f32) {
         let k = (speed / 10.0).clamp(0.15, 1.0);
         let up = Vec3::Y;
-        self.spawn(&SPLASH_DROP, &Emit::at(surface, (22.0 * k) as u32 + 4).dir(up));
-        self.spawn(&SPLASH_FOAM, &Emit::at(surface, (6.0 * k) as u32 + 2).dir(up));
+        self.spawn(
+            &SPLASH_DROP,
+            &Emit::at(surface, (22.0 * k) as u32 + 4).dir(up),
+        );
+        self.spawn(
+            &SPLASH_FOAM,
+            &Emit::at(surface, (6.0 * k) as u32 + 2).dir(up),
+        );
         self.spawn(&RAIN_RIPPLE, &Emit::at(surface, 2));
     }
 
@@ -444,9 +450,27 @@ mod tests {
     #[test]
     fn every_name_resolves() {
         for n in [
-            "debris", "chip", "dust", "splash", "foam", "bubble", "mote", "rain", "rain_splash",
-            "ripple", "snow", "leaf", "firefly", "ember", "lava", "lava_drip", "lava_pop",
-            "smoke", "flame", "spark", "poof",
+            "debris",
+            "chip",
+            "dust",
+            "splash",
+            "foam",
+            "bubble",
+            "mote",
+            "rain",
+            "rain_splash",
+            "ripple",
+            "snow",
+            "leaf",
+            "firefly",
+            "ember",
+            "lava",
+            "lava_drip",
+            "lava_pop",
+            "smoke",
+            "flame",
+            "spark",
+            "poof",
         ] {
             assert!(by_name(n).is_some(), "{n}");
         }
