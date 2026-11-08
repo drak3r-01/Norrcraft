@@ -159,6 +159,10 @@ pub struct Game {
     craft_station: Station,
     craft_grid: CraftingGrid,
     item_icons: Arc<ItemIcons>,
+    /// Messages de survie à l'écran (texte, secondes restantes).
+    notices: Vec<(String, f32)>,
+    /// Butin récent (nom, quantité, secondes restantes).
+    pickups: Vec<(String, i32, f32)>,
     mouse_locked: bool,
     mobs_dirty: bool,
     meshes: MeshScheduler,
@@ -264,6 +268,8 @@ impl Game {
             craft_station: Station::Hand,
             craft_grid: CraftingGrid::new(Station::Hand),
             item_icons: Arc::new(ItemIcons::default()),
+            notices: Vec::new(),
+            pickups: Vec::new(),
             mouse_locked: true,
             mobs_dirty: false,
             meshes: MeshScheduler::new(threads),
@@ -664,6 +670,11 @@ impl Game {
             blocks: &self.regs.blocks,
             block_table: &self.block_table,
             items: &self.regs.items,
+            survival: &self.regs.survival,
+            recipes: &self.regs.recipes,
+            vitals: p.and_then(|p| e.copy::<nb_ecs::Vitals>(p)),
+            notices: &self.notices,
+            pickups: &self.pickups,
             item_icons: &self.item_icons,
             craft_station: self.craft_station,
             craft_grid: &self.craft_grid,
@@ -845,6 +856,7 @@ impl Game {
                     self.session
                         .tick(&pi, &self.regs, &mut self.events, dt as f32);
                 }
+                self.track_survival_events(first_new_event, dt as f32);
                 // Clic droit sur un établi / une fonderie : ouvre l'écran de la station.
                 let station = self.events[first_new_event.min(self.events.len())..]
                     .iter()
@@ -982,6 +994,73 @@ impl Game {
 
     /// Ferme l'écran d'inventaire : la pile tenue et la grille de craft retournent dans
     /// l'inventaire (le reliquat qui ne rentre pas est perdu, comme `returnHeld`).
+    /// Messages et butin du tick : alimente l'affichage (HUD) et le fait vieillir.
+    fn track_survival_events(&mut self, first: usize, dt: f32) {
+        for n in &mut self.notices {
+            n.1 -= dt;
+        }
+        self.notices.retain(|n| n.1 > 0.0);
+        for p in &mut self.pickups {
+            p.2 -= dt;
+        }
+        self.pickups.retain(|p| p.2 > 0.0);
+        let from = first.min(self.events.len());
+        for i in from..self.events.len() {
+            match self.events[i].clone() {
+                EcsEvent::Notice(text) => {
+                    if !self.notices.iter().any(|n| n.0 == text) {
+                        self.notices.push((text, 4.5));
+                    }
+                    if self.notices.len() > 4 {
+                        self.notices.remove(0);
+                    }
+                }
+                EcsEvent::Gained { item, count } => {
+                    let name = crate::screens::display_name(self.regs.items.name_of(item));
+                    if let Some(p) = self.pickups.iter_mut().find(|p| p.0 == name) {
+                        p.1 += count;
+                        p.2 = 3.0;
+                    } else {
+                        self.pickups.push((name, count, 3.0));
+                    }
+                    if self.pickups.len() > 6 {
+                        self.pickups.remove(0);
+                    }
+                }
+                EcsEvent::Caught { item } => {
+                    let name = crate::screens::display_name(self.regs.items.name_of(item));
+                    self.notices.push((format!("You caught: {name}!"), 4.0));
+                }
+                EcsEvent::PlayerDied => {
+                    self.notices.clear();
+                    self.pickups.clear();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Clic sur un emplacement d'armure ou Maj-clic sur une pièce d'armure de l'inventaire.
+    fn armor_click(&mut self, slot: i32, shift: bool) -> bool {
+        let data = self.regs.survival.clone();
+        let armor_slot = move |item| data.armor(item).map(|a| a.slot);
+        let mut cursor = self.cursor;
+        let handled = {
+            let Some(inv) = self.session.inventory_mut() else {
+                return false;
+            };
+            if (nb_ecs::ARMOR_BASE..nb_ecs::ARMOR_BASE + 4).contains(&slot) {
+                nb_ecs::armor_click(inv, &mut cursor, slot, &armor_slot)
+            } else if shift && (0..36).contains(&slot) {
+                nb_ecs::quick_equip(inv, slot, &armor_slot)
+            } else {
+                false
+            }
+        };
+        self.cursor = cursor;
+        handled
+    }
+
     fn close_craft_screen(&mut self) {
         let mut cursor = self.cursor;
         let mut grid = self.craft_grid.clone();
@@ -1095,7 +1174,7 @@ impl Game {
                 button,
                 shift,
             } => {
-                if self.state == GameState::Inventory {
+                if self.state == GameState::Inventory && !self.armor_click(slot, shift) {
                     let mut cursor = self.cursor;
                     let mut grid = self.craft_grid.clone();
                     let book = self.regs.recipes.clone();
@@ -1104,6 +1183,21 @@ impl Game {
                     }
                     self.cursor = cursor;
                     self.craft_grid = grid;
+                }
+            }
+            UiCommand::RecipeFill(n) => {
+                if self.state == GameState::Inventory {
+                    let mut grid = self.craft_grid.clone();
+                    let book = self.regs.recipes.clone();
+                    let ok = self
+                        .session
+                        .inventory_mut()
+                        .is_some_and(|inv| grid.autofill(inv, &book, n));
+                    self.craft_grid = grid;
+                    if !ok {
+                        self.notices
+                            .push(("Cannot fill: missing ingredients or station".into(), 3.0));
+                    }
                 }
             }
             UiCommand::ApplyResourcePack(name) => {
@@ -1224,6 +1318,7 @@ impl Game {
             SlotClick { slot, .. } if *slot == nb_ecs::OUTPUT_SLOT => self.audio.ui_craft(),
             SlotClick { .. } | InventoryClick(_) => self.audio.ui_tick(),
             RefreshWorlds | RefreshLan | ReloadMobModel(_) | SetMobRegistry(_) | Quit => {}
+            RecipeFill(_) => self.audio.ui_tick(),
             _ => self.audio.ui_click(),
         }
     }

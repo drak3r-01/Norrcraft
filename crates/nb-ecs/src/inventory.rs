@@ -231,6 +231,59 @@ impl Inventory {
     }
 }
 
+/// Clic sur un emplacement d'armure de l'écran d'inventaire (`slot` = `ARMOR_BASE + k`) :
+/// prendre la pièce portée, ou poser la pièce tenue (échange) si elle va à cet emplacement.
+/// `armor_slot(item)` donne l'emplacement d'une pièce d'armure. Retourne `true` si géré.
+pub fn armor_click(
+    inv: &mut Inventory,
+    cursor: &mut InventoryCursor,
+    slot: i32,
+    armor_slot: impl Fn(ItemId) -> Option<nb_data::ArmorSlot>,
+) -> bool {
+    let k = slot - crate::crafting::ARMOR_BASE;
+    if !(0..4).contains(&k) {
+        return false;
+    }
+    let which = nb_data::ArmorSlot::ALL[k as usize];
+    match cursor.held {
+        Some(h) => {
+            if armor_slot(h.item) == Some(which) {
+                let old = inv.armor(which);
+                inv.set_armor(which, Some(ItemStack::new(h.item, 1).with_wear(h.wear)));
+                cursor.held = old;
+                cursor.held_from = -1;
+            }
+        }
+        None => {
+            if let Some(a) = inv.armor(which) {
+                cursor.held = Some(a);
+                cursor.held_from = -1;
+                inv.set_armor(which, None);
+            }
+        }
+    }
+    true
+}
+
+/// Maj + clic sur une case d'inventaire contenant une pièce d'armure : l'équiper (échange avec
+/// la pièce déjà portée). Retourne `true` si l'objet était une armure.
+pub fn quick_equip(
+    inv: &mut Inventory,
+    slot: i32,
+    armor_slot: impl Fn(ItemId) -> Option<nb_data::ArmorSlot>,
+) -> bool {
+    let Some(s) = inv.slot(slot) else {
+        return false;
+    };
+    let Some(which) = armor_slot(s.item) else {
+        return false;
+    };
+    let old = inv.armor(which);
+    inv.set_armor(which, Some(ItemStack::new(s.item, 1).with_wear(s.wear)));
+    inv.set_slot(slot, old);
+    true
+}
+
 /// État « objet tenu au curseur » de l'écran d'inventaire (spec §14.3).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct InventoryCursor {

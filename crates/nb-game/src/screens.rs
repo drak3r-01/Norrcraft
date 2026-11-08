@@ -19,8 +19,9 @@ use nb_ui::screens::{
     WorldAction, WorldEntry, WorldGenParams, WorldSelectScreen, WorldType as UiWorldType,
 };
 use nb_ui::{
-    ClickButton, DrawList, Hud, HudView, InventoryAction, InventoryScreen, SlotView, TypingBuffers,
-    UiContext, UiInput,
+    BookAction, ClickButton, DrawList, Hud, HudView, IconSpec, IngredientCard, InventoryAction,
+    InventoryScreen, ItemInfoView, RecipeBookScreen, RecipeCard, SlotView, SurvivalHud,
+    SurvivalInventory, ToolView, TypingBuffers, UiContext, UiInput,
 };
 use nb_world::save;
 use nb_world::{OreRange, WorldConfig, WorldType};
@@ -263,19 +264,186 @@ pub fn block_icon_style(info: &nb_mesh::BlockMeshInfo, name: &str) -> (u32, nb_u
     )
 }
 
+/// Nom lisible d'un objet (`iron_pickaxe` → `Iron Pickaxe`).
+pub fn display_name(name: &str) -> String {
+    nb_ui::hud::format_block_name(name)
+}
+
+/// Couche d'atlas et style de l'icône d'un objet.
+pub fn icon_of(view: &UiView<'_>, item: nb_data::ItemId) -> (u32, nb_ui::IconStyle) {
+    match nb_data::BlockId::try_from(item) {
+        Ok(b) => block_icon_style(view.block_table.get(b), view.items.name_of(item)),
+        Err(_) => (view.item_icons.get(item), nb_ui::IconStyle::Item),
+    }
+}
+
+/// Description d'une pile (outil, nourriture, armure, usure) pour l'infobulle.
+fn item_info(view: &UiView<'_>, s: ItemStack) -> ItemInfoView {
+    let Some(p) = view.survival.props(s.item) else {
+        return ItemInfoView::default();
+    };
+    ItemInfoView {
+        tool: p.tool.map(|t| ToolView {
+            label: t.kind.label(),
+            tier: nb_data::TIER_NAMES
+                .get(usize::from(t.tier))
+                .copied()
+                .unwrap_or(""),
+            damage: t.damage,
+            speed: t.speed,
+        }),
+        food: p.food.map(|f| (f.hunger, f.saturation, f.warmth)),
+        armor: p.armor.map(|a| (a.defense, a.warmth * 100.0)),
+        wear: (view.survival.max_durability(s.item) > 0)
+            .then(|| (s.wear, view.survival.max_durability(s.item))),
+    }
+}
+
+/// Une carte du livre par recette, dans l'ordre du livre.
+pub fn recipe_cards(view: &UiView<'_>) -> Vec<RecipeCard> {
+    let inv = view.inventory.as_ref();
+    let have = |ids: &dyn Fn(nb_data::ItemId) -> bool| -> i32 {
+        inv.map_or(0, |inv| {
+            inv.slots()
+                .iter()
+                .flatten()
+                .filter(|s| ids(s.item))
+                .map(|s| s.count)
+                .sum()
+        })
+    };
+    let spec = |item: nb_data::ItemId| {
+        let (layer, style) = icon_of(view, item);
+        IconSpec { layer, style }
+    };
+    let ingredient = |ing: &nb_data::Ingredient| -> IngredientCard {
+        match ing {
+            nb_data::Ingredient::Item(i) => IngredientCard {
+                icon: spec(*i),
+                name: view.items.name_of(*i).to_owned(),
+                alternatives: 1,
+                have: have(&|x| x == *i),
+            },
+            nb_data::Ingredient::Tag(v) => IngredientCard {
+                icon: spec(v[0]),
+                name: view
+                    .recipes
+                    .tag_name(v)
+                    .map_or_else(|| view.items.name_of(v[0]).to_owned(), str::to_owned),
+                alternatives: v.len(),
+                have: have(&|x| v.contains(&x)),
+            },
+        }
+    };
+    view.recipes
+        .recipes()
+        .iter()
+        .map(|r| {
+            let (grid_w, grid_h, cells, shapeless, list): (
+                usize,
+                usize,
+                Vec<Option<IngredientCard>>,
+                bool,
+                Vec<&nb_data::Ingredient>,
+            ) = match &r.shape {
+                nb_data::Shape::Shaped {
+                    width,
+                    height,
+                    cells,
+                } => (
+                    *width,
+                    *height,
+                    cells.iter().map(|c| c.as_ref().map(&ingredient)).collect(),
+                    false,
+                    cells.iter().flatten().collect(),
+                ),
+                nb_data::Shape::Shapeless(v) => {
+                    let n = v.len();
+                    (
+                        n.min(3),
+                        n.div_ceil(3),
+                        v.iter().map(|i| Some(ingredient(i))).collect(),
+                        true,
+                        v.iter().collect(),
+                    )
+                }
+            };
+            // Réalisable : pour chaque ingrédient distinct, assez d'exemplaires pour sa
+            // multiplicité.
+            let mut craftable = true;
+            for (i, ing) in list.iter().enumerate() {
+                if list[..i].iter().any(|p| *p == *ing) {
+                    continue;
+                }
+                let need = list.iter().filter(|p| **p == *ing).count() as i32;
+                let have_n = match ing {
+                    nb_data::Ingredient::Item(x) => have(&|y| y == *x),
+                    nb_data::Ingredient::Tag(v) => have(&|y| v.contains(&y)),
+                };
+                if have_n < need {
+                    craftable = false;
+                }
+            }
+            RecipeCard {
+                out: spec(r.output.item),
+                out_name: view.items.name_of(r.output.item).to_owned(),
+                count: r.output.count,
+                station: r.station,
+                grid_w,
+                grid_h,
+                cells,
+                shapeless,
+                craftable,
+                usable: view.craft_station.accepts(r.station),
+            }
+        })
+        .collect()
+}
+
+/// Couleur d'une pièce d'armure sur le personnage de l'inventaire.
+fn armor_color(name: &str) -> nb_ui::Rgba {
+    if name.starts_with("fur") {
+        [0.62, 0.45, 0.28, 1.0]
+    } else if name.starts_with("iron") {
+        [0.8, 0.82, 0.86, 1.0]
+    } else if name.starts_with("diamond") {
+        [0.35, 0.88, 0.85, 1.0]
+    } else {
+        [0.66, 0.5, 0.98, 1.0]
+    }
+}
+
 /// Case d'inventaire vue par nb-ui : icône = `getTextureIndex(0)`, nom interne du bloc.
 fn slot_view<'a>(view: &UiView<'a>, s: Option<ItemStack>) -> Option<SlotView<'a>> {
     let s = s?;
     // Bloc : couche de la table de maillage ; objet pur : couche de son icône.
-    let (icon_layer, style) = match nb_data::BlockId::try_from(s.item) {
-        Ok(b) => block_icon_style(view.block_table.get(b), view.items.name_of(s.item)),
-        Err(_) => (view.item_icons.get(s.item), nb_ui::IconStyle::Item),
-    };
+    let (icon_layer, style) = icon_of(view, s.item);
     Some(SlotView {
         icon_layer,
         style,
+        info: item_info(view, s),
         count: s.count,
         name: view.items.name_of(s.item),
+    })
+}
+
+fn survival_hud<'a>(view: &UiView<'a>) -> Option<SurvivalHud<'a>> {
+    if view.game_mode != Some(GameMode::Survival) {
+        return None;
+    }
+    let v = view.vitals?;
+    Some(SurvivalHud {
+        hunger: v.hunger,
+        warmth: v.warmth,
+        stamina: v.stamina,
+        exhausted: v.exhausted,
+        defense: v.defense,
+        felt: v.ambient + v.insulation + v.heat,
+        mining: v.mining.map(|m| m.progress),
+        eating: (v.eating > 0.05).then(|| v.eating / nb_ecs::survival::EAT_TIME),
+        fishing: v.fishing.map(|f| f.bite > 0.0),
+        notices: view.notices,
+        pickups: view.pickups,
     })
 }
 
@@ -288,6 +456,7 @@ fn hud_view<'a>(view: &UiView<'a>) -> HudView<'a> {
         selected: usize::from(view.selected_slot),
         creative: view.game_mode == Some(GameMode::Creative),
         health: view.health,
+        survival: survival_hud(view),
     }
 }
 
@@ -363,6 +532,10 @@ pub struct NbUi {
     pause: PauseMenu,
     hud: Hud,
     inventory: InventoryScreen,
+    /// Livre de recettes ouvert à la place de l'inventaire.
+    book: RecipeBookScreen,
+    book_open: bool,
+    cards: Vec<RecipeCard>,
     worlds: WorldSelectScreen,
     settings: Option<SettingsScreen>,
     packs: Option<ResourcePackScreen>,
@@ -383,6 +556,9 @@ impl NbUi {
             pause: PauseMenu::default(),
             hud: Hud::new(),
             inventory: InventoryScreen::new(1280, 720),
+            book: RecipeBookScreen::new(),
+            book_open: false,
+            cards: Vec::new(),
             worlds: WorldSelectScreen::new(params_from_config(&WorldConfig::default())),
             settings: None,
             packs: None,
@@ -456,8 +632,10 @@ impl Ui for NbUi {
             GameState::Playing => self.hud.enter(),
             GameState::Inventory => {
                 let (w, h) = view.window_size;
+                self.book_open = false;
                 self.inventory.set_station(view.craft_station);
                 self.inventory.resize(w as i32, h as i32);
+                self.inventory.book_enabled = true;
             }
             GameState::WorldSelect => self.worlds.enter(world_entries(view)),
             GameState::Settings => {
@@ -541,7 +719,22 @@ impl Ui for NbUi {
                 let hv = hud_view(view);
                 self.hud.track_held(dt, &hv);
             }
+            GameState::Inventory if self.book_open => {
+                self.cards = recipe_cards(view);
+                match self.book.update(&ui, &self.cards) {
+                    Some(BookAction::Close) => self.book_open = false,
+                    Some(BookAction::Fill(n)) => {
+                        out.push(UiCommand::RecipeFill(n));
+                        self.book_open = false;
+                    }
+                    None => {}
+                }
+            }
             GameState::Inventory => match self.inventory.update(&ui) {
+                Some(InventoryAction::ToggleBook) => {
+                    self.cards = recipe_cards(view);
+                    self.book_open = true;
+                }
                 Some(InventoryAction::Click {
                     slot,
                     button,
@@ -682,9 +875,14 @@ impl Ui for NbUi {
                 self.multiplayer.draw(dl, &ui, &buffers_of(input), &mv);
             }
             GameState::Playing => self.hud.draw(dl, w, h, &hud_view(view)),
+            GameState::Inventory if self.book_open => {
+                self.cards = recipe_cards(view);
+                self.book.draw(dl, &ui, &self.cards);
+            }
             GameState::Inventory => {
                 self.inventory.set_station(view.craft_station);
                 self.inventory.resize(w, h);
+                self.inventory.book_enabled = true;
                 let slots: [Option<SlotView<'_>>; nb_ui::inventory::SLOTS] =
                     std::array::from_fn(|i| {
                         slot_view(
@@ -695,13 +893,24 @@ impl Ui for NbUi {
                 let grid: Vec<Option<SlotView<'_>>> = (0..view.craft_grid.len())
                     .map(|k| slot_view(view, view.craft_grid.cell(k)))
                     .collect();
-                self.inventory.draw_craft(
+                let armor_stacks = view
+                    .inventory
+                    .as_ref()
+                    .map_or([None; 4], |inv| *inv.armor_slots());
+                let sv = SurvivalInventory {
+                    armor: std::array::from_fn(|k| slot_view(view, armor_stacks[k])),
+                    doll: std::array::from_fn(|k| {
+                        armor_stacks[k].map(|s| armor_color(view.items.name_of(s.item)))
+                    }),
+                };
+                self.inventory.draw_full(
                     dl,
                     &ui,
                     &slots,
                     slot_view(view, view.held),
                     &grid,
                     slot_view(view, view.craft_grid.output()),
+                    Some(&sv),
                 );
             }
             GameState::WorldSelect => {

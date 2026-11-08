@@ -133,6 +133,8 @@ struct RawBook {
 #[derive(Clone, Debug, Default)]
 pub struct RecipeBook {
     recipes: Vec<Recipe>,
+    /// Étiquettes connues : nom → objets (affichage « n'importe quel … »).
+    tags: Vec<(String, Vec<ItemId>)>,
 }
 
 impl RecipeBook {
@@ -143,7 +145,18 @@ impl RecipeBook {
     }
 
     pub fn from_recipes(recipes: Vec<Recipe>) -> Self {
-        Self { recipes }
+        Self {
+            recipes,
+            tags: Vec::new(),
+        }
+    }
+
+    /// Nom de l'étiquette qui regroupe exactement `ids` (si elle existe).
+    pub fn tag_name(&self, ids: &[ItemId]) -> Option<&str> {
+        self.tags
+            .iter()
+            .find(|(_, v)| v.as_slice() == ids)
+            .map(|(n, _)| n.as_str())
     }
 
     pub fn from_json(items: &ItemRegistry, json: &str) -> Result<Self> {
@@ -249,7 +262,15 @@ impl RecipeBook {
                 output,
             });
         }
-        Ok(Self { recipes })
+        let mut tag_list: Vec<(String, Vec<ItemId>)> = tags
+            .iter()
+            .map(|(n, v)| ((*n).to_owned(), v.clone()))
+            .collect();
+        tag_list.sort();
+        Ok(Self {
+            recipes,
+            tags: tag_list,
+        })
     }
 
     pub fn recipes(&self) -> &[Recipe] {
