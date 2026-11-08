@@ -1,7 +1,7 @@
 //! HUD de jeu (`PlayingState`) : viseur, barre d'inventaire, sélecteur, icônes et quantités,
 //! nom de l'objet tenu, cœurs et faim (mode survie).
 
-use crate::draw::{DrawList, WHITE};
+use crate::draw::{DrawList, IconStyle, WHITE};
 use crate::font;
 use crate::input::UiInput;
 use crate::state::GameState;
@@ -20,6 +20,7 @@ pub const ITEM_NAME_FADE: f32 = 0.5;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SlotView<'a> {
     pub icon_layer: u32,
+    pub style: IconStyle,
     pub count: i32,
     /// Nom interne du bloc (`oak_log`).
     pub name: &'a str,
@@ -184,7 +185,7 @@ impl Hud {
         for (i, slot) in view.hotbar.iter().enumerate() {
             let Some(s) = slot else { continue };
             let (ix, iy) = l.icon(i);
-            dl.block_icon(s.icon_layer, ix, iy, ICON_SIZE);
+            dl.icon(s.icon_layer, s.style, ix, iy, ICON_SIZE);
             if s.count > 1 {
                 let text = s.count.to_string();
                 let scale = 1.8;
@@ -263,6 +264,7 @@ mod tests {
     fn stone(count: i32) -> Option<SlotView<'static>> {
         Some(SlotView {
             icon_layer: 5,
+            style: Default::default(),
             count,
             name: "cobble_stone",
         })

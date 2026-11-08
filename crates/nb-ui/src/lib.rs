@@ -17,7 +17,7 @@ pub mod textures;
 pub mod widgets;
 
 pub use chat::{Chat, ChatKeys, ChatMessage};
-pub use draw::{Batch, DrawList, Rgba, Scissor, TextureRef, Vertex};
+pub use draw::{Batch, DrawList, IconStyle, Rgba, Scissor, TextureRef, Vertex};
 pub use hud::{Hud, HudView, SlotView};
 pub use input::{TypingBuffers, UiInput};
 pub use inventory::{ClickButton, InventoryAction, InventoryScreen};

@@ -231,16 +231,49 @@ fn pack_entries(view: &UiView<'_>) -> Vec<PackEntry> {
         .collect()
 }
 
+/// Icône d'un bloc : cube isométrique pour un bloc plein, sprite pour une plante / un objet fin.
+pub fn block_icon_style(info: &nb_mesh::BlockMeshInfo, name: &str) -> (u32, nb_ui::IconStyle) {
+    let l = info.texture_layers;
+    let flat = info.cross_shaped
+        || matches!(
+            name,
+            "torch" | "lantern" | "lily_pad" | "cobweb" | "vines" | "wheat" | "reeds" | "water"
+        );
+    if flat {
+        return (l[0], nb_ui::IconStyle::Item);
+    }
+    const GRASS: [f32; 3] = [0.56, 0.80, 0.34];
+    const LEAF: [f32; 3] = [0.46, 0.72, 0.28];
+    let tint_top = if info.grass_tinted {
+        GRASS
+    } else if info.leaves_tinted {
+        LEAF
+    } else {
+        [1.0; 3]
+    };
+    let tint_side = if info.leaves_tinted { LEAF } else { [1.0; 3] };
+    (
+        l[4],
+        nb_ui::IconStyle::Cube {
+            left: l[2],
+            right: l[0],
+            tint_top,
+            tint_side,
+        },
+    )
+}
+
 /// Case d'inventaire vue par nb-ui : icône = `getTextureIndex(0)`, nom interne du bloc.
 fn slot_view<'a>(view: &UiView<'a>, s: Option<ItemStack>) -> Option<SlotView<'a>> {
     let s = s?;
     // Bloc : couche de la table de maillage ; objet pur : couche de son icône.
-    let icon_layer = match nb_data::BlockId::try_from(s.item) {
-        Ok(b) => view.block_table.get(b).texture_layers[0],
-        Err(_) => view.item_icons.get(s.item),
+    let (icon_layer, style) = match nb_data::BlockId::try_from(s.item) {
+        Ok(b) => block_icon_style(view.block_table.get(b), view.items.name_of(s.item)),
+        Err(_) => (view.item_icons.get(s.item), nb_ui::IconStyle::Item),
     };
     Some(SlotView {
         icon_layer,
+        style,
         count: s.count,
         name: view.items.name_of(s.item),
     })

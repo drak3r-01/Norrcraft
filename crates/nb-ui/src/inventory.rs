@@ -331,8 +331,9 @@ impl InventoryScreen {
         self.ui.draw(dl, input.mouse_x, input.mouse_y);
         let icon = ICON_SIZE as f32;
         let draw_slot = |dl: &mut DrawList, s: &SlotView<'_>, px: i32, py: i32| {
-            dl.block_icon(
+            dl.icon(
                 s.icon_layer,
+                s.style,
                 (px + ICON_PAD) as f32,
                 (py + ICON_PAD) as f32,
                 icon,
@@ -373,7 +374,7 @@ impl InventoryScreen {
         if let Some(s) = held {
             let hx = input.mouse_x as f32 - icon / 2.0;
             let hy = input.mouse_y as f32 - icon / 2.0;
-            dl.block_icon(s.icon_layer, hx, hy, icon);
+            dl.icon(s.icon_layer, s.style, hx, hy, icon);
             if s.count > 1 {
                 count(dl, s.count, hx + icon, hy + icon);
             }
@@ -474,11 +475,13 @@ mod tests {
         let mut slots = [None; SLOTS];
         slots[0] = Some(SlotView {
             icon_layer: 1,
+            style: Default::default(),
             count: 1,
             name: "dirt",
         });
         slots[30] = Some(SlotView {
             icon_layer: 2,
+            style: Default::default(),
             count: 12,
             name: "sand",
         });
@@ -492,6 +495,7 @@ mod tests {
         let mut dl = DrawList::new(1280, 720);
         let held = Some(SlotView {
             icon_layer: 3,
+            style: Default::default(),
             count: 1,
             name: "stone",
         });
@@ -604,6 +608,7 @@ mod tests {
         };
         let view = |layer, count| SlotView {
             icon_layer: layer,
+            style: Default::default(),
             count,
             name: "iron_ingot",
         };
