@@ -1565,7 +1565,7 @@
     {
       "id": "sea_turtle",
       "displayName": "Sea Turtle",
-      "widthX": 1.15,
+      "widthX": 1.058,
       "widthZ": 1.219,
       "height": 0.45,
       "maxHealth": 8.0,

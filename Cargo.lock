@@ -808,6 +808,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb-anim"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "nb-app"
 version = "0.1.0"
 dependencies = [
@@ -835,6 +846,7 @@ dependencies = [
 name = "nb-data"
 version = "0.1.0"
 dependencies = [
+ "nb-anim",
  "nb-core",
  "serde",
  "serde_json",

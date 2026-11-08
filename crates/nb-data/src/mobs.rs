@@ -19,6 +19,8 @@ const GEOMETRY_JSON: &str = include_str!("../../../assets/mob_geometry.json");
 /// Animaux de la phase 9 : réglages et géométrie (même formats).
 const NB_DEFAULTS_JSON: &str = include_str!("../../../assets/mobs_nb.json");
 const NB_GEOMETRY_JSON: &str = include_str!("../../../assets/mob_geometry_nb.json");
+/// Rigs d'animation (os, clips, démarches) de tous les mobs intégrés, générés par `scripts/gen_mobs.py`.
+const RIGS_JSON: &str = include_str!("../../../assets/mob_rigs.json");
 
 /// Identifiants des trois mobs d'origine, dans l'ordre de l'enum Java `MobType`.
 pub const BUILTIN_MOB_IDS: [&str; 3] = ["reindeer", "fish", "orca"];
@@ -52,6 +54,10 @@ pub struct MobConfig {
     pub display_name: String,
     #[serde(skip)]
     pub geometry: Option<MobGeometry>,
+    /// Squelette et animations (rig) du modèle ; hérité par les mobs personnalisés copiés d'un
+    /// mob intégré. `None` : modèle statique.
+    #[serde(skip)]
+    pub rig: Option<std::sync::Arc<nb_anim::RigDef>>,
 
     pub width_x: f32,
     pub width_z: f32,
@@ -289,6 +295,29 @@ impl MobRegistry {
     }
 }
 
+type RigMap = HashMap<String, std::sync::Arc<nb_anim::RigDef>>;
+
+/// Rigs intégrés (analysés une seule fois).
+fn builtin_rigs() -> Result<&'static RigMap> {
+    static RIGS: std::sync::OnceLock<std::result::Result<RigMap, String>> =
+        std::sync::OnceLock::new();
+    RIGS.get_or_init(|| {
+        let raw: HashMap<String, nb_anim::RigDef> =
+            serde_json::from_str(RIGS_JSON).map_err(|e| e.to_string())?;
+        Ok(raw
+            .into_iter()
+            .map(|(k, v)| (k, std::sync::Arc::new(v)))
+            .collect())
+    })
+    .as_ref()
+    .map_err(|e| Error::data("mob_rigs.json", e.clone()))
+}
+
+/// Rig d'un mob intégré, à condition qu'il couvre exactement les boîtes de sa géométrie.
+fn rig_for(rigs: &RigMap, id: &str, boxes: usize) -> Option<std::sync::Arc<nb_anim::RigDef>> {
+    rigs.get(id).filter(|r| r.boxes.len() == boxes).cloned()
+}
+
 fn builtin_configs() -> Result<Vec<MobConfig>> {
     #[derive(Deserialize)]
     struct File {
@@ -299,6 +328,7 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
     let geometry: HashMap<String, Vec<[f32; 10]>> =
         serde_json::from_str(GEOMETRY_JSON).map_err(|e| Error::data("mob_geometry.json", e))?;
     let mut configs = Vec::with_capacity(BUILTIN_MOB_IDS.len() + 48);
+    let rigs = builtin_rigs()?;
     for id in BUILTIN_MOB_IDS {
         let mut cfg = file
             .mobs
@@ -309,6 +339,7 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
         let boxes = geometry.get(id).cloned().ok_or_else(|| {
             Error::data("mob_geometry.json", format!("géométrie manquante: {id}"))
         })?;
+        cfg.rig = rig_for(rigs, &cfg.id, boxes.len());
         cfg.geometry = Some(MobGeometry { boxes });
         configs.push(cfg);
     }
@@ -324,6 +355,7 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
                 format!("géométrie manquante: {}", cfg.id),
             )
         })?;
+        cfg.rig = rig_for(rigs, &cfg.id, boxes.len());
         cfg.geometry = Some(MobGeometry { boxes });
         configs.push(cfg);
     }
@@ -415,5 +447,121 @@ mod tests {
         assert!(reg.id_exists("zombie"));
         reg.reset_to_defaults();
         assert!(!reg.id_exists("zombie"));
+    }
+
+    /// Tous les mobs intégrés ont un rig valide, couvrant exactement leur géométrie, qui se
+    /// compile, et dont l'animation reste saine (valeurs finies, membres près du modèle, pieds
+    /// au sol à la marche).
+    #[test]
+    fn every_builtin_mob_has_a_sound_rig() {
+        use nb_anim::{AnimInput, Animator, Mat34, Rig, Scratch};
+        let reg = MobRegistry::builtin();
+        let mut sc = Scratch::new();
+        for c in reg.all() {
+            let def = c
+                .rig
+                .as_ref()
+                .unwrap_or_else(|| panic!("{} : pas de rig", c.id));
+            let boxes = &c.geometry.as_ref().unwrap().boxes;
+            assert_eq!(def.boxes.len(), boxes.len(), "{}", c.id);
+            let rig = Rig::compile(def).unwrap_or_else(|e| panic!("{} : {e}", c.id));
+            // Boîte englobante au repos et rayon de tolérance.
+            let (mut lo, mut hi) = (glam_min(), glam_max());
+            for b in boxes {
+                for k in 0..3 {
+                    lo[k] = lo[k].min(b[k] / 16.0);
+                    hi[k] = hi[k].max((b[k] + b[k + 3]) / 16.0);
+                }
+            }
+            let size = (hi[0] - lo[0]).max(hi[1] - lo[1]).max(hi[2] - lo[2]);
+            let slack = 0.45 * size + 0.15;
+            let mut pal = vec![Mat34::IDENTITY; rig.bone_count()];
+            let water = c.medium == MobMedium::Water;
+            let top = rig
+                .gaits
+                .iter()
+                .chain(&rig.swim)
+                .map(|g| g.speed)
+                .fold(0.0, f32::max);
+            let walk = rig
+                .gaits
+                .first()
+                .or(rig.swim.first())
+                .map_or(0.0, |g| g.speed);
+            for (label, speed) in [("repos", 0.0), ("marche", walk), ("course", top)] {
+                let mut a = Animator::new(c.id.len() as u32);
+                let inp = AnimInput {
+                    speed,
+                    grounded: true,
+                    in_water: water,
+                    ..AnimInput::default()
+                };
+                for step in 0..360 {
+                    a.update(&rig, &inp, 1.0 / 60.0);
+                    if step % 3 == 0 {
+                        a.evaluate(&rig, &mut sc, &mut pal);
+                        for (bi, m) in pal.iter().enumerate() {
+                            assert!(m.0.iter().all(|v| v.is_finite()), "{} {label}", c.id);
+                            // Coins des boîtes de cet os.
+                            for (i, b) in boxes.iter().enumerate() {
+                                if usize::from(def.boxes[i]) != bi {
+                                    continue;
+                                }
+                                for corner in 0..8 {
+                                    let p = [
+                                        (b[0] + if corner & 1 != 0 { b[3] } else { 0.0 }) / 16.0,
+                                        (b[1] + if corner & 2 != 0 { b[4] } else { 0.0 }) / 16.0,
+                                        (b[2] + if corner & 4 != 0 { b[5] } else { 0.0 }) / 16.0,
+                                    ];
+                                    let q = m.transform_point(p.into());
+                                    for k in 0..3 {
+                                        assert!(
+                                            q[k] > lo[k] - slack && q[k] < hi[k] + slack,
+                                            "{} {label} : boîte {i} sort du modèle ({q:?}, modèle {lo:?}–{hi:?})",
+                                            c.id
+                                        );
+                                    }
+                                    if !water && label != "repos" && step > 45 {
+                                        assert!(
+                                            q.y > -0.16 - 0.02 * size,
+                                            "{} {label} : s'enfonce dans le sol ({q:?})",
+                                            c.id
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Les actions et variantes d'idle jouent sans produire de valeur invalide.
+            let mut a = Animator::new(5);
+            for act in [nb_anim::Action::Hurt, nb_anim::Action::Attack, nb_anim::Action::Jump] {
+                a.trigger(&rig, act);
+            }
+            for i in 0..rig.clips.len() {
+                a.play_variant(i);
+                for _ in 0..30 {
+                    a.update(&rig, &AnimInput { grounded: true, ..Default::default() }, 1.0 / 30.0);
+                    a.evaluate(&rig, &mut sc, &mut pal);
+                    assert!(pal.iter().all(|m| m.0.iter().all(|v| v.is_finite())));
+                }
+            }
+        }
+    }
+
+    fn glam_min() -> [f32; 3] {
+        [f32::MAX; 3]
+    }
+    fn glam_max() -> [f32; 3] {
+        [f32::MIN; 3]
+    }
+
+    #[test]
+    fn custom_mobs_inherit_the_reindeer_rig() {
+        let mut reg = MobRegistry::builtin();
+        reg.apply_overrides(r#"{ "mobs": [ { "id": "zombie" } ] }"#).unwrap();
+        let z = reg.get("zombie").unwrap();
+        assert!(z.rig.is_some(), "rig hérité avec la géométrie du renne");
     }
 }
