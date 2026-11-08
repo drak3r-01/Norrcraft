@@ -117,7 +117,7 @@ impl Default for GameSettings {
             sensitivity: 0.1,
             shadow_quality: ShadowQuality::Low,
             bloom_enabled: true,
-            vsync_enabled: false,
+            vsync_enabled: true,
             fullscreen: false,
             resource_pack: "Default".to_owned(),
             window_width: 1280,
@@ -157,8 +157,12 @@ impl GameSettings {
         if let Some(v) = boolean("bloomEnabled") {
             s.bloom_enabled = v;
         }
-        if let Some(v) = boolean("vsyncEnabled") {
-            s.vsync_enabled = v;
+        // Version 2 : vsync activé par défaut. Un fichier plus ancien contient la valeur écrite
+        // par l'ancien défaut (désactivé) : on ne la reprend pas.
+        if int("settingsVersion").unwrap_or(1) >= 2 {
+            if let Some(v) = boolean("vsyncEnabled") {
+                s.vsync_enabled = v;
+            }
         }
         if let Some(v) = boolean("fullscreen") {
             s.fullscreen = v;
@@ -189,6 +193,7 @@ impl GameSettings {
     /// Sérialise dans le format du Java (`key_<ACTION>` à plat, codes GLFW).
     pub fn to_json(&self) -> String {
         let mut map = serde_json::Map::new();
+        map.insert("settingsVersion".into(), 2.into());
         map.insert("renderDistance".into(), self.render_distance.into());
         map.insert("fov".into(), float_value(self.fov));
         map.insert("sensitivity".into(), float_value(self.sensitivity));
@@ -229,7 +234,7 @@ mod tests {
         assert_eq!(s.render_distance, 12);
         assert_eq!(s.fov, 90.0);
         assert_eq!(s.shadow_quality, ShadowQuality::Low);
-        assert!(s.bloom_enabled && !s.vsync_enabled && !s.fullscreen);
+        assert!(s.bloom_enabled && s.vsync_enabled && !s.fullscreen);
         assert_eq!((s.window_width, s.window_height), (1280, 720));
         assert_eq!(s.key_bindings[&Action::Forward], keys::KEY_W);
         assert_eq!(s.key_bindings[&Action::Sprint], keys::KEY_LEFT_CONTROL);

@@ -139,7 +139,11 @@ impl ParticleLayers {
 
 /// `MobRenderer.render` : mobs dont la config existe, modèle = id de la config, échelle du
 /// cube manquant `(widthX, height, widthZ)`.
-pub fn gfx_mobs<'a>(mobs: &[MobInstance], reg: &'a MobRegistry) -> Vec<nb_gfx::MobInstance<'a>> {
+pub fn gfx_mobs<'a>(
+    mobs: &[MobInstance],
+    reg: &'a MobRegistry,
+    light: impl Fn(DVec3) -> f32,
+) -> Vec<nb_gfx::MobInstance<'a>> {
     mobs.iter()
         .filter_map(|m| {
             let c = reg.get(&m.mob_id)?;
@@ -149,9 +153,40 @@ pub fn gfx_mobs<'a>(mobs: &[MobInstance], reg: &'a MobRegistry) -> Vec<nb_gfx::M
                 yaw_rad: m.yaw,
                 pitch_rad: m.pitch,
                 missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
+                light: light(m.position),
             })
         })
         .collect()
+}
+
+/// Niveau de lumière du ciel (0..1) à la hauteur d'un mob : 15 moins l'atténuation des blocs
+/// au-dessus de sa tête (feuilles, eau, roche), comme la lumière du ciel du mailleur. Un seul
+/// verrou de chunk par mob. Chunk absent → 1 (ciel ouvert).
+pub fn mob_light(world: &World, reg: &BlockRegistry, pos: DVec3) -> f32 {
+    use nb_core::math::{block_index, CHUNK_SIZE_Y};
+    let (x, z) = (pos.x.floor() as i32, pos.z.floor() as i32);
+    let y0 = pos.y.floor() as i32 + 1;
+    let Some(chunk) = world
+        .chunk_manager()
+        .chunk(nb_core::ChunkPos::new(x.div_euclid(16), z.div_euclid(16)))
+    else {
+        return 1.0;
+    };
+    let guard = chunk.read();
+    let voxels = guard.voxels();
+    let (lx, lz) = (x.rem_euclid(16) as usize, z.rem_euclid(16) as usize);
+    let air = reg.ids().air;
+    let mut level = 15i32;
+    for y in y0.max(0)..CHUNK_SIZE_Y as i32 {
+        let id = voxels[block_index(lx, y as usize, lz)];
+        if id != air {
+            level -= i32::from(reg.from_id(id).light_attenuation as i8).max(0);
+            if level <= 0 {
+                return 0.0;
+            }
+        }
+    }
+    level as f32 / 15.0
 }
 
 /// Avatars des autres joueurs pour nb-gfx. Le modèle porte une couleur par numéro de joueur ;
@@ -165,6 +200,7 @@ pub fn gfx_avatars(avatars: &[Avatar]) -> Vec<nb_gfx::MobInstance<'static>> {
             yaw_rad: std::f32::consts::PI - a.yaw_deg.to_radians(),
             pitch_rad: 0.0,
             missing_scale: Vec3::new(0.6, 1.8, 0.6),
+            light: 1.0,
         })
         .collect()
 }
@@ -337,8 +373,12 @@ pub fn build_view<'a>(
         heat_intensity: heat,
         highlight_block: highlight,
         gfx_mobs: {
-            let mut g = gfx_mobs(&mobs, mob_reg);
-            g.extend(gfx_avatars(&avatars));
+            let mut g = gfx_mobs(&mobs, mob_reg, |p| mob_light(world, reg, p));
+            let mut av = gfx_avatars(&avatars);
+            for (g, a) in av.iter_mut().zip(&avatars) {
+                g.light = mob_light(world, reg, a.pos);
+            }
+            g.extend(av);
             g
         },
         avatars,
@@ -405,7 +445,7 @@ mod tests {
                 pitch: 0.0,
             },
         ];
-        let g = gfx_mobs(&mobs, &reg);
+        let g = gfx_mobs(&mobs, &reg, |_| 0.5);
         assert_eq!(g.len(), 1, "config introuvable → ignoré");
         assert_eq!(g[0].model_id, "reindeer");
         assert_eq!(g[0].position, Vec3::new(1.5, 70.25, -3.0));

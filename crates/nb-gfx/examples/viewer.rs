@@ -126,6 +126,7 @@ fn demo_mobs(t: f32) -> Vec<MobInstance<'static>> {
             yaw_rad: yaw,
             pitch_rad: 0.0,
             missing_scale: s,
+            light: 1.0,
         }
     };
     vec![

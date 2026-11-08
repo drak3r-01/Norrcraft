@@ -95,12 +95,63 @@ impl PrioQueue {
     }
 }
 
+/// File des chunks déchargés à écrire sur disque (thread dédié : l'écriture ne bloque plus le
+/// thread principal quand le joueur franchit une limite de chunk).
+struct SaveQueue {
+    /// (positions à écrire, file fermée)
+    state: Mutex<(std::collections::VecDeque<ChunkPos>, bool)>,
+    cv: Condvar,
+}
+
+impl SaveQueue {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new((std::collections::VecDeque::new(), false)),
+            cv: Condvar::new(),
+        }
+    }
+
+    fn push(&self, p: ChunkPos) {
+        let mut g = lock(&self.state);
+        if g.1 {
+            return;
+        }
+        g.0.push_back(p);
+        drop(g);
+        self.cv.notify_one();
+    }
+
+    fn close(&self) {
+        let mut g = lock(&self.state);
+        g.1 = true;
+        g.0.clear();
+        drop(g);
+        self.cv.notify_all();
+    }
+
+    fn pop(&self) -> Option<ChunkPos> {
+        let mut g = lock(&self.state);
+        loop {
+            if g.1 {
+                return None;
+            }
+            if let Some(p) = g.0.pop_front() {
+                return Some(p);
+            }
+            g = self.cv.wait(g).unwrap_or_else(|e| e.into_inner());
+        }
+    }
+}
+
 struct Inner {
     render_distance: AtomicI32,
     active: RwLock<HashMap<ChunkPos, SharedChunk>>,
     generating: Mutex<HashSet<ChunkPos>>,
     lighting: Mutex<HashSet<ChunkPos>>,
     storage: Arc<dyn ChunkStorage>,
+    /// Chunks déchargés dont l'écriture n'est pas terminée. Ils restent lisibles (rechargement,
+    /// `voxels_of`) tant que le fichier n'est pas à jour.
+    unsaved: Mutex<HashMap<ChunkPos, SharedChunk>>,
     /// Équivalent du `synchronized (storage)`.
     storage_lock: Mutex<()>,
     player_chunk_x: AtomicI32,
@@ -186,11 +237,54 @@ impl Inner {
         Ok(())
     }
 
+    /// Écrit sur disque un chunk déchargé (thread de sauvegarde). Abandonné si le chunk a été
+    /// rechargé ou remplacé entre-temps (le fichier ne doit jamais régresser).
+    fn save_pending(&self, pos: ChunkPos) {
+        let Some(entry) = lock(&self.unsaved).get(&pos).cloned() else {
+            return;
+        };
+        let still_pending = |s: &Self| {
+            lock(&s.unsaved)
+                .get(&pos)
+                .is_some_and(|e| Arc::ptr_eq(e, &entry))
+        };
+        {
+            let chunk = entry.read();
+            let _guard = lock(&self.storage_lock);
+            if !still_pending(self) {
+                return;
+            }
+            if let Err(e) = self.storage.save_chunk(chunk.pos(), chunk.voxels()) {
+                eprintln!("échec de sauvegarde du chunk {pos:?} : {e}");
+            }
+        }
+        entry.flags.set_dirty(false);
+        let mut unsaved = lock(&self.unsaved);
+        if unsaved.get(&pos).is_some_and(|e| Arc::ptr_eq(e, &entry)) {
+            unsaved.remove(&pos);
+        }
+    }
+
+    /// Écrit tous les chunks déchargés en attente, sur le thread appelant.
+    fn flush_unsaved(&self) {
+        let positions: Vec<ChunkPos> = lock(&self.unsaved).keys().copied().collect();
+        for pos in positions {
+            self.save_pending(pos);
+        }
+    }
+
     fn load_job(&self, pos: ChunkPos, generator: &WorldGenerator) {
         if self.is_stale(pos) {
             return;
         }
-        let stored = {
+        // Chunk déchargé dont l'écriture est encore en attente : sa copie mémoire fait foi.
+        let pending: Option<crate::storage::Voxels> = lock(&self.unsaved)
+            .get(&pos)
+            .cloned()
+            .map(|e| Box::new(*e.read().voxels()));
+        let stored = if pending.is_some() {
+            pending
+        } else {
             let _g = lock(&self.storage_lock);
             if self.storage.has_chunk(pos) {
                 match self.storage.load_chunk(pos) {
@@ -264,6 +358,7 @@ pub struct ChunkManager {
     generator: Arc<WorldGenerator>,
     registry: Arc<BlockRegistry>,
     gen_q: Arc<PrioQueue>,
+    save_q: Arc<SaveQueue>,
     light_q: Arc<PrioQueue>,
     workers: Mutex<Vec<JoinHandle<()>>>,
 }
@@ -334,6 +429,7 @@ impl ChunkManager {
             active: RwLock::new(HashMap::new()),
             generating: Mutex::new(HashSet::new()),
             lighting: Mutex::new(HashSet::new()),
+            unsaved: Mutex::new(HashMap::new()),
             storage,
             storage_lock: Mutex::new(()),
             player_chunk_x: AtomicI32::new(0),
@@ -399,12 +495,32 @@ impl ChunkManager {
                     .expect("thread de lumière"),
             );
         }
+        let save_q = Arc::new(SaveQueue::new());
+        {
+            let inner = inner.clone();
+            let q = save_q.clone();
+            workers.push(
+                std::thread::Builder::new()
+                    .name("nb-chunksave".to_owned())
+                    .spawn(move || {
+                        nb_core::thread::lower_priority();
+                        while let Some(pos) = q.pop() {
+                            let r = catch_unwind(AssertUnwindSafe(|| inner.save_pending(pos)));
+                            if r.is_err() {
+                                eprintln!("échec de sauvegarde du chunk {pos:?}");
+                            }
+                        }
+                    })
+                    .expect("thread de sauvegarde"),
+            );
+        }
         Self {
             inner,
             generator,
             registry,
             gen_q,
             light_q,
+            save_q,
             workers: Mutex::new(workers),
         }
     }
@@ -558,9 +674,9 @@ impl ChunkManager {
         if let Some(entry) = removed {
             // Monde client : l'hôte fait foi, on ne garde rien (une copie périmée serait relue).
             if entry.flags.is_dirty() && !self.inner.remote.load(Ordering::Acquire) {
-                if let Err(e) = self.inner.save(&entry) {
-                    eprintln!("échec de sauvegarde du chunk {pos:?} : {e}");
-                }
+                // Écriture sur le thread de sauvegarde : ni E/S ni fsync sur le thread principal.
+                lock(&self.inner.unsaved).insert(pos, entry);
+                self.save_q.push(pos);
             }
         }
     }
@@ -659,6 +775,9 @@ impl ChunkManager {
         if let Some(c) = self.inner.active_get(pos) {
             return Some(Box::new(*c.read().voxels()));
         }
+        if let Some(e) = lock(&self.inner.unsaved).get(&pos).cloned() {
+            return Some(Box::new(*e.read().voxels()));
+        }
         let _g = lock(&self.inner.storage_lock);
         if self.inner.storage.has_chunk(pos) {
             self.inner.storage.load_chunk(pos).ok().flatten()
@@ -678,6 +797,8 @@ impl ChunkManager {
             c.replace_voxels(voxels);
             self.inner.mark_neighbors_mesh_dirty(pos);
         } else {
+            // Une écriture en attente de l'ancien contenu ne doit pas écraser celui-ci.
+            lock(&self.inner.unsaved).remove(&pos);
             let _g = lock(&self.inner.storage_lock);
             if let Err(e) = self.inner.storage.save_chunk(pos, voxels) {
                 eprintln!("réseau : chunk {pos:?} non enregistré : {e}");
@@ -733,9 +854,16 @@ impl ChunkManager {
         &self.registry
     }
 
+    /// Écrit tout de suite, sur le thread appelant, les chunks déchargés dont la sauvegarde est
+    /// encore en attente (elle se fait normalement en arrière-plan).
+    pub fn flush_pending_saves(&self) {
+        self.inner.flush_unsaved();
+    }
+
     /// Sauvegarde tous les chunks actifs `dirty` (`WorldSaveManager.flushChunks`).
     /// Continue après une erreur et renvoie la dernière.
     pub fn flush_dirty(&self) -> Result<()> {
+        self.inner.flush_unsaved();
         let mut result = Ok(());
         for (_, entry) in self.active_chunks() {
             if entry.flags.is_dirty() {
@@ -752,10 +880,13 @@ impl ChunkManager {
         self.inner.shutdown.store(true, Ordering::Release);
         self.gen_q.close();
         self.light_q.close();
+        self.save_q.close();
         let workers: Vec<_> = lock(&self.workers).drain(..).collect();
         for w in workers {
             let _ = w.join();
         }
+        // Chunks déchargés dont l'écriture n'était pas finie : jamais perdus.
+        self.inner.flush_unsaved();
     }
 }
 

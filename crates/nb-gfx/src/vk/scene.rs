@@ -287,6 +287,9 @@ pub struct SceneRenderer {
     fluid_order: Vec<ChunkPos>,
     /// `lastQueryResults` (défaut : visible).
     occlusion: HashMap<ChunkPos, bool>,
+    /// Occlusion culling temporel (requêtes décalées d'une à deux frames). Désactivé dans le jeu :
+    /// il laissait voir à travers le relief quand la caméra bougeait.
+    occlusion_enabled: bool,
     frame_counter: u64,
     completed: Option<u64>,
 }
@@ -443,6 +446,7 @@ impl SceneRenderer {
             prev_visible: std::collections::HashSet::new(),
             fluid_order: Vec::new(),
             occlusion: HashMap::new(),
+            occlusion_enabled: true,
             frame_counter: 0,
             completed: None,
         };
@@ -480,6 +484,14 @@ impl SceneRenderer {
     /// Chunks retenus par le frustum de la lumière à la dernière frame.
     pub fn shadow_visible_chunks(&self) -> &[ChunkPos] {
         &self.shadow_visible
+    }
+
+    /// Active ou désactive l'occlusion culling (actif par défaut).
+    pub fn set_occlusion_culling(&mut self, on: bool) {
+        self.occlusion_enabled = on;
+        if !on {
+            self.occlusion.clear();
+        }
     }
 
     /// Dernier résultat d'occlusion connu (`true` si jamais mesuré).
@@ -909,7 +921,11 @@ impl SceneRenderer {
 
         let slot = &mut self.slots[token.slot];
         slot.ubo.write(0, bytemuck::bytes_of(&derived.uniforms))?;
-        let needed = self.visible.len() as u32;
+        let needed = if self.occlusion_enabled {
+            self.visible.len() as u32
+        } else {
+            0
+        };
         if needed > slot.query_capacity {
             // SAFETY : la frame précédente de ce créneau est terminée (fence attendu).
             unsafe { self.ctx.device.destroy_query_pool(slot.queries, None) };
@@ -918,7 +934,9 @@ impl SceneRenderer {
             slot.query_capacity = cap;
         }
         slot.query_chunks.clear();
-        slot.query_chunks.extend_from_slice(&self.visible);
+        if self.occlusion_enabled {
+            slot.query_chunks.extend_from_slice(&self.visible);
+        }
 
         // Occlusion : un chunk qui (ré)entre dans le frustum repart de « visible » (le dernier
         // résultat date d'avant sa sortie : sinon il resterait masqué quelques frames), et les
@@ -931,7 +949,7 @@ impl SceneRenderer {
             let (ccx, ccz) = ((cam.x / 16.0).floor() as i32, (cam.z / 16.0).floor() as i32);
             let meshes = &self.meshes;
             self.occlusion.retain(|p, _| meshes.contains_key(p));
-            for pos in &self.visible {
+            for pos in self.visible.iter().filter(|_| self.occlusion_enabled) {
                 let near = (pos.x - ccx).abs() <= 1 && (pos.z - ccz).abs() <= 1;
                 if near || !self.prev_visible.contains(pos) {
                     self.occlusion.insert(*pos, true);
@@ -1068,7 +1086,12 @@ impl SceneRenderer {
                 &[],
             );
             d.cmd_bind_vertex_buffers(cmd, 0, &[self.aabb.raw], &[0]);
-            for (i, pos) in self.visible.iter().enumerate() {
+            for (i, pos) in self
+                .visible
+                .iter()
+                .enumerate()
+                .filter(|_| self.occlusion_enabled)
+            {
                 let model = Mat4::from_translation(Vec3::new(
                     (pos.x * 16) as f32,
                     0.0,

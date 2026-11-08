@@ -1,10 +1,11 @@
 {
+  "settingsVersion": 2,
   "renderDistance": 12,
   "fov": 90.0,
   "sensitivity": 0.1,
   "shadowQuality": "LOW",
   "bloomEnabled": true,
-  "vsyncEnabled": false,
+  "vsyncEnabled": true,
   "fullscreen": false,
   "resourcePack": "Default",
   "windowWidth": 1280,

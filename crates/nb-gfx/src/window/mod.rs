@@ -73,7 +73,11 @@ impl Renderer {
         })?;
         let ctx = Arc::new(ctx);
         let (assets, pack_meta) = SceneAssets::load(packs_root, packs::DEFAULT_PACK, mobs);
-        let scene = SceneRenderer::new(ctx.clone(), assets, crate::vk::OUTPUT_FORMAT, settings)?;
+        let mut scene =
+            SceneRenderer::new(ctx.clone(), assets, crate::vk::OUTPUT_FORMAT, settings)?;
+        // L'occlusion culling temporel laissait voir sous le relief : désactivé par défaut
+        // (`NB_OCCLUSION=1` pour le réactiver).
+        scene.set_occlusion_culling(std::env::var_os("NB_OCCLUSION").is_some_and(|v| v != "0"));
         let swapchain = Swapchain::new(&ctx, surface, size, settings.vsync, None)?;
         if let Some(sc) = &swapchain {
             if sc.format != scene.output_format() {
@@ -340,18 +344,22 @@ pub const DEFAULT_SIZE: (u32, u32) = (1280, 720);
 /// Titre de la fenêtre.
 pub const TITLE: &str = "Norrblock";
 
-/// Attributs de la fenêtre Java (§3.1) : 1280×720, « Norrblock », redimensionnable, créée
-/// invisible (à centrer avec [`center_on_monitor`] puis afficher).
+/// Attributs de la fenêtre (§3.1) : « Norrblock », redimensionnable, maximisée par défaut
+/// (1280×720 une fois restaurée), créée invisible (à centrer avec [`center_on_monitor`] puis afficher).
 pub fn window_attributes() -> winit::window::WindowAttributes {
     winit::window::Window::default_attributes()
         .with_title(TITLE)
         .with_inner_size(winit::dpi::LogicalSize::new(DEFAULT_SIZE.0, DEFAULT_SIZE.1))
         .with_resizable(true)
+        .with_maximized(true)
         .with_visible(false)
 }
 
 /// Centre la fenêtre sur le moniteur principal (ou courant).
 pub fn center_on_monitor(window: &winit::window::Window) {
+    if window.is_maximized() {
+        return;
+    }
     let Some(m) = window
         .primary_monitor()
         .or_else(|| window.current_monitor())

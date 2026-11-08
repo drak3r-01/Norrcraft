@@ -133,6 +133,8 @@ fn unload_saves_and_reload_restores_edits() {
     let far = Vec3::new(16.0 * 50.0, 60.0, 0.5);
     m.update(far);
     assert!(m.chunk(ChunkPos::new(0, 0)).is_none());
+    // L'écriture des chunks déchargés se fait en arrière-plan : on attend sa fin.
+    m.flush_pending_saves();
     assert!(storage.len() >= 9);
     assert!(storage.has_chunk(ChunkPos::new(0, 0)));
     settle(&m, far);

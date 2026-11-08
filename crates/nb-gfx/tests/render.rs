@@ -646,6 +646,7 @@ fn mob_at(id: &str, position: Vec3) -> MobInstance<'_> {
         yaw_rad: 0.0,
         pitch_rad: 0.0,
         missing_scale: Vec3::new(2.0, 2.0, 2.0),
+        light: 1.0,
     }
 }
 
@@ -678,8 +679,15 @@ fn assert_pixel(img: &RgbaImage, x: u32, y: u32, expect: Vec3, what: &str) {
     }
 }
 
-/// Mob en mode couleur : `texture(blanc) · teinte · luminosité`, sans éclairage ni gamma
-/// (§9.6), plage opaque avec écriture de profondeur puis plage transparente mélangée (§14.1).
+/// HDR attendu d'une face +Z (luminosité 0,85) de couleur `c` (sRGB) : conversion linéaire puis
+/// éclairage ambiant + soleil sans ombre, comme le terrain (lumière du lieu = 1).
+fn mob_lit(c: Vec3) -> Vec3 {
+    let sky = sky_params(900.0);
+    c.powf(2.2) * 0.85 * (sky.ambient + sky.light_color)
+}
+
+/// Mob en mode couleur : `texture(blanc) · teinte · luminosité`, converti en linéaire et éclairé
+/// comme le terrain (ambiant + soleil, ombres), plage opaque avec écriture de profondeur puis plage transparente mélangée (§14.1).
 #[test]
 fn color_mobs_match_cpu_reference() {
     let Some((ctx, _g)) = gpu() else { return };
@@ -714,7 +722,7 @@ fn color_mobs_match_cpu_reference() {
     let img = r.render(&input).unwrap();
     save("mob_solid", &img);
     // Face +Z (luminosité 0.85) à 4 blocs.
-    let expect = expected_center(Vec3::new(0.6, 0.3, 0.1) * 0.85, 4.0);
+    let expect = expected_center(mob_lit(Vec3::new(0.6, 0.3, 0.1)), 4.0);
     assert_pixel(&img, W / 2, H / 2, expect, "mob opaque");
 
     let mobs = [mob_at("glass", Vec3::new(0.0, 69.0, -5.0))];
@@ -722,7 +730,7 @@ fn color_mobs_match_cpu_reference() {
     let img = r.render(&input).unwrap();
     save("mob_glass", &img);
     // Rouge à 50 % sur vert ; profondeur = boîte opaque (la transparente n'écrit pas).
-    let hdr = Vec3::new(1.0, 0.0, 0.0) * 0.85 * 0.5 + Vec3::new(0.0, 0.8, 0.0) * 0.85 * 0.5;
+    let hdr = mob_lit(Vec3::new(1.0, 0.0, 0.0)) * 0.5 + mob_lit(Vec3::new(0.0, 0.8, 0.0)) * 0.5;
     assert_pixel(
         &img,
         W / 2,
@@ -938,6 +946,7 @@ fn demo_world_with_builtin_mobs_and_particles() {
             yaw_rad: yaw,
             pitch_rad: 0.0,
             missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
+            light: 1.0,
         }
     };
     let mobs = [
@@ -1104,14 +1113,20 @@ fn bench_night_sky() {
     for _ in 0..20 {
         r.render(&input).unwrap();
     }
-    eprintln!("nuit : {:.1} ms / frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    eprintln!(
+        "nuit : {:.1} ms / frame",
+        t.elapsed().as_secs_f64() * 1000.0 / 20.0
+    );
     clock.set_time(900.0);
     let input = frame(&cam, &clock);
     let t = std::time::Instant::now();
     for _ in 0..20 {
         r.render(&input).unwrap();
     }
-    eprintln!("jour : {:.1} ms / frame", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+    eprintln!(
+        "jour : {:.1} ms / frame",
+        t.elapsed().as_secs_f64() * 1000.0 / 20.0
+    );
 }
 
 /// Soleil bas sur l'horizon (disque + halo) : image d'inspection `renders/sunset_sun.png`.

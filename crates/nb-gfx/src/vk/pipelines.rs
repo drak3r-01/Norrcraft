@@ -303,7 +303,7 @@ impl Pipelines {
         let mob_layout = pipeline_layout(
             ctx,
             &[frame_set_layout, texture_set_layout],
-            Some((S::VERTEX, 64)),
+            Some((S::VERTEX | S::FRAGMENT, 80)),
         )?;
         let particle_layout = pipeline_layout(
             ctx,

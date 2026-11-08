@@ -340,6 +340,9 @@ impl MobResources {
                         None => (&self.missing, Some(m.missing_scale)),
                     };
                     let mat = mob_model_matrix(m.position, m.yaw_rad, m.pitch_rad, scale);
+                    let mut push = [0.0f32; 20];
+                    push[..16].copy_from_slice(&mat.to_cols_array());
+                    push[16] = m.light;
                     let set = model
                         .texture
                         .as_ref()
@@ -348,9 +351,9 @@ impl MobResources {
                     d.cmd_push_constants(
                         cmd,
                         p.mob_layout,
-                        vk::ShaderStageFlags::VERTEX,
+                        vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
                         0,
-                        bytemuck::cast_slice(&mat.to_cols_array()),
+                        bytemuck::cast_slice(&push),
                     );
                     d.cmd_bind_vertex_buffers(cmd, 0, &[model.buffer.raw], &[0]);
                     // Par mob : plage opaque puis plage transparente (pas de tri global).

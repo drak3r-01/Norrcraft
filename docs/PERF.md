@@ -169,3 +169,28 @@ principal et à 60 images/s plafonnées. Avec le vsync (`FIFO`) ces arrêts disp
 images/s stables, frame maximale ~11 ms). La cause n'a pas été isolée (pilote, DWM ou session de
 test) ; si le jeu saccade à la seconde chez un joueur, activer le vsync dans les réglages est le
 premier réflexe, et `NB_PERF=1` dit si l'attente vient bien de `present`/`attente créneau`.
+
+# Passe « mobs, relief, freezes, fenêtre »
+
+1. **Sauvegarde des chunks déchargés hors du thread principal.** Tous les chunks sont marqués
+   « modifiés » à leur création (comme en Java) : chaque chunk qui sortait de la zone était donc
+   encodé et écrit sur disque (fichier temporaire + renommage) *dans `ChunkManager::update`*,
+   soit une vingtaine d'écritures d'un coup à chaque limite de chunk franchie. C'était la
+   source probable des micro-freezes en se déplaçant. Un thread `nb-chunksave` fait maintenant
+   ces écritures. Un chunk déchargé reste lisible en mémoire (`Inner::unsaved`) tant que son
+   fichier n'est pas à jour : un rechargement rapide ne relit jamais une version périmée, et
+   une écriture devenue obsolète est abandonnée. `flush_dirty` et `shutdown` vident la file ;
+   `ChunkManager::flush_pending_saves` le fait à la demande (tests).
+2. **Vsync activé par défaut** (`settingsVersion` 2 : un `settings.json` plus ancien ne reprend
+   pas l'ancien défaut « désactivé »). Voir la section précédente : les modes sans vsync
+   provoquaient une attente d'environ 500 ms par seconde.
+3. **Occlusion culling temporel désactivé** dans le jeu (`NB_OCCLUSION=1` le réactive). Les
+   résultats des requêtes avaient une à deux frames de retard et pouvaient masquer un chunk
+   encore visible : on voyait à travers le relief. Les chunks du frustum sont tous dessinés.
+4. **Mobs éclairés comme le terrain** (`mob.frag`) : texture convertie en linéaire, ambiant +
+   soleil/lune avec ombres reçues, lumière du ciel du lieu (`render::mob_light`). Avant, la
+   texture sRGB brute partait telle quelle dans le tonemapping : couleurs plates et saturées,
+   très claires la nuit.
+5. **Fenêtre maximisée par défaut**, résolution de rendu = taille de la fenêtre (la swapchain
+   est recréée à chaque changement de taille). Le choix de résolution des réglages ne
+   redimensionne que la fenêtre restaurée.

@@ -23,7 +23,7 @@ pub struct GfxSettings {
 impl Default for GfxSettings {
     fn default() -> Self {
         Self {
-            vsync: false,
+            vsync: true,
             fullscreen: false,
             shadow_quality: ShadowQuality::Low,
             bloom: true,
@@ -89,6 +89,8 @@ pub struct MobInstance<'a> {
     pub pitch_rad: f32,
     /// `(widthX, height, widthZ)` de la config (échelle du cube manquant).
     pub missing_scale: Vec3,
+    /// Niveau de lumière du lieu, 0..1 (1 = ciel ouvert), appliqué à l'éclairage du mob.
+    pub light: f32,
 }
 
 /// Particule à dessiner (§15).

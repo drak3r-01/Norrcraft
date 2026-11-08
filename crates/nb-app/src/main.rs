@@ -335,7 +335,8 @@ impl Running {
                 PlatformRequest::SetCursorGrab(on) => self.set_grab(on),
                 PlatformRequest::SetFullscreen(on) => set_fullscreen(&self.window, on),
                 PlatformRequest::SetWindowSize(w, h) => {
-                    if self.window.fullscreen().is_none() {
+                    // Fenêtre maximisée : la résolution de rendu suit la taille de la fenêtre.
+                    if self.window.fullscreen().is_none() && !self.window.is_maximized() {
                         let _ = self
                             .window
                             .request_inner_size(winit::dpi::PhysicalSize::new(w, h));
