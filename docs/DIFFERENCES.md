@@ -22,6 +22,7 @@ ligne à ligne) est dans `docs/spec/*.md` ; les décisions de Gabriel sont consi
 | 10 | `saves/mobs_defaults.json` du Java : renne `aggressorDetectRange = 0`, `aggressorFleeSpeed = 0` (faux par rapport au code `ReindeerDefinition`) | 10 et 3, comme le code Java (seul le fichier de référence change ; le comportement est celui du Java) | `assets/mobs_defaults.json` ; `nb-data:mobs::builtin_order_and_values` |
 | 11 | `groupSizeMax < groupSizeMin` ou rayon de spawn nul : exception `nextInt(≤ 0)` | aucun spawn pour ce mob + message, pas de panique | `nb-ecs:tests/mobs::far_mobs_despawn_and_degenerate_configs_do_not_panic` |
 | 12 | `world.json` illisible : métadonnées neuves (graine 0) | la graine du monde est conservée | `nb-game` |
+| 13 | Culling : un nœud du quadtree était testé sans la marge d'un demi-chunk (un chunk est rangé par son centre et dépasse de son quadrant) ; caméra au sol, le chunk sous les pieds disparaissait par intermittence et on voyait le dessous du monde | nœuds élargis d'un demi-chunk dans `query_node` | `nb-mesh`, `tests/culling::quadtree_never_drops_visible_chunk_near_camera` |
 
 ## 2. Choix de comportement (hors bogues)
 

@@ -101,7 +101,9 @@ fn camera_frustum_and_quadtree_match_java() {
     }
     assert_eq!(first, 46);
     assert_eq!(h, 0x81d0c5b27f032d55, "matrices");
-    assert_eq!(hb, 0x2225414ecc6e9797, "testAab + quadtree");
+    // Écart voulu avec le Java : les nœuds du quadtree sont élargis d'un demi-chunk (voir
+    // `query_node`), le résultat de la requête change donc pour certaines caméras.
+    assert_eq!(hb, 0x2ebc673555cd1c13, "testAab + quadtree");
 }
 
 /// Matrice « boîte » : envoie `[lo, hi]` sur `[-1, 1]` sur chaque axe (convention GL).
@@ -244,4 +246,39 @@ fn camera_sees_ahead_not_behind() {
     assert!(chunk(0, 0), "contient la caméra");
     assert!(!chunk(0, 3), "derrière");
     assert!(!chunk(0, -80), "au-delà du plan lointain");
+}
+
+/// Régression : caméra au sol, frustum perspectif réel. Le quadtree ne doit jamais rejeter un
+/// chunk que le test direct du frustum accepte (un chunk rangé par son centre dépasse de son
+/// nœud de 8 blocs).
+#[test]
+fn quadtree_never_drops_visible_chunk_near_camera() {
+    let mut chunks = Vec::new();
+    for x in -20..20 {
+        for z in -20..20 {
+            chunks.push(ChunkPos::new(x, z));
+        }
+    }
+    let mut qt = ChunkQuadtree::new();
+    qt.build(chunks.iter().copied());
+    let mut r = Lcg(2024);
+    for _ in 0..3000 {
+        let pos = [r.nf(-200.0, 200.0), r.nf(60.0, 70.0), r.nf(-200.0, 200.0)];
+        let pitch = clamp_pitch(r.nf(-90.0, 90.0));
+        let yaw = r.nf(-360.0, 360.0);
+        let m = camera_frustum_matrix(
+            pos,
+            pitch,
+            yaw,
+            default_fov_y(),
+            r.nf(0.8, 2.2),
+            DEFAULT_NEAR,
+            DEFAULT_FAR,
+        );
+        let f = Frustum::from_gl_matrix(&m);
+        let mut out = Vec::new();
+        qt.query(&f, &mut out);
+        out.sort_unstable();
+        assert_eq!(out, brute_force(&chunks, &f), "caméra {pos:?} {pitch} {yaw}");
+    }
 }
