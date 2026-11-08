@@ -1080,7 +1080,7 @@ impl SceneRenderer {
             let clear = [cc.x, cc.y, cc.z, 1.0];
             let colors = [
                 color_attachment(t.color.view, vk::AttachmentLoadOp::CLEAR, clear),
-                color_attachment(t.bright.view, vk::AttachmentLoadOp::CLEAR, clear),
+                color_attachment(t.bright.view, vk::AttachmentLoadOp::CLEAR, [0.0, 0.0, 0.0, 1.0]),
             ];
             let depth_att = depth_attachment(t.depth.view, vk::AttachmentLoadOp::CLEAR, false);
             begin_rendering(d, cmd, extent, &colors, Some(&depth_att));
