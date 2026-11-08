@@ -14,6 +14,9 @@ pub const BLOCKS_JSON: &str = include_str!("../../../assets/blocks.json");
 /// Blocs du système de craft (`assets/blocks_craft.json`, identifiants 200 et plus, réservés).
 pub const CRAFT_BLOCKS_JSON: &str = include_str!("../../../assets/blocks_craft.json");
 
+/// Stades de culture du mode survie (`scripts/gen_survival.py`), identifiants 210 et plus.
+pub const SURVIVAL_BLOCKS_JSON: &str = include_str!("../../../assets/blocks_survival.json");
+
 /// Entrée brute de `blocks.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -344,6 +347,9 @@ impl BlockRegistry {
         let extra: Vec<BlockProperties> =
             serde_json::from_str(CRAFT_BLOCKS_JSON).expect("blocks_craft.json embarqué invalide");
         props.extend(extra);
+        let crops: Vec<BlockProperties> = serde_json::from_str(SURVIVAL_BLOCKS_JSON)
+            .expect("blocks_survival.json embarqué invalide");
+        props.extend(crops);
         Self::from_properties(props).expect("blocs embarqués invalides")
     }
 
@@ -602,7 +608,8 @@ mod craft_tests {
             );
         }
         let full = BlockRegistry::builtin_with_craft();
-        assert_eq!(full.len(), base.len() + extra.len());
+        let crops: Vec<BlockProperties> = serde_json::from_str(SURVIVAL_BLOCKS_JSON).unwrap();
+        assert_eq!(full.len(), base.len() + extra.len() + crops.len());
         assert_eq!(full.get("aurora_block").light_emission, 15);
         assert_eq!(full.get("workbench").id, 200);
         assert!(full.get("forge").light_emission > 0);

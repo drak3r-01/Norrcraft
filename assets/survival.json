@@ -1,0 +1,3110 @@
+{
+ "biomes": {
+  "AUTUMN_FOREST": -0.15,
+  "BADLANDS": 0.5,
+  "BEACH": 0.05,
+  "BIRCH_FOREST": -0.05,
+  "CHERRY_GROVE": 0.0,
+  "DARK_FOREST": -0.1,
+  "DEEP_OCEAN": -0.15,
+  "DESERT": 0.55,
+  "FLOWER_MEADOW": 0.05,
+  "FOREST": -0.05,
+  "FROZEN_OCEAN": -0.8,
+  "HEATH": -0.2,
+  "HILLS": -0.3,
+  "ICE_SPIKES": -0.95,
+  "JUNGLE": 0.35,
+  "MEGA_TAIGA": -0.35,
+  "MOUNTAINS": -0.45,
+  "MUSHROOM_FIELDS": 0.0,
+  "OCEAN": -0.1,
+  "PLAINS": 0.0,
+  "RIVER": -0.1,
+  "SAVANNA": 0.4,
+  "SNOWY_PEAKS": -1.0,
+  "SNOWY_PLAINS": -0.7,
+  "SNOWY_TAIGA": -0.75,
+  "STONY_SHORE": -0.2,
+  "SWAMP": 0.1,
+  "TAIGA": -0.35,
+  "VOLCANO": 0.8,
+  "WARM_OCEAN": 0.25
+ },
+ "blocks": {
+  "acacia_leaves": {
+   "drops": [
+    {
+     "chance": 0.25,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.02,
+     "item": "apple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.25,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "acacia_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "acacia_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "allium": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "allium",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "apple_leaves": {
+   "drops": [
+    {
+     "chance": 0.25,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.12,
+     "item": "apple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.25,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "ash": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "ash",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.8,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "aurora_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "aurora_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 5.0,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "bamboo": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "bamboo",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "baobab_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "baobab_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "basalt": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "basalt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "basalt_bricks": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "basalt_bricks",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "bedrock": {
+   "drops": [],
+   "hardness": -1.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "berry_bush": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "lingonberry",
+     "max": 3,
+     "min": 1
+    },
+    {
+     "chance": 0.5,
+     "item": "blueberry",
+     "max": 1,
+     "min": 0
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "birch_leaves": {
+   "drops": [
+    {
+     "chance": 0.25,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.02,
+     "item": "apple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.25,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "birch_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "birch_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "blue_orchid": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "blue_orchid",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "bone_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "bone_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "bookshelf": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "bookshelf",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "bricks": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "bricks",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "cactus": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cactus",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.5,
+   "tier": 0,
+   "tool": "none"
+  },
+  "campfire": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "campfire",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "carrot_0": {
+   "drops": [
+    {
+     "chance": 0.0,
+     "item": "carrot",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "carrot_1": {
+   "drops": [
+    {
+     "chance": 0.0,
+     "item": "carrot",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "carrot_2": {
+   "drops": [
+    {
+     "chance": 0.0,
+     "item": "carrot",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "carrot_3": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "carrot",
+     "max": 4,
+     "min": 2
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "cattail": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cattail",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "cherry_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cherry_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "chiseled_sandstone": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "chiseled_sandstone",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "clay": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "clay",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "coal_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "coal_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 5.0,
+   "tier": 1,
+   "tool": "pickaxe"
+  },
+  "coal_ore": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "coal",
+     "max": 2,
+     "min": 1
+    }
+   ],
+   "hardness": 3.0,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "cobblestone": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cobblestone",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "cobweb": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "string",
+     "max": 2,
+     "min": 1
+    }
+   ],
+   "hardness": 3.0,
+   "tier": 0,
+   "tool": "sword"
+  },
+  "coral_blue": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "coral_blue",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.0,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "coral_pink": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "coral_pink",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.0,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "coral_purple": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "coral_purple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.0,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "coral_yellow": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "coral_yellow",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.0,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "cotton_grass": {
+   "drops": [],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "cut_sandstone": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cut_sandstone",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "dark_oak_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dark_oak_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "dead_bush": {
+   "drops": [
+    {
+     "chance": 0.6,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "desert_sage": {
+   "drops": [],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "diamond_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "diamond_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 5.0,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "diamond_ore": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "diamond",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 3.6,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "dirt": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dirt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "dirt_path": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dirt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "ember_bloom": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "ember_bloom",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "emerald_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "emerald_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 5.0,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "emerald_ore": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "emerald",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 3.6,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "farmland": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dirt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "fern": {
+   "drops": [
+    {
+     "chance": 0.22,
+     "item": "wheat_seeds",
+     "max": 2,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "flower_blue": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "flower_blue",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "flower_orange": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "flower_orange",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "flower_pink": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "flower_pink",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "flower_red": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "flower_red",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "flower_white": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "flower_white",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "flower_yellow": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "flower_yellow",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "forge": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "forge",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "glass": {
+   "drops": [],
+   "hardness": 0.4,
+   "tier": 0,
+   "tool": "none"
+  },
+  "gold_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "gold_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 5.0,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "gold_ore": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "raw_gold",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 3.2,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "grass": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dirt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "gravel": {
+   "drops": [
+    {
+     "chance": 0.8,
+     "item": "gravel",
+     "max": 1,
+     "min": 1
+    },
+    {
+     "chance": 0.35,
+     "item": "flint",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.8,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "hay_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "hay_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "hibiscus": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "hibiscus",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "ice": {
+   "drops": [],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "iron_block": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "iron_block",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 5.0,
+   "tier": 2,
+   "tool": "pickaxe"
+  },
+  "iron_ore": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "raw_iron",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 3.2,
+   "tier": 1,
+   "tool": "pickaxe"
+  },
+  "jungle_leaves": {
+   "drops": [
+    {
+     "chance": 0.25,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.02,
+     "item": "apple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.25,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "jungle_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "jungle_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "lantern": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "lantern",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "lava": {
+   "drops": [],
+   "hardness": -2.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "lavender": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "lavender",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "leaves": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "leaves",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "lily_of_the_valley": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "lily_of_the_valley",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "lily_pad": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "lily_pad",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "magma": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "magma",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "marble": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "marble",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "marble_bricks": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "marble_bricks",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "moss": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "moss",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "mossy_cobblestone": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cobblestone",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "mossy_stone_bricks": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "mossy_stone_bricks",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "mushroom_brown": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "mushroom_brown",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "mushroom_cap_brown": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "mushroom_cap_brown",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "mushroom_cap_red": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "mushroom_cap_red",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "mushroom_red": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "mushroom_red",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "mushroom_stem": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "mushroom_stem",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "mycelium": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dirt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "obsidian": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "obsidian",
+     "max": 1,
+     "min": 1
+    },
+    {
+     "chance": 0.3,
+     "item": "aurora_shard",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 22.0,
+   "tier": 3,
+   "tool": "pickaxe"
+  },
+  "packed_ice": {
+   "drops": [
+    {
+     "chance": 0.12,
+     "item": "aurora_shard",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "pampas_grass": {
+   "drops": [
+    {
+     "chance": 0.22,
+     "item": "wheat_seeds",
+     "max": 2,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "planks_acacia": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "planks_acacia",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "planks_birch": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "planks_birch",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "planks_cherry": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "planks_cherry",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "planks_dark_oak": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "planks_dark_oak",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "planks_oak": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "planks_oak",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "planks_spruce": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "planks_spruce",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "podzol": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "dirt",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "potato_0": {
+   "drops": [
+    {
+     "chance": 0.0,
+     "item": "potato",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "potato_1": {
+   "drops": [
+    {
+     "chance": 0.0,
+     "item": "potato",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "potato_2": {
+   "drops": [
+    {
+     "chance": 0.0,
+     "item": "potato",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "potato_3": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "potato",
+     "max": 4,
+     "min": 2
+    },
+    {
+     "chance": 0.1,
+     "item": "turnip",
+     "max": 1,
+     "min": 0
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "prismarine_bricks": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "prismarine_bricks",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "pumpkin": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "pumpkin",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.8,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "red_sand": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "red_sand",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.8,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "redwood_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "redwood_wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "reeds": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "reeds",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "sand": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "sand",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.8,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "sandstone": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "sandstone",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "sea_lantern": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "sea_lantern",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "slate": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "slate",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "slate_tiles": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "slate_tiles",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "snow": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "snow",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.5,
+   "tier": 0,
+   "tool": "shovel"
+  },
+  "spruce_leaves": {
+   "drops": [
+    {
+     "chance": 0.25,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.02,
+     "item": "apple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.25,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "spruce_wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "spruce_wood",
+     "max": 1,
+     "min": 1
+    },
+    {
+     "chance": 0.05,
+     "item": "amber",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "stone": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "cobblestone",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.2,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "stone_bricks": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "stone_bricks",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.6,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "sunflower": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "sunflower",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "tall_grass": {
+   "drops": [
+    {
+     "chance": 0.22,
+     "item": "wheat_seeds",
+     "max": 2,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "terracotta": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "terracotta",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "terracotta_brown": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "terracotta_brown",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "terracotta_orange": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "terracotta_orange",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "terracotta_red": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "terracotta_red",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "terracotta_white": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "terracotta_white",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "terracotta_yellow": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "terracotta_yellow",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "pickaxe"
+  },
+  "torch": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "torch",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "vines": {
+   "drops": [],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "water": {
+   "drops": [],
+   "hardness": -2.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wheat": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "wheat_grain",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.9,
+     "item": "wheat_seeds",
+     "max": 3,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wheat_0": {
+   "drops": [
+    {
+     "chance": 0.5,
+     "item": "wheat_seeds",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wheat_1": {
+   "drops": [
+    {
+     "chance": 0.5,
+     "item": "wheat_seeds",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wheat_2": {
+   "drops": [
+    {
+     "chance": 0.5,
+     "item": "wheat_seeds",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "willow_leaves": {
+   "drops": [
+    {
+     "chance": 0.25,
+     "item": "stick",
+     "max": 2,
+     "min": 1
+    },
+    {
+     "chance": 0.02,
+     "item": "apple",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.25,
+   "tier": 0,
+   "tool": "axe"
+  },
+  "wood": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "wood",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 1.0,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wool_blue": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "wool_blue",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wool_red": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "wool_red",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wool_white": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "wool_white",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "none"
+  },
+  "wool_yellow": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "wool_yellow",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 0.9,
+   "tier": 0,
+   "tool": "none"
+  },
+  "workbench": {
+   "drops": [
+    {
+     "chance": 1.0,
+     "item": "workbench",
+     "max": 1,
+     "min": 1
+    }
+   ],
+   "hardness": 2.4,
+   "tier": 0,
+   "tool": "axe"
+  }
+ },
+ "crops": {
+  "carrot_0": {
+   "grow": 100.0,
+   "next": "carrot_1"
+  },
+  "carrot_1": {
+   "grow": 100.0,
+   "next": "carrot_2"
+  },
+  "carrot_2": {
+   "grow": 100.0,
+   "next": "carrot_3"
+  },
+  "potato_0": {
+   "grow": 100.0,
+   "next": "potato_1"
+  },
+  "potato_1": {
+   "grow": 100.0,
+   "next": "potato_2"
+  },
+  "potato_2": {
+   "grow": 100.0,
+   "next": "potato_3"
+  },
+  "wheat_0": {
+   "grow": 100.0,
+   "next": "wheat_1"
+  },
+  "wheat_1": {
+   "grow": 100.0,
+   "next": "wheat_2"
+  },
+  "wheat_2": {
+   "grow": 100.0,
+   "next": "wheat"
+  }
+ },
+ "items": {
+  "apple": {
+   "food": {
+    "health": 0,
+    "hunger": 3,
+    "saturation": 2,
+    "warmth": 0
+   }
+  },
+  "aurora_axe": {
+   "tool": {
+    "damage": 7.5,
+    "durability": 2031,
+    "kind": "axe",
+    "speed": 12.0,
+    "tier": 4
+   }
+  },
+  "aurora_boots": {
+   "armor": {
+    "defense": 4,
+    "durability": 520,
+    "slot": "feet",
+    "warmth": 0.056
+   }
+  },
+  "aurora_chestplate": {
+   "armor": {
+    "defense": 9,
+    "durability": 640,
+    "slot": "chest",
+    "warmth": 0.16
+   }
+  },
+  "aurora_helmet": {
+   "armor": {
+    "defense": 4,
+    "durability": 440,
+    "slot": "head",
+    "warmth": 0.072
+   }
+  },
+  "aurora_hoe": {
+   "tool": {
+    "damage": 1.5,
+    "durability": 2031,
+    "kind": "hoe",
+    "speed": 12.0,
+    "tier": 4
+   }
+  },
+  "aurora_leggings": {
+   "armor": {
+    "defense": 7,
+    "durability": 600,
+    "slot": "legs",
+    "warmth": 0.112
+   }
+  },
+  "aurora_pickaxe": {
+   "tool": {
+    "damage": 6.5,
+    "durability": 2031,
+    "kind": "pickaxe",
+    "speed": 12.0,
+    "tier": 4
+   }
+  },
+  "aurora_shovel": {
+   "tool": {
+    "damage": 6.0,
+    "durability": 2031,
+    "kind": "shovel",
+    "speed": 12.0,
+    "tier": 4
+   }
+  },
+  "aurora_sword": {
+   "tool": {
+    "damage": 8.0,
+    "durability": 2031,
+    "kind": "sword",
+    "speed": 12.0,
+    "tier": 4
+   }
+  },
+  "baked_potato": {
+   "food": {
+    "health": 0,
+    "hunger": 5,
+    "saturation": 6,
+    "warmth": 8
+   }
+  },
+  "berry_pie": {
+   "food": {
+    "health": 0,
+    "hunger": 8,
+    "saturation": 9,
+    "warmth": 10
+   }
+  },
+  "blueberry": {
+   "food": {
+    "health": 0,
+    "hunger": 2,
+    "saturation": 1,
+    "warmth": 2
+   }
+  },
+  "carrot": {
+   "food": {
+    "health": 0,
+    "hunger": 3,
+    "saturation": 3,
+    "warmth": 0
+   }
+  },
+  "charcoal": {
+   "fuel": 80
+  },
+  "cooked_fish": {
+   "food": {
+    "health": 0,
+    "hunger": 5,
+    "saturation": 6,
+    "warmth": 8
+   }
+  },
+  "cooked_meat": {
+   "food": {
+    "health": 0,
+    "hunger": 8,
+    "saturation": 12,
+    "warmth": 12
+   }
+  },
+  "cooked_poultry": {
+   "food": {
+    "health": 0,
+    "hunger": 6,
+    "saturation": 8,
+    "warmth": 10
+   }
+  },
+  "diamond_axe": {
+   "tool": {
+    "damage": 5.5,
+    "durability": 1561,
+    "kind": "axe",
+    "speed": 8.0,
+    "tier": 3
+   }
+  },
+  "diamond_boots": {
+   "armor": {
+    "defense": 3,
+    "durability": 390,
+    "slot": "feet",
+    "warmth": 0.017
+   }
+  },
+  "diamond_chestplate": {
+   "armor": {
+    "defense": 8,
+    "durability": 480,
+    "slot": "chest",
+    "warmth": 0.048
+   }
+  },
+  "diamond_helmet": {
+   "armor": {
+    "defense": 3,
+    "durability": 330,
+    "slot": "head",
+    "warmth": 0.022
+   }
+  },
+  "diamond_hoe": {
+   "tool": {
+    "damage": 1.5,
+    "durability": 1561,
+    "kind": "hoe",
+    "speed": 8.0,
+    "tier": 3
+   }
+  },
+  "diamond_leggings": {
+   "armor": {
+    "defense": 6,
+    "durability": 450,
+    "slot": "legs",
+    "warmth": 0.034
+   }
+  },
+  "diamond_pickaxe": {
+   "tool": {
+    "damage": 4.5,
+    "durability": 1561,
+    "kind": "pickaxe",
+    "speed": 8.0,
+    "tier": 3
+   }
+  },
+  "diamond_shovel": {
+   "tool": {
+    "damage": 4.0,
+    "durability": 1561,
+    "kind": "shovel",
+    "speed": 8.0,
+    "tier": 3
+   }
+  },
+  "diamond_sword": {
+   "tool": {
+    "damage": 6.0,
+    "durability": 1561,
+    "kind": "sword",
+    "speed": 8.0,
+    "tier": 3
+   }
+  },
+  "fish_stew": {
+   "food": {
+    "health": 0,
+    "hunger": 8,
+    "saturation": 11,
+    "warmth": 34
+   }
+  },
+  "fishing_rod": {
+   "tool": {
+    "damage": 1.0,
+    "durability": 120,
+    "kind": "rod",
+    "speed": 1.0,
+    "tier": 0
+   }
+  },
+  "fur_boots": {
+   "armor": {
+    "defense": 1,
+    "durability": 65,
+    "slot": "feet",
+    "warmth": 0.087
+   }
+  },
+  "fur_cap": {
+   "armor": {
+    "defense": 1,
+    "durability": 55,
+    "slot": "head",
+    "warmth": 0.112
+   }
+  },
+  "fur_trousers": {
+   "armor": {
+    "defense": 2,
+    "durability": 75,
+    "slot": "legs",
+    "warmth": 0.174
+   }
+  },
+  "fur_tunic": {
+   "armor": {
+    "defense": 3,
+    "durability": 80,
+    "slot": "chest",
+    "warmth": 0.248
+   }
+  },
+  "iron_axe": {
+   "tool": {
+    "damage": 4.5,
+    "durability": 250,
+    "kind": "axe",
+    "speed": 5.5,
+    "tier": 2
+   }
+  },
+  "iron_boots": {
+   "armor": {
+    "defense": 2,
+    "durability": 156,
+    "slot": "feet",
+    "warmth": 0.014
+   }
+  },
+  "iron_chestplate": {
+   "armor": {
+    "defense": 6,
+    "durability": 192,
+    "slot": "chest",
+    "warmth": 0.04
+   }
+  },
+  "iron_helmet": {
+   "armor": {
+    "defense": 2,
+    "durability": 132,
+    "slot": "head",
+    "warmth": 0.018
+   }
+  },
+  "iron_hoe": {
+   "tool": {
+    "damage": 1.5,
+    "durability": 250,
+    "kind": "hoe",
+    "speed": 5.5,
+    "tier": 2
+   }
+  },
+  "iron_leggings": {
+   "armor": {
+    "defense": 5,
+    "durability": 180,
+    "slot": "legs",
+    "warmth": 0.028
+   }
+  },
+  "iron_pickaxe": {
+   "tool": {
+    "damage": 3.5,
+    "durability": 250,
+    "kind": "pickaxe",
+    "speed": 5.5,
+    "tier": 2
+   }
+  },
+  "iron_shovel": {
+   "tool": {
+    "damage": 3.0,
+    "durability": 250,
+    "kind": "shovel",
+    "speed": 5.5,
+    "tier": 2
+   }
+  },
+  "iron_sword": {
+   "tool": {
+    "damage": 5.0,
+    "durability": 250,
+    "kind": "sword",
+    "speed": 5.5,
+    "tier": 2
+   }
+  },
+  "lingon_juice": {
+   "food": {
+    "health": 0,
+    "hunger": 3,
+    "saturation": 2,
+    "warmth": 10
+   }
+  },
+  "lingonberry": {
+   "food": {
+    "health": 0,
+    "hunger": 2,
+    "saturation": 1,
+    "warmth": 2
+   }
+  },
+  "mead": {
+   "food": {
+    "health": 0,
+    "hunger": 2,
+    "saturation": 3,
+    "warmth": 46
+   }
+  },
+  "mushroom_stew": {
+   "food": {
+    "health": 0,
+    "hunger": 6,
+    "saturation": 8,
+    "warmth": 24
+   }
+  },
+  "porridge": {
+   "food": {
+    "health": 0,
+    "hunger": 6,
+    "saturation": 8,
+    "warmth": 28
+   }
+  },
+  "potato": {
+   "food": {
+    "health": 0,
+    "hunger": 1,
+    "saturation": 1,
+    "warmth": 0
+   }
+  },
+  "raw_fish": {
+   "food": {
+    "health": 0,
+    "hunger": 1,
+    "saturation": 0,
+    "warmth": 0
+   }
+  },
+  "raw_meat": {
+   "food": {
+    "health": 0,
+    "hunger": 2,
+    "saturation": 1,
+    "warmth": 0
+   }
+  },
+  "raw_poultry": {
+   "food": {
+    "health": 0,
+    "hunger": 2,
+    "saturation": 1,
+    "warmth": 0
+   }
+  },
+  "rye_bread": {
+   "food": {
+    "health": 0,
+    "hunger": 6,
+    "saturation": 7,
+    "warmth": 6
+   }
+  },
+  "smoked_fish": {
+   "food": {
+    "health": 0,
+    "hunger": 6,
+    "saturation": 9,
+    "warmth": 14
+   }
+  },
+  "stone_axe": {
+   "tool": {
+    "damage": 3.5,
+    "durability": 131,
+    "kind": "axe",
+    "speed": 3.5,
+    "tier": 1
+   }
+  },
+  "stone_hoe": {
+   "tool": {
+    "damage": 1.5,
+    "durability": 131,
+    "kind": "hoe",
+    "speed": 3.5,
+    "tier": 1
+   }
+  },
+  "stone_pickaxe": {
+   "tool": {
+    "damage": 2.5,
+    "durability": 131,
+    "kind": "pickaxe",
+    "speed": 3.5,
+    "tier": 1
+   }
+  },
+  "stone_shovel": {
+   "tool": {
+    "damage": 2.0,
+    "durability": 131,
+    "kind": "shovel",
+    "speed": 3.5,
+    "tier": 1
+   }
+  },
+  "stone_sword": {
+   "tool": {
+    "damage": 4.0,
+    "durability": 131,
+    "kind": "sword",
+    "speed": 3.5,
+    "tier": 1
+   }
+  },
+  "tallow": {
+   "fuel": 40
+  },
+  "turnip": {
+   "food": {
+    "health": 0,
+    "hunger": 2,
+    "saturation": 2,
+    "warmth": 0
+   }
+  },
+  "wheat_bread": {
+   "food": {
+    "health": 0,
+    "hunger": 5,
+    "saturation": 6,
+    "warmth": 5
+   }
+  },
+  "wood_axe": {
+   "tool": {
+    "damage": 2.5,
+    "durability": 59,
+    "kind": "axe",
+    "speed": 2.0,
+    "tier": 0
+   }
+  },
+  "wood_hoe": {
+   "tool": {
+    "damage": 1.5,
+    "durability": 59,
+    "kind": "hoe",
+    "speed": 2.0,
+    "tier": 0
+   }
+  },
+  "wood_pickaxe": {
+   "tool": {
+    "damage": 1.5,
+    "durability": 59,
+    "kind": "pickaxe",
+    "speed": 2.0,
+    "tier": 0
+   }
+  },
+  "wood_shovel": {
+   "tool": {
+    "damage": 1.0,
+    "durability": 59,
+    "kind": "shovel",
+    "speed": 2.0,
+    "tier": 0
+   }
+  },
+  "wood_sword": {
+   "tool": {
+    "damage": 3.0,
+    "durability": 59,
+    "kind": "sword",
+    "speed": 2.0,
+    "tier": 0
+   }
+  }
+ },
+ "mobs": {
+  "arctic_fox": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "bison": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.4,
+    "item": "pelt",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "tallow",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "brown_bear": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   }
+  ],
+  "camel": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "capybara": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "clownfish": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "crab": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "dolphin": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "elk": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.45,
+    "item": "antler",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "ember_newt": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "fennec_fox": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "fish": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "flamingo": [
+   {
+    "chance": 1.0,
+    "item": "raw_poultry",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "feather",
+    "max": 3,
+    "min": 1
+   }
+  ],
+  "frog": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "giraffe": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "grey_wolf": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "hare": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "hedgehog": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "ink_squid": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "jellyfish": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "lanternfish": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "manta_ray": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "mossback": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "mouflon": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.6,
+    "item": "pelt",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "mountain_goat": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.6,
+    "item": "pelt",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "narwhal": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tusk",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "orca": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "ostrich": [
+   {
+    "chance": 1.0,
+    "item": "raw_poultry",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "feather",
+    "max": 3,
+    "min": 1
+   }
+  ],
+  "panther": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "penguin": [
+   {
+    "chance": 1.0,
+    "item": "raw_poultry",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "feather",
+    "max": 3,
+    "min": 1
+   }
+  ],
+  "pheasant": [
+   {
+    "chance": 1.0,
+    "item": "raw_poultry",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "feather",
+    "max": 3,
+    "min": 1
+   }
+  ],
+  "piranha": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "polar_bear": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   }
+  ],
+  "pufferfish": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "red_panda": [
+   {
+    "chance": 0.9,
+    "item": "pelt",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.9,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "reindeer": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.45,
+    "item": "antler",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "salmon": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "sand_lizard": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "scorpion": [
+   {
+    "chance": 0.6,
+    "item": "raw_meat",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "sea_turtle": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "shark": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 1,
+    "min": 1
+   }
+  ],
+  "tortoise": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "tallow",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "bone",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "tuna": [
+   {
+    "chance": 1.0,
+    "item": "raw_fish",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "wild_boar": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   },
+   {
+    "chance": 0.4,
+    "item": "tusk",
+    "max": 1,
+    "min": 1
+   },
+   {
+    "chance": 0.5,
+    "item": "tallow",
+    "max": 2,
+    "min": 1
+   }
+  ],
+  "zebra": [
+   {
+    "chance": 1.0,
+    "item": "raw_meat",
+    "max": 3,
+    "min": 1
+   },
+   {
+    "chance": 0.8,
+    "item": "hide",
+    "max": 2,
+    "min": 1
+   }
+  ]
+ }
+}

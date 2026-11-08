@@ -1,0 +1,412 @@
+[
+ {
+  "id": 300,
+  "name": "wood_pickaxe",
+  "texture": "item_wood_pickaxe"
+ },
+ {
+  "id": 301,
+  "name": "wood_axe",
+  "texture": "item_wood_axe"
+ },
+ {
+  "id": 302,
+  "name": "wood_shovel",
+  "texture": "item_wood_shovel"
+ },
+ {
+  "id": 303,
+  "name": "wood_hoe",
+  "texture": "item_wood_hoe"
+ },
+ {
+  "id": 304,
+  "name": "wood_sword",
+  "texture": "item_wood_sword"
+ },
+ {
+  "id": 305,
+  "name": "stone_pickaxe",
+  "texture": "item_stone_pickaxe"
+ },
+ {
+  "id": 306,
+  "name": "stone_axe",
+  "texture": "item_stone_axe"
+ },
+ {
+  "id": 307,
+  "name": "stone_shovel",
+  "texture": "item_stone_shovel"
+ },
+ {
+  "id": 308,
+  "name": "stone_hoe",
+  "texture": "item_stone_hoe"
+ },
+ {
+  "id": 309,
+  "name": "stone_sword",
+  "texture": "item_stone_sword"
+ },
+ {
+  "id": 310,
+  "name": "iron_pickaxe",
+  "texture": "item_iron_pickaxe"
+ },
+ {
+  "id": 311,
+  "name": "iron_axe",
+  "texture": "item_iron_axe"
+ },
+ {
+  "id": 312,
+  "name": "iron_shovel",
+  "texture": "item_iron_shovel"
+ },
+ {
+  "id": 313,
+  "name": "iron_hoe",
+  "texture": "item_iron_hoe"
+ },
+ {
+  "id": 314,
+  "name": "iron_sword",
+  "texture": "item_iron_sword"
+ },
+ {
+  "id": 315,
+  "name": "diamond_pickaxe",
+  "texture": "item_diamond_pickaxe"
+ },
+ {
+  "id": 316,
+  "name": "diamond_axe",
+  "texture": "item_diamond_axe"
+ },
+ {
+  "id": 317,
+  "name": "diamond_shovel",
+  "texture": "item_diamond_shovel"
+ },
+ {
+  "id": 318,
+  "name": "diamond_hoe",
+  "texture": "item_diamond_hoe"
+ },
+ {
+  "id": 319,
+  "name": "diamond_sword",
+  "texture": "item_diamond_sword"
+ },
+ {
+  "id": 320,
+  "name": "aurora_pickaxe",
+  "texture": "item_aurora_pickaxe"
+ },
+ {
+  "id": 321,
+  "name": "aurora_axe",
+  "texture": "item_aurora_axe"
+ },
+ {
+  "id": 322,
+  "name": "aurora_shovel",
+  "texture": "item_aurora_shovel"
+ },
+ {
+  "id": 323,
+  "name": "aurora_hoe",
+  "texture": "item_aurora_hoe"
+ },
+ {
+  "id": 324,
+  "name": "aurora_sword",
+  "texture": "item_aurora_sword"
+ },
+ {
+  "id": 325,
+  "name": "fur_cap",
+  "texture": "item_fur_cap"
+ },
+ {
+  "id": 326,
+  "name": "fur_tunic",
+  "texture": "item_fur_tunic"
+ },
+ {
+  "id": 327,
+  "name": "fur_trousers",
+  "texture": "item_fur_trousers"
+ },
+ {
+  "id": 328,
+  "name": "fur_boots",
+  "texture": "item_fur_boots"
+ },
+ {
+  "id": 329,
+  "name": "iron_helmet",
+  "texture": "item_iron_helmet"
+ },
+ {
+  "id": 330,
+  "name": "iron_chestplate",
+  "texture": "item_iron_chestplate"
+ },
+ {
+  "id": 331,
+  "name": "iron_leggings",
+  "texture": "item_iron_leggings"
+ },
+ {
+  "id": 332,
+  "name": "iron_boots",
+  "texture": "item_iron_boots"
+ },
+ {
+  "id": 333,
+  "name": "diamond_helmet",
+  "texture": "item_diamond_helmet"
+ },
+ {
+  "id": 334,
+  "name": "diamond_chestplate",
+  "texture": "item_diamond_chestplate"
+ },
+ {
+  "id": 335,
+  "name": "diamond_leggings",
+  "texture": "item_diamond_leggings"
+ },
+ {
+  "id": 336,
+  "name": "diamond_boots",
+  "texture": "item_diamond_boots"
+ },
+ {
+  "id": 337,
+  "name": "aurora_helmet",
+  "texture": "item_aurora_helmet"
+ },
+ {
+  "id": 338,
+  "name": "aurora_chestplate",
+  "texture": "item_aurora_chestplate"
+ },
+ {
+  "id": 339,
+  "name": "aurora_leggings",
+  "texture": "item_aurora_leggings"
+ },
+ {
+  "id": 340,
+  "name": "aurora_boots",
+  "texture": "item_aurora_boots"
+ },
+ {
+  "id": 341,
+  "name": "flint",
+  "texture": "item_flint"
+ },
+ {
+  "id": 342,
+  "name": "raw_iron",
+  "texture": "item_raw_iron"
+ },
+ {
+  "id": 343,
+  "name": "raw_gold",
+  "texture": "item_raw_gold"
+ },
+ {
+  "id": 344,
+  "name": "charcoal",
+  "texture": "item_charcoal"
+ },
+ {
+  "id": 345,
+  "name": "hide",
+  "texture": "item_hide"
+ },
+ {
+  "id": 346,
+  "name": "pelt",
+  "texture": "item_pelt"
+ },
+ {
+  "id": 347,
+  "name": "bone",
+  "texture": "item_bone"
+ },
+ {
+  "id": 348,
+  "name": "feather",
+  "texture": "item_feather"
+ },
+ {
+  "id": 349,
+  "name": "string",
+  "texture": "item_string"
+ },
+ {
+  "id": 350,
+  "name": "antler",
+  "texture": "item_antler"
+ },
+ {
+  "id": 351,
+  "name": "tusk",
+  "texture": "item_tusk"
+ },
+ {
+  "id": 352,
+  "name": "tallow",
+  "texture": "item_tallow"
+ },
+ {
+  "id": 353,
+  "name": "cloth",
+  "texture": "item_cloth"
+ },
+ {
+  "id": 354,
+  "name": "amber",
+  "texture": "item_amber"
+ },
+ {
+  "id": 355,
+  "name": "bowl",
+  "texture": "item_bowl"
+ },
+ {
+  "id": 356,
+  "name": "fishing_rod",
+  "texture": "item_fishing_rod"
+ },
+ {
+  "id": 357,
+  "name": "flour",
+  "texture": "item_flour"
+ },
+ {
+  "id": 358,
+  "name": "wheat_seeds",
+  "texture": "item_wheat_seeds"
+ },
+ {
+  "id": 359,
+  "name": "apple",
+  "texture": "item_apple"
+ },
+ {
+  "id": 360,
+  "name": "lingonberry",
+  "texture": "item_lingonberry"
+ },
+ {
+  "id": 361,
+  "name": "blueberry",
+  "texture": "item_blueberry"
+ },
+ {
+  "id": 362,
+  "name": "carrot",
+  "texture": "item_carrot"
+ },
+ {
+  "id": 363,
+  "name": "turnip",
+  "texture": "item_turnip"
+ },
+ {
+  "id": 364,
+  "name": "potato",
+  "texture": "item_potato"
+ },
+ {
+  "id": 365,
+  "name": "baked_potato",
+  "texture": "item_baked_potato"
+ },
+ {
+  "id": 366,
+  "name": "rye_bread",
+  "texture": "item_rye_bread"
+ },
+ {
+  "id": 367,
+  "name": "wheat_bread",
+  "texture": "item_wheat_bread"
+ },
+ {
+  "id": 368,
+  "name": "raw_meat",
+  "texture": "item_raw_meat"
+ },
+ {
+  "id": 369,
+  "name": "cooked_meat",
+  "texture": "item_cooked_meat"
+ },
+ {
+  "id": 370,
+  "name": "raw_poultry",
+  "texture": "item_raw_poultry"
+ },
+ {
+  "id": 371,
+  "name": "cooked_poultry",
+  "texture": "item_cooked_poultry"
+ },
+ {
+  "id": 372,
+  "name": "raw_fish",
+  "texture": "item_raw_fish"
+ },
+ {
+  "id": 373,
+  "name": "cooked_fish",
+  "texture": "item_cooked_fish"
+ },
+ {
+  "id": 374,
+  "name": "smoked_fish",
+  "texture": "item_smoked_fish"
+ },
+ {
+  "id": 375,
+  "name": "porridge",
+  "texture": "item_porridge"
+ },
+ {
+  "id": 376,
+  "name": "fish_stew",
+  "texture": "item_fish_stew"
+ },
+ {
+  "id": 377,
+  "name": "mushroom_stew",
+  "texture": "item_mushroom_stew"
+ },
+ {
+  "id": 378,
+  "name": "berry_pie",
+  "texture": "item_berry_pie"
+ },
+ {
+  "id": 379,
+  "name": "mead",
+  "texture": "item_mead"
+ },
+ {
+  "id": 380,
+  "name": "lingon_juice",
+  "texture": "item_lingon_juice"
+ },
+ {
+  "id": 381,
+  "name": "wheat_grain",
+  "texture": "item_wheat_grain"
+ }
+]

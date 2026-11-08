@@ -1,0 +1,1074 @@
+{
+ "tags": {
+  "tools_stick": [
+   "stick"
+  ],
+  "meats_raw": [
+   "raw_meat",
+   "raw_poultry"
+  ],
+  "veg": [
+   "carrot",
+   "turnip",
+   "potato"
+  ],
+  "berries": [
+   "lingonberry",
+   "blueberry"
+  ],
+  "fuel_all": [
+   "coal",
+   "charcoal",
+   "tallow",
+   "stick",
+   "planks_oak",
+   "planks_birch",
+   "planks_spruce",
+   "planks_acacia",
+   "planks_cherry",
+   "planks_dark_oak",
+   "wood",
+   "birch_wood",
+   "spruce_wood",
+   "jungle_wood",
+   "acacia_wood",
+   "cherry_wood",
+   "dark_oak_wood"
+  ],
+  "metals_head": [
+   "planks_oak",
+   "planks_birch",
+   "planks_spruce",
+   "planks_acacia",
+   "planks_cherry",
+   "planks_dark_oak"
+  ],
+  "stone_head": [
+   "cobblestone",
+   "stone",
+   "basalt",
+   "slate",
+   "marble"
+  ]
+ },
+ "recipes": [
+  {
+   "station": "workbench",
+   "result": {
+    "item": "wood_pickaxe",
+    "count": 1
+   },
+   "pattern": [
+    "HHH",
+    " S ",
+    " S "
+   ],
+   "key": {
+    "H": "#metals_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "wood_axe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    "HS",
+    " S"
+   ],
+   "key": {
+    "H": "#metals_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "wood_shovel",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "S",
+    "S"
+   ],
+   "key": {
+    "H": "#metals_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "wood_hoe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    " S",
+    " S"
+   ],
+   "key": {
+    "H": "#metals_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "wood_sword",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "H",
+    "S"
+   ],
+   "key": {
+    "H": "#metals_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "stone_pickaxe",
+    "count": 1
+   },
+   "pattern": [
+    "HHH",
+    " S ",
+    " S "
+   ],
+   "key": {
+    "H": "#stone_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "stone_axe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    "HS",
+    " S"
+   ],
+   "key": {
+    "H": "#stone_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "stone_shovel",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "S",
+    "S"
+   ],
+   "key": {
+    "H": "#stone_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "stone_hoe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    " S",
+    " S"
+   ],
+   "key": {
+    "H": "#stone_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "stone_sword",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "H",
+    "S"
+   ],
+   "key": {
+    "H": "#stone_head",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_pickaxe",
+    "count": 1
+   },
+   "pattern": [
+    "HHH",
+    " S ",
+    " S "
+   ],
+   "key": {
+    "H": "iron_ingot",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_axe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    "HS",
+    " S"
+   ],
+   "key": {
+    "H": "iron_ingot",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_shovel",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "S",
+    "S"
+   ],
+   "key": {
+    "H": "iron_ingot",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_hoe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    " S",
+    " S"
+   ],
+   "key": {
+    "H": "iron_ingot",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_sword",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "H",
+    "S"
+   ],
+   "key": {
+    "H": "iron_ingot",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_pickaxe",
+    "count": 1
+   },
+   "pattern": [
+    "HHH",
+    " S ",
+    " S "
+   ],
+   "key": {
+    "H": "diamond",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_axe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    "HS",
+    " S"
+   ],
+   "key": {
+    "H": "diamond",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_shovel",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "S",
+    "S"
+   ],
+   "key": {
+    "H": "diamond",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_hoe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    " S",
+    " S"
+   ],
+   "key": {
+    "H": "diamond",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_sword",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "H",
+    "S"
+   ],
+   "key": {
+    "H": "diamond",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_pickaxe",
+    "count": 1
+   },
+   "pattern": [
+    "HHH",
+    " S ",
+    " S "
+   ],
+   "key": {
+    "H": "aurora_shard",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_axe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    "HS",
+    " S"
+   ],
+   "key": {
+    "H": "aurora_shard",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_shovel",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "S",
+    "S"
+   ],
+   "key": {
+    "H": "aurora_shard",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_hoe",
+    "count": 1
+   },
+   "pattern": [
+    "HH",
+    " S",
+    " S"
+   ],
+   "key": {
+    "H": "aurora_shard",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_sword",
+    "count": 1
+   },
+   "pattern": [
+    "H",
+    "H",
+    "S"
+   ],
+   "key": {
+    "H": "aurora_shard",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "fur_cap",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M"
+   ],
+   "key": {
+    "M": "pelt"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "fur_tunic",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "MMM",
+    "MMM"
+   ],
+   "key": {
+    "M": "pelt"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "fur_trousers",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "pelt"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "fur_boots",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "pelt"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_helmet",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M"
+   ],
+   "key": {
+    "M": "iron_ingot"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_chestplate",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "MMM",
+    "MMM"
+   ],
+   "key": {
+    "M": "iron_ingot"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_leggings",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "iron_ingot"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "iron_boots",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "iron_ingot"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_helmet",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M"
+   ],
+   "key": {
+    "M": "diamond"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_chestplate",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "MMM",
+    "MMM"
+   ],
+   "key": {
+    "M": "diamond"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_leggings",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "diamond"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "diamond_boots",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "diamond"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_helmet",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M"
+   ],
+   "key": {
+    "M": "aurora_shard"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_chestplate",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "MMM",
+    "MMM"
+   ],
+   "key": {
+    "M": "aurora_shard"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_leggings",
+    "count": 1
+   },
+   "pattern": [
+    "MMM",
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "aurora_shard"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "aurora_boots",
+    "count": 1
+   },
+   "pattern": [
+    "M M",
+    "M M"
+   ],
+   "key": {
+    "M": "aurora_shard"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "bowl",
+    "count": 2
+   },
+   "pattern": [
+    "P P",
+    " P "
+   ],
+   "key": {
+    "P": "#planks"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "string",
+    "count": 1
+   },
+   "shapeless": [
+    "hide"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "cloth",
+    "count": 1
+   },
+   "shapeless": [
+    "string",
+    "string",
+    "string",
+    "string"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "flour",
+    "count": 1
+   },
+   "shapeless": [
+    "wheat_grain"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "fishing_rod",
+    "count": 1
+   },
+   "pattern": [
+    "  S",
+    " ST",
+    "S T"
+   ],
+   "key": {
+    "S": "stick",
+    "T": "string"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "wheat_bread",
+    "count": 1
+   },
+   "shapeless": [
+    "flour",
+    "flour"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "rye_bread",
+    "count": 1
+   },
+   "shapeless": [
+    "flour",
+    "flour",
+    "flour"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "porridge",
+    "count": 1
+   },
+   "shapeless": [
+    "bowl",
+    "flour",
+    "lingonberry"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "mushroom_stew",
+    "count": 1
+   },
+   "shapeless": [
+    "bowl",
+    "mushroom_brown",
+    "mushroom_red"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "mushroom_stew",
+    "count": 1
+   },
+   "shapeless": [
+    "bowl",
+    "mushroom_brown",
+    "mushroom_brown"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "fish_stew",
+    "count": 1
+   },
+   "shapeless": [
+    "bowl",
+    "cooked_fish",
+    "potato"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "fish_stew",
+    "count": 1
+   },
+   "shapeless": [
+    "bowl",
+    "smoked_fish",
+    "carrot"
+   ]
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "lingon_juice",
+    "count": 1
+   },
+   "shapeless": [
+    "lingonberry",
+    "lingonberry",
+    "lingonberry"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "berry_pie",
+    "count": 1
+   },
+   "shapeless": [
+    "flour",
+    "flour",
+    "lingonberry",
+    "blueberry",
+    "blueberry"
+   ]
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "mead",
+    "count": 1
+   },
+   "pattern": [
+    " A ",
+    "BFB",
+    "BBB"
+   ],
+   "key": {
+    "A": "amber",
+    "B": "#berries",
+    "F": "flour"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "torch",
+    "count": 2
+   },
+   "pattern": [
+    "T",
+    "S"
+   ],
+   "key": {
+    "T": "tallow",
+    "S": "stick"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "campfire",
+    "count": 1
+   },
+   "pattern": [
+    " S ",
+    "SCS",
+    "LLL"
+   ],
+   "key": {
+    "S": "stick",
+    "C": "charcoal",
+    "L": "#logs"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "charcoal",
+    "count": 1
+   },
+   "pattern": [
+    "WF"
+   ],
+   "key": {
+    "W": "#logs",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "cooked_meat",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "raw_meat",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "cooked_poultry",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "raw_poultry",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "cooked_fish",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "raw_fish",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "baked_potato",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "potato",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "smoked_fish",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "cooked_fish",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "iron_ingot",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "raw_iron",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "gold_ingot",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "raw_gold",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "glass",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "sand",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "forge",
+   "result": {
+    "item": "stone",
+    "count": 1
+   },
+   "pattern": [
+    "RF"
+   ],
+   "key": {
+    "R": "cobblestone",
+    "F": "#fuel_all"
+   }
+  },
+  {
+   "station": "workbench",
+   "result": {
+    "item": "hay_block",
+    "count": 1
+   },
+   "pattern": [
+    "WWW",
+    "WWW",
+    "WWW"
+   ],
+   "key": {
+    "W": "wheat_grain"
+   }
+  },
+  {
+   "station": "hand",
+   "result": {
+    "item": "wheat_grain",
+    "count": 9
+   },
+   "shapeless": [
+    "hay_block"
+   ]
+  }
+ ]
+}

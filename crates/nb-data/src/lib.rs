@@ -12,6 +12,7 @@ pub mod pack;
 pub mod particles;
 pub mod recipes;
 pub mod settings;
+pub mod survival;
 
 pub use blocks::{
     BlockId, BlockIds, BlockProperties, BlockRegistry, BlockType, BLOCKS_JSON, CRAFT_BLOCKS_JSON,
@@ -25,3 +26,7 @@ pub use pack::PackMeta;
 pub use particles::{ParticleRegistry, ParticleType, PARTICLES_JSON};
 pub use recipes::{Ingredient, Output, Recipe, RecipeBook, Shape, Station, RECIPES_JSON};
 pub use settings::{Action, GameSettings, ShadowQuality};
+pub use survival::{
+    ArmorInfo, ArmorSlot, BlockRule, CropRule, Drop, FoodInfo, ItemProps, Mining, SurvivalData,
+    ToolInfo, ToolKind, SURVIVAL_JSON, TIER_NAMES,
+};

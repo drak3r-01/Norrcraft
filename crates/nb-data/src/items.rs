@@ -23,6 +23,10 @@ pub const STACK_MAX: i32 = 64;
 /// Contenu de `assets/items.json`, embarqué dans le binaire.
 pub const ITEMS_JSON: &str = include_str!("../../../assets/items.json");
 
+/// Objets du mode survie (outils, armures, nourriture, matériaux), générés par
+/// `scripts/gen_survival.py`.
+pub const SURVIVAL_ITEMS_JSON: &str = include_str!("../../../assets/items_survival.json");
+
 #[derive(Debug, Deserialize)]
 struct RawItem {
     id: ItemId,
@@ -53,12 +57,22 @@ pub struct ItemRegistry {
 impl ItemRegistry {
     /// Registre intégré : tous les blocs (hors air) + `items.json`.
     pub fn builtin(blocks: &BlockRegistry) -> Self {
-        Self::from_json(blocks, ITEMS_JSON).expect("items.json embarqué invalide")
+        Self::from_json_parts(blocks, &[ITEMS_JSON, SURVIVAL_ITEMS_JSON])
+            .expect("items.json embarqué invalide")
     }
 
     pub fn from_json(blocks: &BlockRegistry, json: &str) -> Result<Self> {
-        let raw: Vec<RawItem> =
-            serde_json::from_str(json).map_err(|e| Error::data("items.json", e))?;
+        Self::from_json_parts(blocks, &[json])
+    }
+
+    /// Plusieurs fichiers d'objets purs fusionnés (identifiants et noms uniques sur l'ensemble).
+    pub fn from_json_parts(blocks: &BlockRegistry, parts: &[&str]) -> Result<Self> {
+        let mut raw: Vec<RawItem> = Vec::new();
+        for json in parts {
+            let part: Vec<RawItem> =
+                serde_json::from_str(json).map_err(|e| Error::data("items.json", e))?;
+            raw.extend(part);
+        }
         let air = blocks.ids().air;
         let mut items = Vec::new();
         for b in blocks.iter().filter(|b| b.id != air) {
