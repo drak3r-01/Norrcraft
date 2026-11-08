@@ -42,6 +42,8 @@ pub enum ClientNotice {
     Chat { from: String, text: String },
     /// Fin de la partie (refus, hôte parti, connexion perdue). `error` = à signaler en rouge.
     Closed { reason: String, error: bool },
+    /// Butin d'un mob tué (déjà ajouté à l'inventaire).
+    Gained { item: nb_data::ItemId, count: i32 },
 }
 
 struct Other {
@@ -294,6 +296,23 @@ impl ClientNet {
                     sky.set_time(time_of_day);
                 }
                 ServerMsg::Chat { from, text } => out.push(ClientNotice::Chat { from, text }),
+                ServerMsg::MobKilled(mob) => {
+                    // Butin tiré chez l'invité (son inventaire est local).
+                    if let Some(p) = session.player() {
+                        let loot = regs.survival.mob_loot(&mob).to_vec();
+                        let mut gained = Vec::new();
+                        nb_ecs::survival::loot_direct(
+                            &mut session.sim.entities,
+                            p,
+                            &loot,
+                            &mut session.rngs.ambient,
+                            &mut gained,
+                        );
+                        for (item, count) in gained {
+                            out.push(ClientNotice::Gained { item, count });
+                        }
+                    }
+                }
                 ServerMsg::Pong(n) => {
                     if let Some((sent_n, at)) = self.ping_sent {
                         if sent_n == n {
@@ -513,7 +532,20 @@ impl ClientNet {
         for ev in events {
             if let EcsEvent::MobHit { entity } = ev {
                 if let Some(n) = session.sim.entities.copy::<NetMob>(*entity) {
-                    self.client.send(&ClientMsg::Attack { entity: n.net_id });
+                    // Dégâts de l'arme tenue (1 à mains nues / hors survie).
+                    let damage = events
+                        .iter()
+                        .find_map(|e| match e {
+                            EcsEvent::AttackDealt { entity: x, damage } if x == entity => {
+                                Some(*damage)
+                            }
+                            _ => None,
+                        })
+                        .unwrap_or(1.0);
+                    self.client.send(&ClientMsg::Attack {
+                        entity: n.net_id,
+                        damage,
+                    });
                 }
             }
         }
@@ -527,12 +559,14 @@ impl ClientNet {
                     e.copy::<Player>(p),
                     e.copy::<Health>(p),
                 ) {
+                    let reduction = e.copy::<nb_ecs::Vitals>(p).map_or(0.0, |v| v.reduction);
                     self.client.send(&ClientMsg::State {
                         pos: [t.pos.x, t.pos.y, t.pos.z],
                         yaw: pl.camera.yaw_deg,
                         pitch: pl.camera.pitch_deg,
                         health: h.health,
                         creative: pl.game_mode == nb_ecs::GameMode::Creative,
+                        reduction,
                     });
                 }
             }

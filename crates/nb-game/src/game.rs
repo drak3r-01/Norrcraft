@@ -1015,18 +1015,7 @@ impl Game {
                         self.notices.remove(0);
                     }
                 }
-                EcsEvent::Gained { item, count } => {
-                    let name = crate::screens::display_name(self.regs.items.name_of(item));
-                    if let Some(p) = self.pickups.iter_mut().find(|p| p.0 == name) {
-                        p.1 += count;
-                        p.2 = 3.0;
-                    } else {
-                        self.pickups.push((name, count, 3.0));
-                    }
-                    if self.pickups.len() > 6 {
-                        self.pickups.remove(0);
-                    }
-                }
+                EcsEvent::Gained { item, count } => self.note_pickup(item, count),
                 EcsEvent::Caught { item } => {
                     let name = crate::screens::display_name(self.regs.items.name_of(item));
                     self.notices.push((format!("You caught: {name}!"), 4.0));
@@ -1037,6 +1026,20 @@ impl Game {
                 }
                 _ => {}
             }
+        }
+    }
+
+    /// Ajoute (ou cumule) une ligne « +n objet » dans le journal de butin.
+    pub(crate) fn note_pickup(&mut self, item: nb_data::ItemId, count: i32) {
+        let name = crate::screens::display_name(self.regs.items.name_of(item));
+        if let Some(p) = self.pickups.iter_mut().find(|p| p.0 == name) {
+            p.1 += count;
+            p.2 = 3.0;
+        } else {
+            self.pickups.push((name, count, 3.0));
+        }
+        if self.pickups.len() > 6 {
+            self.pickups.remove(0);
         }
     }
 

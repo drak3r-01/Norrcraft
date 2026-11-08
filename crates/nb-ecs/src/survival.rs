@@ -899,12 +899,21 @@ impl System for CropSystem {
 
     fn run(&mut self, world: &mut EntityWorld, ctx: &mut TickCtx<'_>, dt: f32) {
         let Some(data) = ctx.survival else { return };
-        let Some(&id) = world.query_ids::<(&Player, &Transform)>().first() else {
-            return;
-        };
-        let Some(t) = world.copy::<Transform>(id) else {
-            return;
-        };
+        // Les cultures poussent autour de chaque joueur (hôte et invités).
+        let mut ids = world.query_ids::<(&Player, &Transform)>();
+        ids.extend(world.query_ids::<(&RemotePlayer, &Transform)>());
+        for id in ids {
+            let Some(t) = world.copy::<Transform>(id) else {
+                continue;
+            };
+            grow_around(ctx, data, t.pos, dt);
+        }
+    }
+}
+
+fn grow_around(ctx: &mut TickCtx<'_>, data: &SurvivalData, pos: DVec3, dt: f32) {
+    {
+        let t = Transform { pos, yaw: 0.0, pitch: 0.0 };
         let area = std::f32::consts::PI * (CROP_RADIUS * CROP_RADIUS) as f32;
         let mut col = [0u8; 128];
         for _ in 0..SAMPLES {
@@ -936,6 +945,30 @@ impl System for CropSystem {
                 }
             }
         }
+    }
+}
+
+/// Tire un butin directement dans l'inventaire de `player` (client LAN : le serveur annonce la
+/// mort, le joueur tire chez lui). `gained` reçoit `(objet, quantité)`.
+pub fn loot_direct(
+    world: &mut EntityWorld,
+    player: EntityId,
+    drops: &[nb_data::Drop],
+    rng: &mut nb_core::JavaRandom,
+    gained: &mut Vec<(ItemId, i32)>,
+) {
+    for d in drops {
+        if rng.next_float() >= d.chance {
+            continue;
+        }
+        let n = d.min + rng.next_int_bound(d.max - d.min + 1);
+        if n <= 0 {
+            continue;
+        }
+        if let Some(inv) = world.get_mut::<InventoryComp>(player) {
+            inv.0.add_stack(ItemStack::new(d.item, n));
+        }
+        gained.push((d.item, n));
     }
 }
 

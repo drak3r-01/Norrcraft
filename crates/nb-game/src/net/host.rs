@@ -36,6 +36,8 @@ const SYNC_INTERVAL: f32 = 0.1;
 const TIME_INTERVAL: f32 = 2.0;
 /// Pause entre deux coups d'un même joueur.
 const ATTACK_COOLDOWN: Duration = Duration::from_millis(150);
+/// Dégâts maximaux acceptés pour un coup annoncé par un invité (arme du palier le plus haut).
+const MAX_ATTACK_DAMAGE: f32 = 12.0;
 /// Pendant ce délai après des dégâts, la santé annoncée par le client est ignorée (le message
 /// `SetHealth` est encore en route).
 const HEALTH_HOLD: Duration = Duration::from_millis(600);
@@ -364,9 +366,10 @@ impl HostNet {
                 pitch,
                 health,
                 creative,
-            } => self.on_state(cx, id, pos, yaw, pitch, health, creative),
+                reduction,
+            } => self.on_state(cx, id, pos, yaw, pitch, health, creative, reduction),
             ClientMsg::BlockEdit { pos, block } => self.on_block_edit(cx, id, pos, block),
-            ClientMsg::Attack { entity } => self.on_attack(cx, id, entity),
+            ClientMsg::Attack { entity, damage } => self.on_attack(cx, id, entity, damage),
             ClientMsg::Chat(text) => self.on_chat(cx, id, &text),
         }
     }
@@ -426,6 +429,8 @@ impl HostNet {
             ),
         );
         e.insert(eid, Health::new(PLAYER_MAX_HEALTH));
+        // L'armure de l'invité réduit les dégâts de mobs (mise à jour à chaque `State`).
+        e.insert(eid, nb_ecs::Vitals::default());
         e.insert(
             eid,
             RemotePlayer {
@@ -500,6 +505,7 @@ impl HostNet {
         pitch: f32,
         health: f32,
         creative: bool,
+        reduction: f32,
     ) {
         if !pos.iter().all(|v| v.is_finite()) || !yaw.is_finite() || !pitch.is_finite() {
             return;
@@ -522,6 +528,13 @@ impl HostNet {
         }
         if let Some(r) = e.get_mut::<RemotePlayer>(eid) {
             r.creative = creative;
+        }
+        if let Some(v) = e.get_mut::<nb_ecs::Vitals>(eid) {
+            v.reduction = if reduction.is_finite() {
+                reduction.clamp(0.0, 0.8)
+            } else {
+                0.0
+            };
         }
         if !hold && health.is_finite() {
             if let Some(h) = e.get_mut::<Health>(eid) {
@@ -554,7 +567,7 @@ impl HostNet {
         }
     }
 
-    fn on_attack(&mut self, cx: &mut HostCtx<'_>, id: ConnId, entity: u32) {
+    fn on_attack(&mut self, cx: &mut HostCtx<'_>, id: ConnId, entity: u32, damage: f32) {
         let Some(c) = self.conns.get_mut(&id) else {
             return;
         };
@@ -575,15 +588,29 @@ impl HostNet {
         if t.pos.distance(eye) > MAX_REACH + 3.0 {
             return;
         }
-        let cfg = cx.session.world.config();
-        nb_ecs::health::hit_mob(
+        // Dégâts annoncés par l'invité (arme tenue), bornés : jamais négatifs ni démesurés.
+        let dmg = if damage.is_finite() {
+            damage.clamp(0.0, MAX_ATTACK_DAMAGE)
+        } else {
+            0.0
+        };
+        let mob_id = sim.entities.get::<MobType>(mob).map(|m| m.mob_id.clone());
+        nb_ecs::health::hit_mob_damage(
             &mut sim.entities,
             mob,
             attacker,
-            &cfg,
+            dmg,
             &cx.regs.mobs,
             &mut cx.session.rngs.passive,
         );
+        // Mort : l'invité tire lui-même son butin (son inventaire est chez lui).
+        let dead = sim
+            .entities
+            .copy::<Health>(mob)
+            .is_some_and(|h| h.health <= 0.0 || !h.alive);
+        if let (true, Some(m)) = (dead, mob_id) {
+            self.server.send(id, &ServerMsg::MobKilled(m));
+        }
     }
 
     fn on_chat(&mut self, cx: &mut HostCtx<'_>, id: ConnId, text: &str) {

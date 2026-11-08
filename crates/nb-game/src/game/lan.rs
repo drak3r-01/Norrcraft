@@ -255,6 +255,7 @@ impl Game {
     pub(super) fn net_pre_tick(&mut self, dt: f64) {
         let dt = dt as f32;
         let mut lines: Vec<(String, bool)> = Vec::new();
+        let mut loot: Vec<(nb_data::ItemId, i32)> = Vec::new();
         let mut joined = None;
         let mut closed = None;
         match &mut self.net {
@@ -291,12 +292,16 @@ impl Game {
                             (format!("<{from}> {text}"), false)
                         }),
                         ClientNotice::Closed { reason, error } => closed = Some((reason, error)),
+                        ClientNotice::Gained { item, count } => loot.push((item, count)),
                         ClientNotice::Joined(_) => {}
                     }
                 }
             }
         }
         self.push_net_lines(lines);
+        for (item, count) in loot {
+            self.note_pickup(item, count);
+        }
         if let Some(w) = joined {
             self.begin_client_session(w);
         } else if let Some(n) = closed {
