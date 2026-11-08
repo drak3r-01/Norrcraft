@@ -1,0 +1,14 @@
+[package]
+name = "nb-particles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Moteur de particules : pur CPU, sans dépendance sur le rendu ni sur l'ECS (le jeu lui fournit
+# un `ParticleWorld`, nb-gfx dessine le tampon d'instances `GpuParticle`).
+[dependencies]
+glam.workspace = true
+bytemuck.workspace = true
+
+[lints]
+workspace = true

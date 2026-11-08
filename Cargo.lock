@@ -918,6 +918,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb-particles"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+]
+
+[[package]]
 name = "nb-ui"
 version = "0.1.0"
 dependencies = [

@@ -7,6 +7,7 @@ members = [
     "crates/nb-world",
     "crates/nb-mesh",
     "crates/nb-ecs",
+    "crates/nb-particles",
     "crates/nb-gfx",
     "crates/nb-ui",
     "crates/nb-game",
@@ -45,6 +46,7 @@ nb-data = { path = "crates/nb-data" }
 nb-world = { path = "crates/nb-world" }
 nb-mesh = { path = "crates/nb-mesh" }
 nb-ecs = { path = "crates/nb-ecs" }
+nb-particles = { path = "crates/nb-particles" }
 nb-gfx = { path = "crates/nb-gfx" }
 nb-ui = { path = "crates/nb-ui" }
 nb-game = { path = "crates/nb-game" }
