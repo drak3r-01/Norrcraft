@@ -544,3 +544,113 @@ fn build_flat_world(r: &mut OffscreenRenderer) {
         }
     }
 }
+
+/// Planche d'effets de particules (`renders/preview_particles_{day,night}.png`) : le moteur
+/// `nb-particles` tourne 0,45 s sur le relief du paysage puis la scène est rendue.
+#[test]
+#[ignore]
+fn preview_particles() {
+    use nb_particles::{presets as fx, BlockLook, Cell, Emit, ParticleSystem, ParticleWorld, View};
+    struct Terrain;
+    #[allow(dead_code)]
+    impl ParticleWorld for Terrain {
+        fn cell(&self, x: i32, y: i32, z: i32) -> Cell {
+            if y <= height_at(x, z) {
+                Cell::Solid
+            } else {
+                Cell::Air
+            }
+        }
+    }
+    let ctx = match GpuContext::new_headless() {
+        Ok(c) => Arc::new(c),
+        Err(e) => panic!("Vulkan indisponible : {e}"),
+    };
+    let reg = nb_data::MobRegistry::builtin();
+    let descs = MobModelDesc::from_registry(&reg);
+    let (assets, _) =
+        SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default", &descs);
+    let mut r = OffscreenRenderer::new(ctx, assets, W, H, &GfxSettings::default()).unwrap();
+    build_world(&mut r);
+    let block_atlas = r.scene.block_atlas().clone();
+    let stone = BlockLook {
+        layer: block_atlas.layer("stone") as u16,
+        tint: [0.6, 0.6, 0.62],
+    };
+    let dirt = BlockLook {
+        layer: block_atlas.layer("dirt") as u16,
+        tint: [0.55, 0.4, 0.28],
+    };
+    for (name, time) in [("day", 850.0f32), ("night", 300.0)] {
+        let (cx, cz) = (4.0f32, 14.0f32);
+        let ground = |x: f32, z: f32| height_at(x as i32, z as i32).max(62) as f32 + 1.0;
+        let cam = Camera {
+            position: Vec3::new(cx, ground(cx, cz) + 5.0, cz),
+            pitch_deg: 89.0,
+            yaw_deg: 0.0,
+            ..Camera::default()
+        };
+        let mut clock = SkyClock::new();
+        clock.set_time(time);
+        let mut s = ParticleSystem::new(32768, 5);
+        // Grille 4×4 d'effets vus de dessus, à ~2 blocs de la caméra.
+        let g0 = ground(cx, cz);
+        let cell = |i: usize| {
+            let (col, row) = ((i % 4) as f32, (i / 4) as f32);
+            Vec3::new(cx - 2.4 + col * 1.6, g0 + 2.4, cz - 2.4 + row * 1.6)
+        };
+        s.block_break(cell(0), stone, 1.0);
+        s.block_break(cell(1), dirt, 1.0);
+        s.landing(cell(2), dirt, 14.0);
+        s.footstep(cell(3), dirt, Vec3::new(0.0, 0.0, -3.0));
+        s.mob_hit(cell(4));
+        s.mob_death(cell(5));
+        s.spawn(&fx::FLAME, &Emit::at(cell(6) - Vec3::Y * 0.4, 12).dir(Vec3::Y));
+        s.spawn(&fx::EMBER, &Emit::at(cell(7), 14).dir(Vec3::Y));
+        s.spawn(&fx::SMOKE, &Emit::at(cell(8), 6).dir(Vec3::Y));
+        s.spawn(&fx::LAVA_SPIT, &Emit::at(cell(9), 8).dir(Vec3::Y));
+        s.spawn(&fx::LAVA_POP, &Emit::at(cell(9), 4));
+        s.water_splash(cell(10), 8.0);
+        s.spawn(&fx::BUBBLE, &Emit::at(cell(11), 8).dir(Vec3::Y));
+        s.spawn(&fx::FIREFLY, &Emit::at(cell(12), 14));
+        for i in 0..6 {
+            s.spawn(&fx::LEAF, &Emit::at(cell(13) + Vec3::X * (i as f32 * 0.1), 1).tint([0.9, 1.7, 0.6]));
+        }
+        s.spawn(&fx::SNOW, &Emit::at(cell(14), 16));
+        s.spawn(&fx::RAIN_SPLASH, &Emit::at(cell(15), 10));
+        s.spawn(&fx::RAIN_RIPPLE, &Emit::at(cell(15), 3));
+        for _ in 0..21 {
+            s.update(1.0 / 60.0, &nb_particles::EmptyWorld);
+        }
+        let mut inst = Vec::new();
+        let light = if name == "day" { [1.0; 3] } else { [0.25, 0.28, 0.4] };
+        s.write_instances(
+            &View {
+                eye: cam.position,
+                forward: Vec3::NEG_Y,
+                max_distance: 80.0,
+                light,
+            },
+            &mut inst,
+        );
+        let input = FrameInput {
+            camera: &cam,
+            time_seconds: 3.0,
+            sky_clock: &clock,
+            eye_fluid: EyeFluid::None,
+            heat_intensity: 0.0,
+            mobs: &[],
+            particles: &inst,
+            highlight_block: None,
+        };
+        for _ in 0..3 {
+            r.render(&input).unwrap();
+        }
+        let img = r.render(&input).unwrap();
+        let dir = crate_dir().join("renders");
+        std::fs::create_dir_all(&dir).unwrap();
+        img.save(dir.join(format!("preview_particles_{name}.png")))
+            .unwrap();
+        println!("{name}: {} particules", inst.len());
+    }
+}
