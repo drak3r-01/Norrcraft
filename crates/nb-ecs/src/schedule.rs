@@ -4,9 +4,9 @@
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use nb_core::glam::IVec3;
+use nb_core::glam::{DVec3, IVec3};
 use nb_core::JavaRandom;
-use nb_data::{BlockId, BlockRegistry, MobRegistry};
+use nb_data::{BlockId, BlockRegistry, ItemId, MobRegistry, SurvivalData};
 use nb_world::WorldConfig;
 
 use crate::blocks::BlockAccess;
@@ -83,6 +83,42 @@ pub enum EcsEvent {
     PlayerDied,
     /// Le joueur vient de réapparaître (mort ou `/kill`).
     PlayerRespawned,
+    /// Minage en cours (tous les ~0,25 s) : son et éclats de matière.
+    BlockMining {
+        pos: IVec3,
+        block: BlockId,
+        progress: f32,
+    },
+    /// Coup porté à un mob avec `damage` (pour la réplication LAN).
+    AttackDealt { entity: EntityId, damage: f32 },
+    /// Message à afficher au joueur.
+    Notice(String),
+    /// Objets gagnés (butin, récolte, pêche).
+    Gained { item: ItemId, count: i32 },
+    /// Outil ou armure cassé.
+    ItemBroke { item: ItemId },
+    /// Pièce d'armure équipée.
+    Equipped { item: ItemId },
+    /// Terre labourée à la houe.
+    Tilled { pos: IVec3 },
+    /// Graine ou plant mis en terre.
+    Planted { pos: IVec3 },
+    /// Ligne lancée.
+    Cast { pos: DVec3 },
+    /// Ligne relevée.
+    Reel { pos: DVec3 },
+    /// Un poisson mord.
+    FishBite { pos: DVec3 },
+    /// Prise ramenée.
+    Caught { item: ItemId },
+    /// Bouchée en cours.
+    Eating { item: ItemId },
+    /// Repas terminé.
+    Ate { item: ItemId },
+    /// Le joueur souffre du froid ou de la faim.
+    Hurt { cold: bool },
+    /// Une culture est passée au stade suivant.
+    CropGrew { pos: IVec3, block: BlockId },
 }
 
 /// Tout ce dont les systèmes ont besoin pendant un tick (aucun état global).
@@ -95,6 +131,8 @@ pub struct TickCtx<'a> {
     pub input: &'a PlayerInput,
     pub rngs: &'a mut EcsRngs,
     pub events: &'a mut Vec<EcsEvent>,
+    /// Règles du mode survie (`None` : comportement d'origine, sans faim ni minage progressif).
+    pub survival: Option<&'a SurvivalData>,
 }
 
 impl TickCtx<'_> {
@@ -147,6 +185,7 @@ impl Schedule {
     pub fn client() -> Self {
         let mut s = Self::new();
         s.push(Box::new(crate::player::PlayerInputSystem));
+        s.push(Box::new(crate::survival::VitalsSystem));
         s.push(Box::new(crate::health::PlayerHealthSystem));
         s
     }
@@ -154,6 +193,12 @@ impl Schedule {
     /// `addSystem`.
     pub fn push(&mut self, s: Box<dyn System>) {
         self.systems.push(s);
+    }
+
+    /// Insère un système à la position `index` (borne : fin de liste).
+    pub fn insert(&mut self, index: usize, s: Box<dyn System>) {
+        let i = index.min(self.systems.len());
+        self.systems.insert(i, s);
     }
 
     /// `addSystemFirst`.

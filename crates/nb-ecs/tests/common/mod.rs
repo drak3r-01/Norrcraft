@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 use nb_core::glam::{DVec3, IVec3, Vec3};
-use nb_data::{BlockId, BlockIds, BlockRegistry, MobRegistry};
+use nb_data::{BlockId, BlockIds, BlockRegistry, ItemRegistry, MobRegistry, SurvivalData};
 use nb_ecs::{
     execute_command, CameraState, EcsEvent, EcsRngs, EntityId, GameAction, GameMode, Health,
     InventoryComp, MemoryBlocks, Player, PlayerInput, Simulation, TickCtx, TimeControl, Transform,
@@ -37,6 +37,8 @@ pub struct Harness {
     pub sim: Simulation,
     pub time: FakeTime,
     pub ticks: u64,
+    /// Règles de survie (`None` : comportement d'origine).
+    pub survival: Option<SurvivalData>,
 }
 
 impl Harness {
@@ -63,7 +65,18 @@ impl Harness {
             sim: Simulation::new(),
             time: FakeTime::default(),
             ticks: 0,
+            survival: None,
         }
+    }
+
+    /// Active le mode survie : registres complets (craft + cultures) et données de survie.
+    pub fn with_survival(mut self) -> (Self, ItemRegistry) {
+        self.reg = BlockRegistry::builtin_with_craft();
+        let items = ItemRegistry::builtin(&self.reg);
+        self.survival = Some(SurvivalData::builtin(&self.reg, &items));
+        self.sim.schedule.insert(1, Box::new(nb_ecs::VitalsSystem));
+        self.sim.schedule.push(Box::new(nb_ecs::CropSystem));
+        (self, items)
     }
 
     pub fn ids(&self) -> BlockIds {
@@ -127,6 +140,7 @@ impl Harness {
             input: &self.input,
             rngs: &mut self.rngs,
             events: &mut self.events,
+            survival: self.survival.as_ref(),
         };
         self.sim.tick(&mut ctx, TICK_DT);
         self.ticks += 1;

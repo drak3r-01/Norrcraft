@@ -14,6 +14,7 @@ use crate::inventory::HOTBAR_START;
 use crate::jmath::{jmax, jmin, lerp, to_radians_f};
 use crate::physics::{aabb_intersects_block, raycast_mob, BlockEnv};
 use crate::schedule::{EcsEvent, System, TickCtx};
+use crate::survival::{self, Vitals};
 use crate::world::EntityWorld;
 
 pub const EYE_OFFSET: f32 = 1.62;
@@ -61,6 +62,7 @@ pub fn init_player(
     );
     world.insert(id, Health::new(PLAYER_MAX_HEALTH));
     world.insert(id, InventoryComp::default());
+    world.insert(id, Vitals::default());
     world.insert(id, Player::new(camera, mode, default_fov(), air));
     id
 }
@@ -81,6 +83,9 @@ pub fn respawn_player(world: &mut EntityWorld, id: EntityId, cfg: &WorldConfig) 
     }
     if let Some(inv) = world.get_mut::<InventoryComp>(id) {
         inv.0.clear();
+    }
+    if let Some(v) = world.get_mut::<Vitals>(id) {
+        *v = Vitals::default();
     }
     if let Some(p) = world.get_mut::<Player>(id) {
         p.camera.position = Vec3::new(rx as f32, (ry + f64::from(EYE_OFFSET)) as f32, rz as f32);
@@ -119,6 +124,12 @@ impl System for PlayerInputSystem {
         let ids = *ctx.block_reg.ids();
         let pressed = |a| input.is_pressed(a);
         let just = |a| input.is_just_pressed(a);
+
+        // Survie : règles actives (endurance, faim, froid ralentissent ou bloquent le sprint).
+        let surv_on = survival::survival_active(world, id, ctx);
+        let vit = world.copy::<Vitals>(id).filter(|_| surv_on);
+        let mut sprint_flag = false;
+        let mut jump_flag = false;
 
         // --- Étapes 1 à 12 : mouvement, caméra, dégâts, visée ------------------------------
         let (origin, dir, targeted, place_target, feet, collider) = {
@@ -210,10 +221,17 @@ impl System for PlayerInputSystem {
             } else {
                 // 7. Sol / nage.
                 let in_fluid = env.is_in_fluid(t.pos.x, t.pos.y, t.pos.z, c);
-                let sprint = pressed(GameAction::Sprint) && local_dz < 0.0 && !in_fluid;
+                let sprint = pressed(GameAction::Sprint)
+                    && local_dz < 0.0
+                    && !in_fluid
+                    && vit.is_none_or(|v| v.can_sprint());
+                sprint_flag = sprint;
                 let mut speed = if sprint { sprint_speed } else { walk_speed };
                 if in_fluid {
                     speed *= 0.4;
+                }
+                if let Some(vv) = vit {
+                    speed *= vv.speed_mult();
                 }
                 let friction = if in_fluid {
                     8.0
@@ -246,6 +264,7 @@ impl System for PlayerInputSystem {
                     if pressed(GameAction::Jump) && v.grounded {
                         v.v.y = jump_force;
                         v.grounded = false;
+                        jump_flag = true;
                     }
                     v.v.y += gravity * dt;
                 }
@@ -319,12 +338,19 @@ impl System for PlayerInputSystem {
             (origin, dir, p.targeted_block, p.place_target, *t, *c)
         };
 
+        if surv_on {
+            survival::record_motion(world, id, sprint_flag, jump_flag);
+        }
+
         // --- Étape 13 : actions -------------------------------------------------------------
         if !input.mouse_locked {
             return;
         }
         let slot = i32::from(input.selected_slot);
-        if just(GameAction::Primary) {
+        let surv = ctx.survival.filter(|_| surv_on);
+        if let Some(data) = surv {
+            survival::primary(world, ctx, data, id, slot, origin, dir, targeted, dt);
+        } else if just(GameAction::Primary) {
             if let Some(mob) = raycast_mob(world, origin, dir) {
                 hit_mob(
                     world,
@@ -361,9 +387,25 @@ impl System for PlayerInputSystem {
                 .and_then(|tb| station_of(ctx, ctx.blocks.block_at(tb)));
             if let Some((station, pos)) = station.zip(targeted) {
                 ctx.events.push(EcsEvent::StationUsed { pos, station });
+            } else if surv.is_some_and(|data| {
+                survival::secondary(
+                    world,
+                    ctx,
+                    data,
+                    id,
+                    slot,
+                    origin,
+                    dir,
+                    targeted,
+                )
+            }) {
+                // Équiper, labourer, planter, pêcher : le clic est consommé.
             } else if let Some(pt) = place_target {
                 try_place(world, ctx, id, pt, slot, &feet, &collider);
             }
+        }
+        if let Some(data) = surv {
+            survival::eating(world, ctx, data, id, slot, dt);
         }
     }
 }

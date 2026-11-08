@@ -6,7 +6,9 @@
 
 use nb_data::{ItemId, Output, RecipeBook, Station};
 
-use crate::inventory::{Inventory, InventoryCursor, ItemStack, HOTBAR_START, SIZE, STACK_MAX};
+use crate::inventory::{
+    stack_max, Inventory, InventoryCursor, ItemStack, HOTBAR_START, SIZE, STACK_MAX,
+};
 
 /// Première case de la grille de craft dans la numérotation d'un écran.
 pub const GRID_BASE: i32 = 36;
@@ -200,7 +202,9 @@ impl InventoryCursor {
                 self.held_from = -1;
                 grid.consume(book);
             }
-            Some(mut h) if h.item == out.item && h.count + out.count <= STACK_MAX => {
+            Some(mut h)
+                if h.item == out.item && h.wear == out.wear && h.count + out.count <= stack_max(h.item) =>
+            {
                 h.count += out.count;
                 self.held = Some(h);
                 grid.consume(book);
@@ -244,8 +248,8 @@ fn quick_move_inventory(inv: &mut Inventory, slot: i32) {
             break;
         }
         if let Some(mut t) = inv.slot(i) {
-            if t.item == s.item && t.count < STACK_MAX {
-                let n = (STACK_MAX - t.count).min(s.count);
+            if t.item == s.item && t.wear == s.wear && t.count < stack_max(s.item) {
+                let n = (stack_max(s.item) - t.count).min(s.count);
                 t.count += n;
                 s.count -= n;
                 inv.set_slot(i, Some(t));
@@ -257,8 +261,8 @@ fn quick_move_inventory(inv: &mut Inventory, slot: i32) {
             break;
         }
         if inv.slot(i).is_none() {
-            let n = s.count.min(STACK_MAX);
-            inv.set_slot(i, Some(ItemStack::new(s.item, n)));
+            let n = s.count.min(stack_max(s.item));
+            inv.set_slot(i, Some(ItemStack::new(s.item, n).with_wear(s.wear)));
             s.count -= n;
         }
     }

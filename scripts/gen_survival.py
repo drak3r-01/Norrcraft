@@ -1060,6 +1060,10 @@ BIOME_TEMP = {
     "BADLANDS": 0.5, "HILLS": -0.3, "SNOWY_PEAKS": -1.0, "VOLCANO": 0.8, "MUSHROOM_FIELDS": 0.0,
 }
 
+# sources de chaleur : bloc -> intensité (portée 5 blocs)
+HEAT = {"campfire": 1.0, "forge": 0.85, "lava": 1.0, "magma": 0.5, "torch": 0.18, "lantern": 0.18,
+        "sea_lantern": 0.05, "aurora_block": 0.05}
+
 # ------------------------------------------------------------------ recettes
 
 RECIPES = []
@@ -1251,7 +1255,23 @@ def build():
         for dr in t:
             if dr["item"] not in valid:
                 raise SystemExit(f"butin inconnu {dr['item']} pour {m}")
-    props = {"items": PROPS, "blocks": R, "mobs": L, "crops": crops, "biomes": BIOME_TEMP}
+    props = {
+        "items": PROPS, "blocks": R, "mobs": L, "crops": crops, "biomes": BIOME_TEMP,
+        "plants": {"wheat_seeds": "wheat_0", "potato": "potato_0", "carrot": "carrot_0"},
+        "tillable": ["grass", "dirt", "dirt_path", "podzol"],
+        "farmland": "farmland",
+        "heat": HEAT,
+        "fishing": [
+            {"item": "raw_fish", "min": 1, "max": 2, "weight": 62},
+            {"item": "stick", "min": 1, "max": 1, "weight": 8},
+            {"item": "string", "min": 1, "max": 1, "weight": 8},
+            {"item": "bone", "min": 1, "max": 1, "weight": 6},
+            {"item": "bowl", "min": 1, "max": 1, "weight": 4},
+            {"item": "feather", "min": 1, "max": 2, "weight": 4},
+            {"item": "amber", "min": 1, "max": 1, "weight": 3},
+            {"item": "aurora_shard", "min": 1, "max": 1, "weight": 1},
+        ],
+    }
     for n in PROPS:
         if n not in item_names:
             raise SystemExit("propriétés d'un objet inconnu : " + n)

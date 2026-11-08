@@ -1881,6 +1881,67 @@
    "next": "wheat"
   }
  },
+ "farmland": "farmland",
+ "fishing": [
+  {
+   "item": "raw_fish",
+   "max": 2,
+   "min": 1,
+   "weight": 62
+  },
+  {
+   "item": "stick",
+   "max": 1,
+   "min": 1,
+   "weight": 8
+  },
+  {
+   "item": "string",
+   "max": 1,
+   "min": 1,
+   "weight": 8
+  },
+  {
+   "item": "bone",
+   "max": 1,
+   "min": 1,
+   "weight": 6
+  },
+  {
+   "item": "bowl",
+   "max": 1,
+   "min": 1,
+   "weight": 4
+  },
+  {
+   "item": "feather",
+   "max": 2,
+   "min": 1,
+   "weight": 4
+  },
+  {
+   "item": "amber",
+   "max": 1,
+   "min": 1,
+   "weight": 3
+  },
+  {
+   "item": "aurora_shard",
+   "max": 1,
+   "min": 1,
+   "weight": 1
+  }
+ ],
+ "heat": {
+  "aurora_block": 0.05,
+  "campfire": 1.0,
+  "forge": 0.85,
+  "lantern": 0.18,
+  "lava": 1.0,
+  "magma": 0.5,
+  "sea_lantern": 0.05,
+  "torch": 0.18
+ },
  "items": {
   "apple": {
    "food": {
@@ -3106,5 +3167,16 @@
     "min": 1
    }
   ]
- }
+ },
+ "plants": {
+  "carrot": "carrot_0",
+  "potato": "potato_0",
+  "wheat_seeds": "wheat_0"
+ },
+ "tillable": [
+  "grass",
+  "dirt",
+  "dirt_path",
+  "podzol"
+ ]
 }

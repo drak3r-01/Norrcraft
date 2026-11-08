@@ -33,6 +33,7 @@ pub mod player;
 pub mod schedule;
 pub mod sim;
 pub mod spawn;
+pub mod survival;
 pub mod world;
 
 pub use blocks::{BlockAccess, MemoryBlocks, WorldBlocks};
@@ -47,6 +48,7 @@ pub use inventory::{Inventory, InventoryCursor, ItemStack};
 pub use physics::{BlockEnv, RaycastHit};
 pub use schedule::{EcsEvent, EcsRngs, Schedule, System, TickCtx};
 pub use sim::{Simulation, TICK_DT};
+pub use survival::{CropSystem, Fishing, MiningState, Vitals, VitalsSystem};
 pub use world::EntityWorld;
 
 /// Re-export de `hecs` (requêtes génériques de [`EntityWorld`]).

@@ -6,7 +6,9 @@ use std::sync::Arc;
 
 use nb_core::glam::Vec3;
 use nb_core::Result;
-use nb_data::{BlockRegistry, ItemRegistry, MobRegistry, ParticleRegistry, RecipeBook};
+use nb_data::{
+    BlockRegistry, ItemRegistry, MobRegistry, ParticleRegistry, RecipeBook, SurvivalData,
+};
 use nb_ecs::player::EYE_OFFSET;
 use nb_ecs::{
     CameraState, EcsEvent, EcsRngs, EntityId, GameMode, Health, InventoryComp, ItemStack,
@@ -27,6 +29,8 @@ pub struct Registries {
     pub items: Arc<ItemRegistry>,
     /// Recettes de craft.
     pub recipes: Arc<RecipeBook>,
+    /// Règles du mode survie : outils, nourriture, armures, dureté des blocs, butins.
+    pub survival: Arc<SurvivalData>,
     pub mobs: MobRegistry,
     pub particles: ParticleRegistry,
 }
@@ -37,10 +41,19 @@ impl Registries {
         let blocks = Arc::new(BlockRegistry::builtin_with_craft());
         let items = Arc::new(ItemRegistry::builtin(&blocks));
         let recipes = Arc::new(RecipeBook::builtin(&items));
+        let survival = Arc::new(SurvivalData::builtin(&blocks, &items));
+        // Outils et armures s'usent individuellement : ils ne s'empilent pas.
+        nb_ecs::inventory::set_unstackable(
+            items
+                .iter()
+                .filter(|i| survival.max_durability(i.id) > 0)
+                .map(|i| i.id),
+        );
         Self {
             blocks,
             items,
             recipes,
+            survival,
             mobs: MobRegistry::builtin(),
             particles: ParticleRegistry::builtin(),
         }
@@ -97,6 +110,10 @@ impl WorldSession {
         )));
         let world = World::new(seed, storage, cfg, regs.blocks.clone());
         let mut sim = Simulation::new();
+        // Survie : faim / froid / pêche juste après l'entrée du joueur, cultures après la santé.
+        sim.schedule
+            .insert(1, Box::new(nb_ecs::survival::VitalsSystem));
+        sim.schedule.push(Box::new(nb_ecs::survival::CropSystem));
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,
@@ -161,6 +178,7 @@ impl WorldSession {
             input,
             rngs: &mut self.rngs,
             events,
+            survival: Some(&regs.survival),
         };
         self.sim.tick(&mut ctx, dt);
     }

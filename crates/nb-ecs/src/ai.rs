@@ -455,11 +455,17 @@ fn tick_chase(world: &mut EntityWorld, id: EntityId, target: EntityId, dist: f64
         .copy::<AggressiveAi>(id)
         .is_some_and(|ai| ai.attack_cooldown <= 0.0);
     if dist < f64::from(cfg.attack_range) && cooldown_ready && world.has::<Health>(target) {
+        let reduction = world
+            .get::<crate::survival::Vitals>(target)
+            .map_or(0.0, |v| v.reduction);
         if let Some(h) = world.get_mut::<Health>(target) {
-            h.health -= cfg.attack_damage;
+            h.health -= cfg.attack_damage * (1.0 - reduction);
             if h.health <= 0.0 {
                 h.alive = false;
             }
+        }
+        if let Some(v) = world.get_mut::<crate::survival::Vitals>(target) {
+            v.armor_hits = v.armor_hits.saturating_add(1);
         }
         if dist > 0.01 {
             if let Some(tv) = world.get_mut::<Velocity>(target) {

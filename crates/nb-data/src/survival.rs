@@ -236,7 +236,20 @@ struct RawCrop {
 }
 
 #[derive(Debug, Deserialize)]
+struct RawCatch {
+    item: String,
+    min: i32,
+    max: i32,
+    weight: f32,
+}
+
+#[derive(Debug, Deserialize)]
 struct RawData {
+    plants: HashMap<String, String>,
+    tillable: Vec<String>,
+    farmland: String,
+    heat: HashMap<String, f32>,
+    fishing: Vec<RawCatch>,
     items: HashMap<String, RawItem>,
     blocks: HashMap<String, RawBlock>,
     mobs: HashMap<String, Vec<RawDrop>>,
@@ -252,6 +265,11 @@ pub struct SurvivalData {
     mobs: HashMap<String, Vec<Drop>>,
     crops: HashMap<BlockId, CropRule>,
     biomes: HashMap<String, f32>,
+    plants: HashMap<ItemId, BlockId>,
+    tillable: Vec<BlockId>,
+    farmland: BlockId,
+    heat: HashMap<BlockId, f32>,
+    fishing: Vec<(Drop, f32)>,
 }
 
 impl SurvivalData {
@@ -350,6 +368,27 @@ impl SurvivalData {
             );
         }
         out.biomes = raw.biomes;
+        for (seed, crop) in &raw.plants {
+            out.plants.insert(item(seed)?, block(crop)?);
+        }
+        for n in &raw.tillable {
+            out.tillable.push(block(n)?);
+        }
+        out.farmland = block(&raw.farmland)?;
+        for (n, h) in &raw.heat {
+            out.heat.insert(block(n)?, *h);
+        }
+        for c in &raw.fishing {
+            out.fishing.push((
+                Drop {
+                    item: item(&c.item)?,
+                    min: c.min,
+                    max: c.max.max(c.min),
+                    chance: 1.0,
+                },
+                c.weight,
+            ));
+        }
         Ok(out)
     }
 
@@ -393,6 +432,42 @@ impl SurvivalData {
 
     pub fn crops(&self) -> impl Iterator<Item = (&BlockId, &CropRule)> {
         self.crops.iter()
+    }
+
+    /// Bloc de culture planté par `item` (graine, pomme de terre, carotte).
+    pub fn plant_of(&self, item: ItemId) -> Option<BlockId> {
+        self.plants.get(&item).copied()
+    }
+
+    /// La houe peut-elle labourer ce bloc ?
+    pub fn is_tillable(&self, block: BlockId) -> bool {
+        self.tillable.contains(&block)
+    }
+
+    pub fn farmland(&self) -> BlockId {
+        self.farmland
+    }
+
+    /// Intensité de chaleur d'un bloc (0 si ce n'est pas une source).
+    pub fn heat_of(&self, block: BlockId) -> f32 {
+        self.heat.get(&block).copied().unwrap_or(0.0)
+    }
+
+    pub fn has_heat_sources(&self) -> bool {
+        !self.heat.is_empty()
+    }
+
+    /// Tirage de la table de pêche : `r` ∈ [0, 1) ; `None` si la table est vide.
+    pub fn fishing_catch(&self, r: f32) -> Option<Drop> {
+        let total: f32 = self.fishing.iter().map(|(_, w)| w).sum();
+        let mut x = r * total;
+        for (d, w) in &self.fishing {
+            if x < *w {
+                return Some(*d);
+            }
+            x -= w;
+        }
+        self.fishing.last().map(|(d, _)| *d)
     }
 
     /// Température ambiante d'un biome (`Biome::name()`), de −1 (glacial) à +1 (torride).
