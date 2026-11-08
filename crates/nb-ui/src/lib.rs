@@ -8,6 +8,8 @@ pub mod chat;
 pub mod draw;
 pub mod font;
 pub mod hud;
+pub mod recipebook;
+pub mod survival_hud;
 pub mod input;
 pub mod inventory;
 pub mod jfmt;
@@ -19,7 +21,11 @@ pub mod widgets;
 pub use chat::{Chat, ChatKeys, ChatMessage};
 pub use draw::{Batch, DrawList, IconStyle, Rgba, Scissor, TextureRef, Vertex};
 pub use hud::{Hud, HudView, SlotView};
+pub use survival_hud::{ItemInfoView, SurvivalHud, ToolView};
 pub use input::{TypingBuffers, UiInput};
-pub use inventory::{ClickButton, InventoryAction, InventoryScreen};
+pub use inventory::{
+    ClickButton, InventoryAction, InventoryScreen, SurvivalInventory, ARMOR_BASE,
+};
+pub use recipebook::{BookAction, IconSpec, IngredientCard, RecipeBookScreen, RecipeCard};
 pub use state::{GameState, UiContext};
 pub use textures::UiTexture;
