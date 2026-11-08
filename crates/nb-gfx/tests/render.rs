@@ -904,12 +904,7 @@ fn particles_billboard_upside_down() {
     r.scene.install_mob_model("wall", &wall).unwrap();
     let cam = mob_camera();
     let clock = SkyClock::new();
-    let particles = [ParticleInstance {
-        position: Vec3::new(0.0, 70.0, -3.0),
-        scale: 1.0,
-        layer: 0,
-        color: Vec3::ONE,
-    }];
+    let particles = [ParticleInstance::new([0.0, 70.0, -3.0], 1.0, 0, [1.0; 4])];
     let mut input = frame(&cam, &clock);
     input.particles = &particles;
     let sky_only = r.render(&frame(&cam, &clock)).unwrap();
@@ -929,17 +924,14 @@ fn particles_billboard_upside_down() {
     assert!(low[0] > 150 && low[1] < 80, "bas : {low:?}");
     assert!(high[1] > 150 && high[0] < 80, "haut : {high:?}");
     // Teinte bleue pure : les deux moitiés deviennent noires.
-    let tinted = [ParticleInstance {
-        color: Vec3::new(0.0, 0.0, 1.0),
-        ..particles[0]
-    }];
+    let tinted = [ParticleInstance::new([0.0, 70.0, -3.0], 1.0, 0, [0.0, 0.0, 1.0, 1.0])];
     input.particles = &tinted;
     let img = r.render(&input).unwrap();
     let p = img.get_pixel(W / 2, H / 2 + 8);
     assert!(p[0] < 40 && p[1] < 40, "teinte : {p:?}");
     // Couche manquante (damier) : rendu sans erreur.
     let missing = [ParticleInstance {
-        layer: r.scene.particle_atlas().missing_layer,
+        layer: r.scene.particle_atlas().missing_layer as u16,
         ..particles[0]
     }];
     input.particles = &missing;
@@ -999,12 +991,12 @@ fn demo_world_with_builtin_mobs_and_particles() {
             } else {
                 preg.get("leaf").unwrap()
             };
-            ParticleInstance {
-                position: Vec3::new(1.0 + (i % 6) as f32 * 0.4, 62.0 + (i / 6) as f32 * 0.4, 7.0),
-                scale: ty.scale,
-                layer: patlas.layer(&ty.texture),
-                color: Vec3::ONE,
-            }
+            ParticleInstance::new(
+                [1.0 + (i % 6) as f32 * 0.4, 62.0 + (i / 6) as f32 * 0.4, 7.0],
+                ty.scale,
+                patlas.layer(&ty.texture) as u16,
+                [1.0; 4],
+            )
         })
         .collect();
     let mut input = frame(&cam, &clock);
@@ -1018,8 +1010,8 @@ fn demo_world_with_builtin_mobs_and_particles() {
     let sky_particles: Vec<_> = particles
         .iter()
         .map(|p| ParticleInstance {
-            position: p.position + Vec3::new(0.0, 4.0, 0.0),
-            scale: 1.0,
+            position: [p.position[0], p.position[1] + 4.0, p.position[2]],
+            size: 1.0,
             ..*p
         })
         .collect();

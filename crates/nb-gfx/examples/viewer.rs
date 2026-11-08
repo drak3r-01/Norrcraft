@@ -149,12 +149,12 @@ fn demo_particles(t: f32, atlas: &nb_gfx::TextureArrayCpu) -> Vec<ParticleInstan
             let ty = if i % 4 == 0 { lava } else { leaf };
             let phase = (t * 0.3 + i as f32 * 0.37).fract();
             let (x, z) = ((i % 8) as f32 * 0.7 - 2.5, (i / 8) as f32 * 0.7 + 6.0);
-            ParticleInstance {
-                position: Vec3::new(x, 72.0 - phase * 6.0, z),
-                scale: ty.scale,
-                layer: atlas.layer(&ty.texture),
-                color: Vec3::ONE,
-            }
+            ParticleInstance::new(
+                [x, 72.0 - phase * 6.0, z],
+                ty.scale,
+                atlas.layer(&ty.texture) as u16,
+                [1.0; 4],
+            )
         })
         .collect()
 }

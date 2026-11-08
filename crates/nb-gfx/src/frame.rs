@@ -96,18 +96,8 @@ pub struct MobInstance<'a> {
     pub pose: &'a [[f32; 12]],
 }
 
-/// Particule à dessiner (§15).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ParticleInstance {
-    pub position: Vec3,
-    /// `type.scale` (`particles.json`).
-    pub scale: f32,
-    /// `type.textureLayer` : couche de l'atlas des particules
-    /// ([`crate::vk::SceneRenderer::particle_atlas`]).
-    pub layer: u32,
-    /// `colorTint`.
-    pub color: Vec3,
-}
+/// Particule à dessiner : l instance GPU du moteur `nb-particles` (32 octets, un seul draw).
+pub use nb_particles::GpuParticle as ParticleInstance;
 
 /// Entrées d'une frame.
 #[derive(Clone, Copy, Debug)]

@@ -14,23 +14,10 @@ use super::resources::{Buffer, Image, ImageDesc};
 use super::scene::upload_atlas;
 use super::{GpuContext, Result};
 use crate::atlas::TextureArrayCpu;
-use crate::frame::{FrameInput, MobInstance};
+use crate::frame::{MobInstance, ParticleInstance};
 use crate::mob_model::{
-    missing_cube, missing_texture, mob_model_matrix, particle_model_matrix, MobModelCpu, MobRoots,
-    MobVertex, PARTICLE_QUAD,
+    missing_cube, missing_texture, mob_model_matrix, MobModelCpu, MobRoots, MobVertex,
 };
-
-/// Push constants des particules (miroir du bloc `Push` de `particle.vert/.frag`).
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
-pub(super) struct ParticlePush {
-    model: [f32; 16],
-    color_tint: [f32; 3],
-    layer: i32,
-}
-
-pub(super) const PARTICLE_PUSH_SIZE: u32 = std::mem::size_of::<ParticlePush>() as u32;
-const _: () = assert!(PARTICLE_PUSH_SIZE == 80);
 
 /// Sets « une texture » alloués à la demande (pools successifs, libération individuelle).
 struct TextureSets {
@@ -154,6 +141,17 @@ const IDENTITY: [f32; 12] = nb_anim::Mat34::IDENTITY.0;
 /// Capacités initiales (matrices, instances) des tampons par frame ; ils grandissent à la demande.
 const INITIAL_MATRICES: usize = 2048;
 const INITIAL_INSTANCES: usize = 256;
+const INITIAL_PARTICLES: usize = 4096;
+
+fn new_particle_buffer(ctx: &GpuContext, cap: usize) -> Result<Buffer> {
+    Buffer::new(
+        ctx,
+        (cap * std::mem::size_of::<ParticleInstance>()) as u64,
+        vk::BufferUsageFlags::VERTEX_BUFFER,
+        gpu_allocator::MemoryLocation::CpuToGpu,
+        "particle-instances",
+    )
+}
 
 /// Sphère englobante d'un modèle (espace modèle), élargie pour contenir les poses animées.
 #[derive(Clone, Copy, Debug)]
@@ -179,6 +177,9 @@ struct MobSlot {
     palette_cap: usize,
     instances: Buffer,
     instance_cap: usize,
+    /// Instances de particules (un seul tampon, un seul draw).
+    particles: Buffer,
+    particle_cap: usize,
     set: vk::DescriptorSet,
 }
 
@@ -203,7 +204,7 @@ pub(super) struct MobResources {
     particle_atlas_cpu: TextureArrayCpu,
     particle_atlas: Image,
     particle_set: TexSet,
-    particle_quad: Buffer,
+    particle_count: u32,
     roots: MobRoots,
     // -- Palette, instances et dessins.
     slots: Vec<MobSlot>,
@@ -279,6 +280,8 @@ fn new_slot(
         palette_cap: matrices,
         instances: instances_buf,
         instance_cap: instances,
+        particles: new_particle_buffer(ctx, INITIAL_PARTICLES)?,
+        particle_cap: INITIAL_PARTICLES,
         set,
     };
     write_palette_set(ctx, &slot);
@@ -324,12 +327,6 @@ impl MobResources {
         let white_set = sets.alloc(ctx, white.view, sampler)?;
         let particle_atlas = upload_atlas(ctx, &particle_atlas_cpu)?;
         let particle_set = sets.alloc(ctx, particle_atlas.view, atlas_sampler)?;
-        let particle_quad = Buffer::with_data(
-            ctx,
-            &PARTICLE_QUAD,
-            vk::BufferUsageFlags::VERTEX_BUFFER,
-            "particle-quad",
-        )?;
         let missing_cpu =
             MobModelCpu::from_lists(missing_cube(), Vec::new(), Some(missing_texture()))
                 .expect("cube manquant");
@@ -362,7 +359,7 @@ impl MobResources {
             particle_atlas_cpu,
             particle_atlas,
             particle_set,
-            particle_quad,
+            particle_count: 0,
             roots,
             slots: slot_bufs,
             slot_pool,
@@ -512,6 +509,7 @@ impl MobResources {
         ctx: &GpuContext,
         slot: usize,
         mobs: &[MobInstance<'_>],
+        particles: &[ParticleInstance],
         frustum: &Frustum,
     ) -> Result<()> {
         self.draws.clear();
@@ -608,6 +606,17 @@ impl MobResources {
             s.instances
                 .write(0, bytemuck::cast_slice(&self.instances_sorted))?;
         }
+        // Particules : un tampon d instances, copié tel quel (déjà filtré par le moteur).
+        if particles.len() > s.particle_cap {
+            let cap = particles.len().next_power_of_two();
+            s.particles.destroy(ctx);
+            s.particles = new_particle_buffer(ctx, cap)?;
+            s.particle_cap = cap;
+        }
+        if !particles.is_empty() {
+            s.particles.write(0, bytemuck::cast_slice(particles))?;
+        }
+        self.particle_count = particles.len() as u32;
         Ok(())
     }
 
@@ -623,11 +632,8 @@ impl MobResources {
         cmd: vk::CommandBuffer,
         p: &Pipelines,
         frame_set: vk::DescriptorSet,
-        view: &Mat4,
-        input: &FrameInput<'_>,
         slot: usize,
     ) {
-        let particles = input.particles;
         let d = &ctx.device;
         let g = vk::PipelineBindPoint::GRAPHICS;
         let s = &self.slots[slot];
@@ -670,7 +676,7 @@ impl MobResources {
                     }
                 }
             }
-            if !particles.is_empty() {
+            if self.particle_count > 0 {
                 d.cmd_bind_pipeline(cmd, g, p.particle);
                 d.cmd_bind_descriptor_sets(
                     cmd,
@@ -680,23 +686,9 @@ impl MobResources {
                     &[frame_set, self.particle_set.set],
                     &[],
                 );
-                d.cmd_bind_vertex_buffers(cmd, 0, &[self.particle_quad.raw], &[0]);
-                // Pas de tri (ordre du gestionnaire de particules).
-                for q in particles {
-                    let push = ParticlePush {
-                        model: particle_model_matrix(q.position, view, q.scale).to_cols_array(),
-                        color_tint: q.color.to_array(),
-                        layer: q.layer as i32,
-                    };
-                    d.cmd_push_constants(
-                        cmd,
-                        p.particle_layout,
-                        vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
-                        0,
-                        bytemuck::bytes_of(&push),
-                    );
-                    d.cmd_draw(cmd, PARTICLE_QUAD.len() as u32, 1, 0, 0);
-                }
+                d.cmd_bind_vertex_buffers(cmd, 0, &[s.particles.raw], &[0]);
+                // Un seul draw : 6 sommets (2 triangles) par instance, quad construit dans le shader.
+                d.cmd_draw(cmd, 6, self.particle_count, 0, 0);
             }
         }
     }
@@ -709,13 +701,13 @@ impl MobResources {
         for s in &mut self.slots {
             s.palette.destroy(ctx);
             s.instances.destroy(ctx);
+            s.particles.destroy(ctx);
         }
         // SAFETY : GPU inactif ; les sets sont libérés avec leur pool.
         unsafe { ctx.device.destroy_descriptor_pool(self.slot_pool, None) };
         let _ = self.slot_layout;
         self.white.destroy(ctx);
         self.particle_atlas.destroy(ctx);
-        self.particle_quad.destroy(ctx);
         self.sets.destroy(ctx);
     }
 }

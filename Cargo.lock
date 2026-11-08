@@ -894,6 +894,7 @@ dependencies = [
  "nb-core",
  "nb-data",
  "nb-mesh",
+ "nb-particles",
  "raw-window-handle",
  "sha2",
  "thiserror 1.0.69",

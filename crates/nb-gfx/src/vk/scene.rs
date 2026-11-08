@@ -82,9 +82,10 @@ impl SceneAssets {
         atlas::cloud_texture(CLOUDS_PNG)
     }
 
-    /// `loadFromClasspath("/textures/particle", "leaf", "lava_drop")`.
+    /// Atlas intégré des particules : `leaf` et `lava_drop` (PNG) puis les sprites générés
+    /// (`nb_particles::SPRITE_NAMES`, voir `particle_tex`).
     pub fn builtin_particle_atlas() -> TextureArrayCpu {
-        TextureArrayCpu::from_named(&[("leaf", Some(LEAF_PNG)), ("lava_drop", Some(LAVA_DROP_PNG))])
+        crate::particle_tex::build_atlas(LEAF_PNG, LAVA_DROP_PNG)
     }
 }
 
@@ -928,7 +929,13 @@ impl SceneRenderer {
         // Mobs : culling, regroupement par modèle, palette des os (tampons du créneau en cours).
         let mob_frustum = Frustum::from_gl_matrix(&derived.camera.frustum_matrix_gl());
         self.mobs
-            .prepare(&self.ctx, token.slot, input.mobs, &mob_frustum)?;
+            .prepare(
+                &self.ctx,
+                token.slot,
+                input.mobs,
+                input.particles,
+                &mob_frustum,
+            )?;
 
         // 1–2, 6. Culling caméra et lumière (quadtree reconstruit chaque frame).
         self.quadtree.build(self.meshes.keys().copied());
@@ -1252,8 +1259,6 @@ impl SceneRenderer {
                     cmd,
                     &self.pipelines,
                     frame_set,
-                    &derived.view,
-                    input,
                     token.slot,
                 );
                 d.cmd_end_rendering(cmd);

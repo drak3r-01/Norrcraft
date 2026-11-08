@@ -523,31 +523,6 @@ pub fn mob_model_matrix(position: Vec3, yaw_rad: f32, pitch_rad: f32, scale: Opt
     }
 }
 
-/// Billboard sphérique des particules (§15) : `T(p) · R_vᵀ · S(s)` où `R_v` est le bloc 3×3 de
-/// la vue (`model[c][r] = view[r][c]`).
-pub fn particle_model_matrix(position: Vec3, view: &Mat4, scale: f32) -> Mat4 {
-    let r = Mat3::from_mat4(*view).transpose();
-    let m = Mat4::from_cols(
-        r.x_axis.extend(0.0),
-        r.y_axis.extend(0.0),
-        r.z_axis.extend(0.0),
-        position.extend(1.0),
-    );
-    m * Mat4::from_scale(Vec3::splat(scale))
-}
-
-/// Quad unité des particules `[x,y,z,u,v]` : `TRIANGLE_FAN (0,1,2,3)` → triangles
-/// `(0,1,2)(0,2,3)`. `v` inversé : l'image apparaît tête en bas (Java, à reproduire).
-pub const PARTICLE_QUAD: [[f32; 5]; 6] = {
-    const V: [[f32; 5]; 4] = [
-        [-0.5, -0.5, 0.0, 0.0, 1.0],
-        [0.5, -0.5, 0.0, 1.0, 1.0],
-        [0.5, 0.5, 0.0, 1.0, 0.0],
-        [-0.5, 0.5, 0.0, 0.0, 0.0],
-    ];
-    [V[0], V[1], V[2], V[0], V[2], V[3]]
-};
-
 // ------------------------------------------------------------------------ fichiers
 
 /// Racines de recherche des modèles : pack actif puis Default.
@@ -885,30 +860,6 @@ mod tests {
         let s = mob_model_matrix(p, 0.0, 0.0, Some(Vec3::new(0.75, 2.0, 1.375)));
         let top = s * Vec4::new(0.5, 1.0, 0.5, 1.0);
         assert!((top.truncate() - Vec3::new(1.375, 4.0, 3.6875)).length() < 1e-5);
-    }
-
-    #[test]
-    fn particle_billboard_faces_camera() {
-        let cam = crate::Camera {
-            position: Vec3::new(3.0, 70.0, -2.0),
-            pitch_deg: 25.0,
-            yaw_deg: 130.0,
-            ..crate::Camera::default()
-        };
-        let view = cam.view();
-        let p = Vec3::new(5.0, 71.0, 1.0);
-        let m = particle_model_matrix(p, &view, 0.15);
-        // Dans l'espace vue, le quad reste parallèle à l'écran, à l'échelle s.
-        let mv = view * m;
-        let r = Mat3::from_mat4(mv);
-        assert!(r.abs_diff_eq(Mat3::from_diagonal(Vec3::splat(0.15)), 1e-5));
-        assert!(((m * Vec4::new(0.0, 0.0, 0.0, 1.0)).truncate() - p).length() < 1e-6);
-        // Sa normale (+Z modèle) pointe vers la caméra (la face CCW est visible).
-        let n = (m * Vec4::new(0.0, 0.0, 1.0, 0.0)).truncate();
-        assert!(n.dot(cam.position - p) > 0.0);
-        let q = PARTICLE_QUAD;
-        assert_eq!(q[0][3..], [0.0, 1.0]);
-        assert_eq!(q[5][..2], [-0.5, 0.5]);
     }
 
     /// Dossier temporaire unique (supprimé à la fin du test).

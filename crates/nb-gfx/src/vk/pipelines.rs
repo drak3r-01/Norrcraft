@@ -2,7 +2,6 @@
 
 use ash::vk;
 
-use super::mobs::PARTICLE_PUSH_SIZE;
 use super::targets::{DEPTH_FORMAT, HDR_COLOR_FORMAT};
 use super::{GpuContext, Result};
 use crate::shaders;
@@ -170,14 +169,19 @@ fn build(ctx: &GpuContext, d: &Desc<'_>) -> Result<vk::Pipeline> {
             ],
         ),
         Vertex::Particle => (
+            // Une instance = `nb_particles::GpuParticle` (32 octets), quad généré dans le shader.
             vec![vk::VertexInputBindingDescription {
                 binding: 0,
-                stride: 20,
-                input_rate: vk::VertexInputRate::VERTEX,
+                stride: 32,
+                input_rate: vk::VertexInputRate::INSTANCE,
             }],
             vec![
-                f(0, vk::Format::R32G32B32_SFLOAT, 0),
-                f(1, vk::Format::R32G32_SFLOAT, 12),
+                f(0, vk::Format::R32G32B32A32_SFLOAT, 0),
+                f(1, vk::Format::R8G8B8A8_UNORM, 16),
+                f(2, vk::Format::R16_UNORM, 20),
+                f(3, vk::Format::R16_UINT, 22),
+                f(4, vk::Format::R8G8B8A8_UINT, 24),
+                f(5, vk::Format::R32_UINT, 28),
             ],
         ),
         Vertex::None => (Vec::new(), Vec::new()),
@@ -355,11 +359,8 @@ impl Pipelines {
             &[frame_set_layout, texture_set_layout, mob_set_layout],
             None,
         )?;
-        let particle_layout = pipeline_layout(
-            ctx,
-            &[frame_set_layout, texture_set_layout],
-            Some((S::VERTEX | S::FRAGMENT, PARTICLE_PUSH_SIZE)),
-        )?;
+        let particle_layout =
+            pipeline_layout(ctx, &[frame_set_layout, texture_set_layout], None)?;
 
         let hdr = |blend, write| ColorTarget {
             format: HDR_COLOR_FORMAT,

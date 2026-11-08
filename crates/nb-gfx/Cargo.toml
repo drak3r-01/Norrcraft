@@ -16,6 +16,7 @@ nb-data.workspace = true
 # Sommets, culling (quadtree + frustum), caméra JOML et contour de bloc : nb-mesh est pur CPU
 # (ne dépend que de nb-core / nb-data), nb-gfx ne voit toujours pas nb-world.
 nb-mesh.workspace = true
+nb-particles.workspace = true
 glam.workspace = true
 bytemuck.workspace = true
 image.workspace = true

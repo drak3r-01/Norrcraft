@@ -40,6 +40,7 @@ pub mod frame;
 pub mod jem;
 pub mod mob_model;
 pub mod packs;
+pub mod particle_tex;
 pub mod shaders;
 pub mod sky;
 pub mod ui_pass;

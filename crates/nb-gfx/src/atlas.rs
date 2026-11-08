@@ -80,6 +80,12 @@ impl TextureArrayCpu {
         Self::build(entries)
     }
 
+    /// Atlas depuis des images déjà décodées (retournées comme `decode_rgba_flipped`) : sprites
+    /// générés par le code. `None` = ressource absente (couche transparente).
+    pub fn from_entries(entries: Vec<(String, Option<RgbaImage>)>) -> Self {
+        Self::build(entries)
+    }
+
     fn build(entries: Vec<(String, Option<RgbaImage>)>) -> Self {
         let tile = entries
             .iter()
