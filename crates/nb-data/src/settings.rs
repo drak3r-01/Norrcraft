@@ -107,6 +107,12 @@ pub struct GameSettings {
     pub player_name: String,
     /// Dernière adresse saisie dans « Rejoindre » (`adresse:port`).
     pub last_server: String,
+    /// Volumes sonores de 0 à 1 (extension Norrblock) : général, musique, ambiance, effets, créatures.
+    pub master_volume: f32,
+    pub music_volume: f32,
+    pub ambient_volume: f32,
+    pub effects_volume: f32,
+    pub creatures_volume: f32,
 }
 
 impl Default for GameSettings {
@@ -125,6 +131,11 @@ impl Default for GameSettings {
             key_bindings: Action::ALL.iter().map(|&a| (a, a.default_key())).collect(),
             player_name: "Player".to_owned(),
             last_server: String::new(),
+            master_volume: 1.0,
+            music_volume: 0.5,
+            ambient_volume: 0.8,
+            effects_volume: 1.0,
+            creatures_volume: 1.0,
         }
     }
 }
@@ -182,12 +193,50 @@ impl GameSettings {
         if let Some(v) = root.get("lastServer").and_then(Value::as_str) {
             s.last_server = v.to_owned();
         }
+        let vol = |k: &str| float(k).map(|v| v.clamp(0.0, 1.0));
+        let mut vols = s.volumes();
+        for (slot, key) in vols.iter_mut().zip(Self::VOLUME_KEYS) {
+            if let Some(v) = vol(key) {
+                *slot = v;
+            }
+        }
+        s.set_volumes(vols);
         for action in Action::ALL {
             if let Some(code) = int(&format!("key_{}", action.name())) {
                 s.key_bindings.insert(action, code);
             }
         }
         Ok(s)
+    }
+
+    /// Clés JSON des volumes, dans l'ordre de [`Self::volumes`].
+    pub const VOLUME_KEYS: [&'static str; 5] = [
+        "masterVolume",
+        "musicVolume",
+        "ambientVolume",
+        "effectsVolume",
+        "creaturesVolume",
+    ];
+
+    /// Volumes `[général, musique, ambiance, effets, créatures]`.
+    pub fn volumes(&self) -> [f32; 5] {
+        [
+            self.master_volume,
+            self.music_volume,
+            self.ambient_volume,
+            self.effects_volume,
+            self.creatures_volume,
+        ]
+    }
+
+    /// Fixe les volumes (bornés à `[0, 1]`).
+    pub fn set_volumes(&mut self, v: [f32; 5]) {
+        let c = |x: f32| x.clamp(0.0, 1.0);
+        self.master_volume = c(v[0]);
+        self.music_volume = c(v[1]);
+        self.ambient_volume = c(v[2]);
+        self.effects_volume = c(v[3]);
+        self.creatures_volume = c(v[4]);
     }
 
     /// Sérialise dans le format du Java (`key_<ACTION>` à plat, codes GLFW).
@@ -206,6 +255,9 @@ impl GameSettings {
         map.insert("windowHeight".into(), self.window_height.into());
         map.insert("playerName".into(), self.player_name.clone().into());
         map.insert("lastServer".into(), self.last_server.clone().into());
+        for (key, v) in Self::VOLUME_KEYS.iter().zip(self.volumes()) {
+            map.insert((*key).into(), float_value(v));
+        }
         for (action, code) in &self.key_bindings {
             map.insert(format!("key_{}", action.name()), (*code).into());
         }
@@ -290,5 +342,26 @@ mod tests {
         assert!(json.contains("\"sensitivity\": 0.1"), "{json}");
         assert!(json.contains("\"key_JUMP\": 70"));
         assert_eq!(GameSettings::from_json(&json).unwrap(), s);
+    }
+}
+
+#[cfg(test)]
+mod volume_tests {
+    use super::*;
+
+    #[test]
+    fn volumes_default_clamp_and_roundtrip() {
+        let mut s = GameSettings::default();
+        assert_eq!(s.volumes(), [1.0, 0.5, 0.8, 1.0, 1.0]);
+        s.set_volumes([2.0, -1.0, 0.25, 0.5, 0.75]);
+        assert_eq!(s.volumes(), [1.0, 0.0, 0.25, 0.5, 0.75]);
+        let back = GameSettings::from_json(&s.to_json()).unwrap();
+        assert_eq!(back.volumes(), s.volumes());
+        // Fichier sans volumes (anciennes sauvegardes) : valeurs par défaut.
+        let old = GameSettings::from_json(r#"{ "fov": 80.0 }"#).unwrap();
+        assert_eq!(old.volumes(), GameSettings::default().volumes());
+        // Valeurs hors bornes dans le fichier : bornées.
+        let wild = GameSettings::from_json(r#"{ "masterVolume": 7, "musicVolume": -3 }"#).unwrap();
+        assert_eq!((wild.master_volume, wild.music_volume), (1.0, 0.0));
     }
 }

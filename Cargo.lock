@@ -834,6 +834,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb-audio"
+version = "0.1.0"
+dependencies = [
+ "crossbeam-channel",
+]
+
+[[package]]
 name = "nb-core"
 version = "0.1.0"
 dependencies = [
@@ -869,6 +876,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "nb-anim",
+ "nb-audio",
  "nb-core",
  "nb-data",
  "nb-ecs",

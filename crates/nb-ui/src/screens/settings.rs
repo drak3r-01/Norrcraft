@@ -81,7 +81,11 @@ fn on_off(b: bool) -> &'static str {
 pub enum SettingsTab {
     Graphics,
     Controls,
+    Audio,
 }
+
+/// Libellés des curseurs de l'onglet Audio, dans l'ordre de `GameSettings::volumes()`.
+pub const VOLUME_LABELS: [&str; 5] = ["Master", "Music", "Ambience", "Effects", "Creatures"];
 
 /// Action demandée par l'écran.
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +105,7 @@ enum SliderId {
     RenderDistance,
     Fov,
     Sensitivity,
+    Volume(usize),
 }
 
 /// État de l'écran des réglages.
@@ -111,6 +116,7 @@ pub struct SettingsScreen {
     rd: Slider,
     fov: Slider,
     sens: Slider,
+    vol: [Slider; 5],
     dragging: Option<SliderId>,
     pub resolution_index: usize,
     pub rebinding: Option<Action>,
@@ -122,18 +128,22 @@ pub struct SettingsScreen {
 impl SettingsScreen {
     /// `enter()` : copie de travail de `current`.
     pub fn enter(current: &GameSettings, ctx: &mut UiContext) -> Self {
-        let tab = if ctx.pending_controls_tab {
+        let tab = if ctx.pending_audio_tab {
+            SettingsTab::Audio
+        } else if ctx.pending_controls_tab {
             SettingsTab::Controls
         } else {
             SettingsTab::Graphics
         };
         ctx.pending_controls_tab = false;
+        ctx.pending_audio_tab = false;
         let working = copy_settings(current);
         let mut s = Self {
             tab,
             rd: Slider::new(0, 0, 0.0, 0.0, 0.0),
             fov: Slider::new(0, 0, 0.0, 0.0, 0.0),
             sens: Slider::new(0, 0, 0.0, 0.0, 0.0),
+            vol: [Slider::new(0, 0, 0.0, 0.0, 0.0); 5],
             resolution_index: 0,
             working,
             dragging: None,
@@ -152,10 +162,19 @@ impl SettingsScreen {
         self.rd = Slider::new(CTRL_W, SLIDER_H, 4.0, 24.0, w.render_distance as f32);
         self.fov = Slider::new(CTRL_W, SLIDER_H, 60.0, 110.0, w.fov);
         self.sens = Slider::new(CTRL_W, SLIDER_H, 0.02, 0.50, w.sensitivity);
+        for (i, v) in w.volumes().into_iter().enumerate() {
+            self.vol[i] = Slider::new(CTRL_W, SLIDER_H, 0.0, 1.0, v);
+        }
+    }
+
+    /// Volume affiché / appliqué du curseur `i` : pas de 5 %.
+    pub fn volume(&self, i: usize) -> f32 {
+        (self.vol[i].value * 20.0).round() / 20.0
     }
 
     fn slider_mut(&mut self, id: SliderId) -> &mut Slider {
         match id {
+            SliderId::Volume(i) => &mut self.vol[i],
             SliderId::RenderDistance => &mut self.rd,
             SliderId::Fov => &mut self.fov,
             SliderId::Sensitivity => &mut self.sens,
@@ -192,6 +211,7 @@ impl SettingsScreen {
         let rows = match self.tab {
             SettingsTab::Graphics => 7,
             SettingsTab::Controls => 1 + REBINDABLE.len() as i32,
+            SettingsTab::Audio => VOLUME_LABELS.len() as i32,
         };
         rows * (ROW_H + ROW_GAP) - ROW_GAP
     }
@@ -245,7 +265,14 @@ impl SettingsScreen {
                 return None;
             }
             Some(2) => return Some(SettingsAction::SwitchTo(GameState::ResourcePacks)),
-            Some(_) => return Some(SettingsAction::SwitchTo(GameState::MobSettings)),
+            Some(3) => return Some(SettingsAction::SwitchTo(GameState::MobSettings)),
+            Some(_) => {
+                if self.tab != SettingsTab::Audio {
+                    self.tab = SettingsTab::Audio;
+                    self.scroll.reset();
+                }
+                return None;
+            }
             None => {}
         }
         if hit_test(
@@ -323,6 +350,15 @@ impl SettingsScreen {
                     self.rebinding = Some(REBINDABLE[i]);
                 }
             }
+            SettingsTab::Audio => {
+                for i in 0..self.vol.len() {
+                    self.vol[i].set_position(ctrl_x, row(i as i32) + (ROW_H - SLIDER_H) / 2);
+                    if self.vol[i].contains(mx, my) {
+                        self.dragging = Some(SliderId::Volume(i));
+                        return None;
+                    }
+                }
+            }
         }
         None
     }
@@ -333,6 +369,13 @@ impl SettingsScreen {
         s.render_distance = self.render_distance();
         s.fov = self.fov() as f32;
         s.sensitivity = self.sens.value;
+        s.set_volumes([
+            self.volume(0),
+            self.volume(1),
+            self.volume(2),
+            self.volume(3),
+            self.volume(4),
+        ]);
         s.shadow_quality = self.working.shadow_quality;
         s.bloom_enabled = self.working.bloom_enabled;
         s.vsync_enabled = self.working.vsync_enabled;
@@ -353,11 +396,13 @@ impl SettingsScreen {
         let title = match self.tab {
             SettingsTab::Graphics => "Graphics",
             SettingsTab::Controls => "Controls",
+            SettingsTab::Audio => "Audio",
         };
         centered_text(dl, title, w, (SPACER_H - 20) as f32 / 2.0, 2.5, WHITE);
         let active = match self.tab {
             SettingsTab::Graphics => 0,
             SettingsTab::Controls => 1,
+            SettingsTab::Audio => 4,
         };
         draw_tabs(dl, w, BTN_H, Some(active));
 
@@ -455,6 +500,14 @@ impl SettingsScreen {
                     btn(dl, r, 120, &name, true);
                 }
             }
+            SettingsTab::Audio => {
+                for (i, name) in VOLUME_LABELS.iter().enumerate() {
+                    label(dl, name, i as i32);
+                    slider(dl, &self.vol[i], i as i32);
+                    let pct = (self.volume(i) * 100.0).round() as i32;
+                    value(dl, &format!("{pct}%"), i as i32);
+                }
+            }
         }
         dl.set_scissor(None);
         // [JAVA-BUG] conservé : la barre est ancrée sur listTop, pas sur contentTop.
@@ -538,6 +591,7 @@ mod tests {
         let mut ctx = UiContext {
             previous_state: GameState::Paused,
             pending_controls_tab: false,
+            pending_audio_tab: false,
         };
         let mut s = SettingsScreen::enter(&cur, &mut ctx);
         assert_eq!(s.render_distance(), 12);
@@ -560,6 +614,38 @@ mod tests {
         assert!(!new.bloom_enabled);
         assert_eq!((new.window_width, new.window_height), (1600, 900));
         assert_eq!(new.render_distance, 12);
+    }
+
+    #[test]
+    fn audio_tab_sliders_edit_volumes() {
+        let cur = GameSettings::default();
+        let mut ctx = UiContext {
+            pending_audio_tab: true,
+            ..Default::default()
+        };
+        let mut s = SettingsScreen::enter(&cur, &mut ctx);
+        assert_eq!(s.tab, SettingsTab::Audio);
+        assert!(!ctx.pending_audio_tab);
+        assert_eq!(s.volume(1), 0.5);
+        let ctx = UiContext::default();
+        // Ligne 1 (Music) : y = 176 + 56 + 6..38. Saisie puis glissé tout à gauche.
+        s.update(&input(650.0, 245.0, true), &cur, &ctx);
+        s.update(&input(500.0, 400.0, true), &cur, &ctx);
+        assert_eq!(s.volume(1), 0.0);
+        s.update(&input(0.0, 0.0, false), &cur, &ctx);
+        // Ligne 3 (Effects) : pas de 5 %.
+        s.update(&input(650.0, 357.0, true), &cur, &ctx);
+        s.update(&input(506.0 + 0.33 * 280.0, 400.0, true), &cur, &ctx);
+        assert_eq!(s.volume(3), 0.35);
+        let applied = s.applied(&cur);
+        assert_eq!(applied.music_volume, 0.0);
+        assert_eq!(applied.effects_volume, 0.35);
+        assert_eq!(applied.master_volume, 1.0);
+        s.update(&input(0.0, 0.0, false), &cur, &ctx);
+        // Un clic sur l'onglet Audio depuis un autre onglet.
+        s.tab = SettingsTab::Graphics;
+        assert_eq!(click(&mut s, &cur, 274.0 + 4.0 * 148.0 + 5.0, 80.0), None);
+        assert_eq!(s.tab, SettingsTab::Audio);
     }
 
     #[test]
@@ -591,13 +677,13 @@ mod tests {
         let mut s = SettingsScreen::enter(&cur, &mut ctx);
         assert_eq!(s.tab, SettingsTab::Controls);
         assert!(!ctx.pending_controls_tab);
-        // Onglets à x = 640 - 292 = 348, pas 148 ; y 74..110.
+        // Onglets à x = 640 - 366 = 274, pas 148 ; y 74..110.
         assert_eq!(
-            click(&mut s, &cur, 348.0 + 2.0 * 148.0 + 5.0, 80.0),
+            click(&mut s, &cur, 274.0 + 2.0 * 148.0 + 5.0, 80.0),
             Some(SettingsAction::SwitchTo(GameState::ResourcePacks))
         );
         assert_eq!(
-            click(&mut s, &cur, 348.0 + 3.0 * 148.0 + 5.0, 80.0),
+            click(&mut s, &cur, 274.0 + 3.0 * 148.0 + 5.0, 80.0),
             Some(SettingsAction::SwitchTo(GameState::MobSettings))
         );
         // Ligne « Jump » (5ᵉ action → rangée 5).

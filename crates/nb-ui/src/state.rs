@@ -21,6 +21,8 @@ pub struct UiContext {
     pub previous_state: GameState,
     /// `pendingSettingsTab == "CONTROLS"` : ouvrir les réglages sur l'onglet Contrôles.
     pub pending_controls_tab: bool,
+    /// Ouvrir les réglages sur l'onglet Audio (extension Norrblock).
+    pub pending_audio_tab: bool,
 }
 
 impl Default for UiContext {
@@ -28,6 +30,7 @@ impl Default for UiContext {
         Self {
             previous_state: GameState::MainMenu,
             pending_controls_tab: false,
+            pending_audio_tab: false,
         }
     }
 }

@@ -211,15 +211,15 @@ fn delete_reset_and_escape() {
 fn tabs() {
     let mut h = Harness::new();
     assert_eq!(
-        h.click(348.0 + 148.0 + 1.0, 80.0),
+        h.click(274.0 + 148.0 + 1.0, 80.0),
         Some(MobAction::SwitchTo(GameState::Settings))
     );
     assert!(h.ctx.pending_controls_tab);
     assert_eq!(
-        h.click(348.0 + 296.0 + 1.0, 80.0),
+        h.click(274.0 + 296.0 + 1.0, 80.0),
         Some(MobAction::SwitchTo(GameState::ResourcePacks))
     );
-    assert_eq!(h.click(348.0 + 444.0 + 1.0, 80.0), None, "onglet courant");
+    assert_eq!(h.click(274.0 + 444.0 + 1.0, 80.0), None, "onglet courant");
 }
 
 #[test]

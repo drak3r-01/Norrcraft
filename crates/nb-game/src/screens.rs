@@ -314,7 +314,9 @@ fn menu_action_cmd(a: MenuAction) -> UiCommand {
 }
 
 fn settings_tab_cmd(ctx: &UiContext) -> UiCommand {
-    UiCommand::OpenSettingsTab(if ctx.pending_controls_tab {
+    UiCommand::OpenSettingsTab(if ctx.pending_audio_tab {
+        SettingsTab::Audio
+    } else if ctx.pending_controls_tab {
         SettingsTab::Controls
     } else {
         SettingsTab::Graphics
@@ -369,6 +371,7 @@ impl NbUi {
         UiContext {
             previous_state: to_ui_state(view.previous_state),
             pending_controls_tab: false,
+            pending_audio_tab: false,
         }
     }
 
@@ -427,6 +430,7 @@ impl Ui for NbUi {
             GameState::Settings => {
                 let mut ctx = Self::ctx(view);
                 ctx.pending_controls_tab = view.settings_tab == SettingsTab::Controls;
+                ctx.pending_audio_tab = view.settings_tab == SettingsTab::Audio;
                 self.settings = Some(SettingsScreen::enter(view.settings, &mut ctx));
             }
             GameState::ResourcePacks => {

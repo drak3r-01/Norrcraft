@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/nb-core",
     "crates/nb-anim",
+    "crates/nb-audio",
     "crates/nb-data",
     "crates/nb-world",
     "crates/nb-mesh",
@@ -41,6 +42,7 @@ gpu-allocator = { version = "0.27", default-features = false, features = ["vulka
 # Crates internes
 nb-core = { path = "crates/nb-core" }
 nb-anim = { path = "crates/nb-anim" }
+nb-audio = { path = "crates/nb-audio" }
 nb-data = { path = "crates/nb-data" }
 nb-world = { path = "crates/nb-world" }
 nb-mesh = { path = "crates/nb-mesh" }

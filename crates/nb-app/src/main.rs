@@ -280,9 +280,15 @@ impl App {
             "GPU : {} (validation : {})",
             ctx.device_name, ctx.validation_enabled
         );
-        let opts = self
+        let sounds_dir = packs_root.parent().map(|p| p.join("sounds"));
+        let mut opts = self
             .args
             .game_options(packs_root, (size.width, size.height));
+        // Son : seulement en jeu interactif (pas en mode scripté / validé).
+        if !self.args.checked() {
+            opts.audio = true;
+            opts.sounds_dir = sounds_dir;
+        }
         let mut driver = Driver::new(&mut renderer, opts).map_err(|e| e.to_string())?;
         // Envoi des maillages au GPU étalé sur plusieurs frames (voir `Driver::mesh_budget`).
         driver.mesh_budget = Some(std::time::Duration::from_micros(1500));

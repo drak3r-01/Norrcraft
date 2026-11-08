@@ -12,7 +12,8 @@ pub const DIRT_TILE: f32 = 32.0;
 pub const TAB_W: i32 = 140;
 pub const TAB_H: i32 = 36;
 pub const TAB_GAP: i32 = 8;
-pub const TAB_LABELS: [&str; 4] = ["Graphics", "Controls", "Res. Packs", "Mobs"];
+pub const TAB_COUNT: usize = 5;
+pub const TAB_LABELS: [&str; TAB_COUNT] = ["Graphics", "Controls", "Res. Packs", "Mobs", "Audio"];
 
 /// Teinte et tuilage `renderDirt` : `uv = (0, 0, w/32, h/32)` (REPEAT), teinte 0,32.
 pub fn draw_dirt(dl: &mut DrawList, x: f32, y: f32, w: f32, h: f32) {
@@ -46,15 +47,15 @@ pub fn draw_title(dl: &mut DrawList, title: &str, win_w: i32) {
 
 /// x du premier onglet.
 pub fn tabs_x(win_w: i32) -> i32 {
-    win_w / 2 - (4 * TAB_W + 3 * TAB_GAP) / 2
+    win_w / 2 - (TAB_COUNT as i32 * TAB_W + (TAB_COUNT as i32 - 1) * TAB_GAP) / 2
 }
 
 /// y des onglets.
 pub const TAB_Y: i32 = SPACER_H + 10;
 
-/// Onglet sous la souris (0..3), bornes incluses, dans l'ordre de test Java.
+/// Onglet sous la souris (0..4), bornes incluses, dans l'ordre de test Java.
 pub fn tab_at(win_w: i32, mx: f64, my: f64, h: i32) -> Option<usize> {
-    (0..4).find(|&i| {
+    (0..TAB_COUNT).find(|&i| {
         hit_test(
             mx,
             my,
