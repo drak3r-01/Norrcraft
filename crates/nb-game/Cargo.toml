@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 nb-core.workspace = true
+nb-anim.workspace = true
 nb-data.workspace = true
 nb-world.workspace = true
 nb-mesh.workspace = true

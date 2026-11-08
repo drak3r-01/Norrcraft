@@ -672,6 +672,7 @@ fn mob_at(id: &str, position: Vec3) -> MobInstance<'_> {
         pitch_rad: 0.0,
         missing_scale: Vec3::new(2.0, 2.0, 2.0),
         light: 1.0,
+        pose: &[],
     }
 }
 
@@ -798,6 +799,7 @@ fn missing_vanilla_and_reloaded_mobs() {
         id: "pig".into(),
         built_in: false,
         geometry: None,
+        bones: Vec::new(),
     };
     let (a, _) = SceneAssets::load(&tmp, "Default", std::slice::from_ref(&pig));
     assert_eq!(a.mob_models["pig"].vertices.len(), 216);
@@ -850,6 +852,7 @@ fn missing_vanilla_and_reloaded_mobs() {
         id: "orca".into(),
         built_in: true,
         geometry: None,
+        bones: Vec::new(),
     };
     assert!(!r.scene.reload_mob_model(&orca).unwrap());
     assert_eq!(r.scene.mob_model_counts("orca"), None);
@@ -973,6 +976,7 @@ fn demo_world_with_builtin_mobs_and_particles() {
             pitch_rad: 0.0,
             missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
             light: 1.0,
+            pose: &[],
         }
     };
     let mobs = [
@@ -1176,5 +1180,96 @@ fn sunset_sun_disc() {
     save("sunset_sun", &img);
     let bright = img.pixels().filter(|p| p[0] > 245 && p[1] > 225).count();
     assert!(bright > 50, "disque solaire absent ({bright})");
+    assert_no_validation_errors();
+}
+
+/// Peau et instances : un modèle à deux os (deux boîtes) dessiné en plusieurs exemplaires d'un
+/// seul `draw` instancié ; la palette déplace un os, un exemplaire hors du champ est écarté, et
+/// une palette plus courte que le modèle n'envoie aucun os dans le vide (os manquants = repos).
+#[test]
+fn skinned_instances_follow_their_palette_and_are_culled() {
+    let Some((ctx, _g)) = gpu() else { return };
+    let mut r = OffscreenRenderer::new(ctx, assets(), W, H, &no_bloom_no_shadow()).unwrap();
+    // Deux boîtes de 16 px côte à côte : rouge (os 0) à gauche, bleue (os 1) à droite.
+    let boxes = [
+        color_box([-24.0, 0.0, -8.0], [16.0, 16.0, 16.0], [1.0, 0.0, 0.0, 1.0]),
+        color_box([8.0, 0.0, -8.0], [16.0, 16.0, 16.0], [0.0, 0.0, 1.0, 1.0]),
+    ];
+    let model = nb_gfx::mob_model::build_geometry_rigged(&boxes, &[0, 1]).unwrap();
+    assert_eq!(model.bone_count(), 2);
+    r.scene.install_mob_model("duo", &model).unwrap();
+    let cam = mob_camera();
+    let clock = SkyClock::new();
+    let mut input = frame(&cam, &clock);
+
+    // Palette : os 0 au repos, os 1 relevé de 3 blocs.
+    let mut up = nb_anim::Mat34::IDENTITY;
+    up.0[7] = 3.0;
+    let posed = [nb_anim::Mat34::IDENTITY.0, up.0];
+    let at = Vec3::new(0.0, 68.0, -6.0);
+    let rest = [mob_at("duo", at)];
+    input.mobs = &rest;
+    let img_rest = r.render(&input).unwrap();
+    let moved = [MobInstance {
+        pose: &posed,
+        ..mob_at("duo", at)
+    }];
+    input.mobs = &moved;
+    let img_up = r.render(&input).unwrap();
+    save("mob_skinned", &img_up);
+    // Écran ↔ monde : à 6 blocs, la boîte bleue (x ∈ [0.5, 1.5], y ∈ [68, 69]) est à droite du
+    // centre, légèrement sous l'horizon. On compare une colonne de pixels : au repos le bleu est
+    // bas, relevé de 3 blocs il est plus haut.
+    let blue_rows = |img: &RgbaImage| -> Vec<u32> {
+        let x = W / 2 + W / 16; // à droite du centre, dans la boîte bleue
+        (0..H)
+            .filter(|&y| {
+                let p = img.get_pixel(x, y);
+                p[2] > 120 && p[0] < 90 && p[1] < 90
+            })
+            .collect()
+    };
+    let (rows_rest, rows_up) = (blue_rows(&img_rest), blue_rows(&img_up));
+    assert!(!rows_rest.is_empty(), "boîte bleue visible au repos");
+    assert!(!rows_up.is_empty(), "boîte bleue visible relevée");
+    let mean = |v: &[u32]| v.iter().sum::<u32>() as f32 / v.len() as f32;
+    assert!(
+        mean(&rows_up) < mean(&rows_rest) - 20.0,
+        "relevée = plus haut à l'écran ({} → {})",
+        mean(&rows_rest),
+        mean(&rows_up)
+    );
+
+    // Palette trop courte (1 matrice pour 2 os) : l'os 1 reste au repos, rien d'invalide.
+    let short = [MobInstance {
+        pose: &posed[..1],
+        ..mob_at("duo", at)
+    }];
+    input.mobs = &short;
+    let img_short = r.render(&input).unwrap();
+    assert_eq!(blue_rows(&img_short), rows_rest, "os manquant = repos");
+
+    // Instancing + culling : 40 exemplaires devant la caméra, 20 derrière ; seuls les premiers
+    // sont dessinés, en un nombre de dessins indépendant du nombre de mobs.
+    let mut many: Vec<MobInstance<'_>> = (0..40)
+        .map(|i| {
+            mob_at(
+                "duo",
+                Vec3::new(
+                    (i % 8) as f32 * 3.0 - 10.0,
+                    68.0,
+                    -8.0 - (i / 8) as f32 * 2.0,
+                ),
+            )
+        })
+        .collect();
+    many.extend((0..20).map(|i| mob_at("duo", Vec3::new(i as f32, 68.0, 40.0))));
+    input.mobs = &many;
+    r.render(&input).unwrap();
+    assert_eq!(
+        r.scene.mobs_drawn_last_frame(),
+        40,
+        "les mobs derrière la caméra sont écartés"
+    );
     assert_no_validation_errors();
 }

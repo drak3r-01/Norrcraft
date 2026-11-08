@@ -11,6 +11,7 @@ window = ["dep:winit", "dep:ash-window", "dep:raw-window-handle"]
 
 [dependencies]
 nb-core.workspace = true
+nb-anim.workspace = true
 nb-data.workspace = true
 # Sommets, culling (quadtree + frustum), caméra JOML et contour de bloc : nb-mesh est pur CPU
 # (ne dépend que de nb-core / nb-data), nb-gfx ne voit toujours pas nb-world.

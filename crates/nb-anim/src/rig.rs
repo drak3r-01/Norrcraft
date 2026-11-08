@@ -223,13 +223,12 @@ impl Rig {
             let (parent, rest) = match &b.parent {
                 None => (-1, pivot),
                 Some(p) => {
-                    let pi = *index
-                        .get(p.as_str())
-                        .filter(|&&pi| pi < i)
-                        .ok_or_else(|| RigError::BadParent {
+                    let pi = *index.get(p.as_str()).filter(|&&pi| pi < i).ok_or_else(|| {
+                        RigError::BadParent {
                             bone: b.name.clone(),
                             parent: p.clone(),
-                        })?;
+                        }
+                    })?;
                     (pi as i32, pivot - bones_pivot(&bones, pi))
                 }
             };
@@ -377,11 +376,12 @@ fn eval_wave(w: &Wave, u: f32) -> f32 {
     } else {
         w.a * (TAU * (w.n * u + w.p)).sin()
     };
-    w.o + main + if w.a2 != 0.0 {
-        w.a2 * (TAU * (w.n2 * u + w.p2)).sin()
-    } else {
-        0.0
-    }
+    w.o + main
+        + if w.a2 != 0.0 {
+            w.a2 * (TAU * (w.n2 * u + w.p2)).sin()
+        } else {
+            0.0
+        }
 }
 
 /// Spline de Catmull-Rom (tangentes par différences centrées, non uniformes) sur des clés
@@ -409,7 +409,11 @@ fn eval_keys(keys: &[[f32; 2]], u: f32, looping: bool) -> f32 {
             keys[i as usize]
         }
     };
-    let u = if looping { u - u.floor() } else { u.clamp(0.0, 1.0) };
+    let u = if looping {
+        u - u.floor()
+    } else {
+        u.clamp(0.0, 1.0)
+    };
     // Segment [i, i+1] contenant u.
     let mut i: isize = -1;
     if looping {
@@ -463,11 +467,7 @@ fn check_keys(name: &str, ch: &ChannelDef) -> Result<(), RigError> {
     Ok(())
 }
 
-fn bake_clip(
-    name: &str,
-    def: &ClipDef,
-    bones: &HashMap<&str, usize>,
-) -> Result<Clip, RigError> {
+fn bake_clip(name: &str, def: &ClipDef, bones: &HashMap<&str, usize>) -> Result<Clip, RigError> {
     if !(def.duration > 0.0 && def.duration.is_finite()) {
         return Err(RigError::BadDuration(name.to_owned()));
     }
@@ -635,7 +635,8 @@ mod tests {
     #[test]
     fn rejects_unsorted_keys() {
         let mut d = two_bone_def();
-        d.clips.get_mut("walk").unwrap().channels[0].ry = Some(Curve::Keys(vec![[0.5, 1.0], [0.2, 2.0]]));
+        d.clips.get_mut("walk").unwrap().channels[0].ry =
+            Some(Curve::Keys(vec![[0.5, 1.0], [0.2, 2.0]]));
         assert!(matches!(Rig::compile(&d), Err(RigError::BadKeys(_))));
     }
 }

@@ -96,7 +96,10 @@ fn build_world(r: &mut OffscreenRenderer) {
         } else {
             // Arbres : un par maille de 9×9.
             let (cx, cz) = (x.div_euclid(9), z.div_euclid(9));
-            let (tx, tz) = (cx * 9 + 2 + (hash(cx, cz) % 5) as i32, cz * 9 + 2 + (hash(cz, cx) % 5) as i32);
+            let (tx, tz) = (
+                cx * 9 + 2 + (hash(cx, cz) % 5) as i32,
+                cz * 9 + 2 + (hash(cz, cx) % 5) as i32,
+            );
             let th = height_at(tx, tz);
             let lava_near = {
                 let (dx, dz) = (tx - LAVA_SITE.0, tz - LAVA_SITE.1);
@@ -172,21 +175,86 @@ fn preview_scenes() {
     };
     let reg = nb_data::MobRegistry::builtin();
     let descs = MobModelDesc::from_registry(&reg);
-    let (assets, _) = SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default", &descs);
+    let (assets, _) =
+        SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default", &descs);
     let mut r = OffscreenRenderer::new(ctx, assets, W, H, &GfxSettings::default()).unwrap();
     build_world(&mut r);
 
     let only = std::env::var("NB_PREVIEW_ONLY").ok();
     let lava_y = lava_level() as f32;
     let shots = [
-        Shot { name: "hills_noon", pos: (0.0, 40.0), eye: 3.0, pitch: 3.0, yaw: 15.0, time: 900.0, mobs: false },
-        Shot { name: "hills_morning", pos: (0.0, 40.0), eye: 3.0, pitch: 2.0, yaw: -35.0, time: 700.0, mobs: false },
-        Shot { name: "lake_noon", pos: (20.0, -5.0), eye: 5.0, pitch: 14.0, yaw: 30.0, time: 850.0, mobs: false },
-        Shot { name: "lake_sun", pos: (88.0, -55.0), eye: 4.0, pitch: 6.0, yaw: -88.0, time: 1050.0, mobs: false },
-        Shot { name: "lava_dusk", pos: (-26.0, 42.0), eye: 3.0, pitch: 28.0, yaw: 0.0, time: 1140.0, mobs: false },
-        Shot { name: "lava_night", pos: (-26.0, 42.0), eye: 3.0, pitch: 25.0, yaw: 0.0, time: 300.0, mobs: true },
-        Shot { name: "mobs_noon", pos: (4.0, 14.0), eye: 2.0, pitch: 4.0, yaw: 0.0, time: 900.0, mobs: true },
-        Shot { name: "mobs_night", pos: (4.0, 14.0), eye: 2.0, pitch: 6.0, yaw: 0.0, time: 300.0, mobs: true },
+        Shot {
+            name: "hills_noon",
+            pos: (0.0, 40.0),
+            eye: 3.0,
+            pitch: 3.0,
+            yaw: 15.0,
+            time: 900.0,
+            mobs: false,
+        },
+        Shot {
+            name: "hills_morning",
+            pos: (0.0, 40.0),
+            eye: 3.0,
+            pitch: 2.0,
+            yaw: -35.0,
+            time: 700.0,
+            mobs: false,
+        },
+        Shot {
+            name: "lake_noon",
+            pos: (20.0, -5.0),
+            eye: 5.0,
+            pitch: 14.0,
+            yaw: 30.0,
+            time: 850.0,
+            mobs: false,
+        },
+        Shot {
+            name: "lake_sun",
+            pos: (88.0, -55.0),
+            eye: 4.0,
+            pitch: 6.0,
+            yaw: -88.0,
+            time: 1050.0,
+            mobs: false,
+        },
+        Shot {
+            name: "lava_dusk",
+            pos: (-26.0, 42.0),
+            eye: 3.0,
+            pitch: 28.0,
+            yaw: 0.0,
+            time: 1140.0,
+            mobs: false,
+        },
+        Shot {
+            name: "lava_night",
+            pos: (-26.0, 42.0),
+            eye: 3.0,
+            pitch: 25.0,
+            yaw: 0.0,
+            time: 300.0,
+            mobs: true,
+        },
+        Shot {
+            name: "mobs_noon",
+            pos: (4.0, 14.0),
+            eye: 2.0,
+            pitch: 4.0,
+            yaw: 0.0,
+            time: 900.0,
+            mobs: true,
+        },
+        Shot {
+            name: "mobs_night",
+            pos: (4.0, 14.0),
+            eye: 2.0,
+            pitch: 6.0,
+            yaw: 0.0,
+            time: 300.0,
+            mobs: true,
+        },
     ];
     let mob_list: Vec<(&'static str, f32, f32, f32)> = vec![
         ("elk", 1.0, 6.0, 0.6),
@@ -214,7 +282,11 @@ fn preview_scenes() {
                 .iter()
                 .map(|&(id, x, z, yaw)| {
                     let c = reg.get(id).unwrap();
-                    let (wx, wz) = if id == "zebra" { (x, z) } else { (s.pos.0 - 3.0 + x, s.pos.1 - 12.0 + z) };
+                    let (wx, wz) = if id == "zebra" {
+                        (x, z)
+                    } else {
+                        (s.pos.0 - 3.0 + x, s.pos.1 - 12.0 + z)
+                    };
                     let y = (height_at(wx as i32, wz as i32).max(62) + 1) as f32;
                     let y = if id == "zebra" { lava_y + 1.0 } else { y };
                     MobInstance {
@@ -224,6 +296,7 @@ fn preview_scenes() {
                         pitch_rad: 0.0,
                         missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
                         light: 1.0,
+                        pose: &[],
                     }
                 })
                 .collect()
@@ -246,7 +319,8 @@ fn preview_scenes() {
         let img = r.render(&input).unwrap();
         let dir = crate_dir().join("renders");
         std::fs::create_dir_all(&dir).unwrap();
-        img.save(dir.join(format!("preview_{}.png", s.name))).unwrap();
+        img.save(dir.join(format!("preview_{}.png", s.name)))
+            .unwrap();
     }
 }
 
@@ -270,5 +344,203 @@ fn preview_map() {
             })
             .collect();
         eprintln!("{z:5} {row}");
+    }
+}
+
+/// Planches de poses animées (profil, six instants d'un cycle), une image par mob et par état :
+/// `renders/anim_<mob>_<état>.png`. Mobs : `NB_ANIM_MOBS=elk,hare,…` (défaut : une sélection) ;
+/// états : repos, marche, course.
+/// `NB_GFX_REQUIRE_GPU=1 crates/nb-gfx/scripts/vk-docker.sh test -p nb-gfx --test preview preview_animations -- --ignored`
+#[test]
+#[ignore]
+fn preview_animations() {
+    use nb_anim::{AnimInput, Animator, Mat34, Rig, Scratch};
+    let ctx = match GpuContext::new_headless() {
+        Ok(c) => Arc::new(c),
+        Err(e) => panic!("Vulkan indisponible : {e}"),
+    };
+    let reg = nb_data::MobRegistry::builtin();
+    let descs = MobModelDesc::from_registry(&reg);
+    let (assets, _) =
+        SceneAssets::load(&crate_dir().join("../../resource_packs"), "Default", &descs);
+    let mut r = OffscreenRenderer::new(ctx, assets, W, H, &GfxSettings::default()).unwrap();
+    build_flat_world(&mut r);
+    let wanted = std::env::var("NB_ANIM_MOBS").unwrap_or_else(|_| {
+        "wild_boar,hare,camel,flamingo,penguin,crab,frog,shark,jellyfish,grey_wolf,tortoise,sand_lizard".into()
+    });
+    let states: Vec<String> = std::env::var("NB_ANIM_STATES")
+        .unwrap_or_else(|_| "repos,marche,course".into())
+        .split(',')
+        .map(str::to_owned)
+        .collect();
+    let mut sc = Scratch::new();
+    let dir = crate_dir().join("renders");
+    std::fs::create_dir_all(&dir).unwrap();
+    for id in wanted.split(',') {
+        let Some(cfg) = reg.get(id) else { continue };
+        let Some(def) = cfg.rig.as_ref() else {
+            continue;
+        };
+        let rig = Rig::compile(def).unwrap();
+        let water = cfg.medium == nb_data::MobMedium::Water;
+        let top = rig
+            .gaits
+            .iter()
+            .chain(&rig.swim)
+            .map(|g| g.speed)
+            .fold(0.0, f32::max);
+        let walk = rig
+            .gaits
+            .first()
+            .or(rig.swim.first())
+            .map_or(1.0, |g| g.speed);
+        for state in &states {
+            // Un nom de clip (graze, look, attack, hurt…) : joue ce clip depuis l'arrêt.
+            let clip = rig.clip_index(state);
+            let speed = match state.as_str() {
+                "repos" => 0.0,
+                "marche" => walk,
+                _ if clip.is_some() => 0.0,
+                _ => top,
+            };
+            // Six instants régulièrement répartis sur un cycle (ou 1,2 s au repos).
+            let cycle = if let Some(c) = clip {
+                rig.clips[c].duration
+            } else if speed > 0.0 {
+                let g = rig
+                    .gaits
+                    .iter()
+                    .chain(&rig.swim)
+                    .min_by(|a, b| (a.speed - speed).abs().total_cmp(&(b.speed - speed).abs()))
+                    .unwrap();
+                g.stride / speed
+            } else {
+                3.0
+            };
+            let mut anim = Animator::new(3);
+            let inp = AnimInput {
+                speed,
+                grounded: true,
+                in_water: water,
+                ..AnimInput::default()
+            };
+            for _ in 0..90 {
+                anim.update(&rig, &inp, 1.0 / 60.0);
+            }
+            if let Some(c) = clip {
+                match state.as_str() {
+                    "hurt" => anim.trigger(&rig, nb_anim::Action::Hurt),
+                    "attack" => anim.trigger(&rig, nb_anim::Action::Attack),
+                    _ => anim.play_variant(c),
+                }
+            }
+            let mut palettes: Vec<Vec<Mat34>> = Vec::new();
+            for _ in 0..6 {
+                let mut p = vec![Mat34::IDENTITY; rig.bone_count()];
+                anim.evaluate(&rig, &mut sc, &mut p);
+                palettes.push(p);
+                let steps = (cycle / if clip.is_some() { 7.0 } else { 6.0 } * 60.0)
+                    .round()
+                    .max(1.0) as usize;
+                for _ in 0..steps {
+                    anim.update(&rig, &inp, 1.0 / 60.0);
+                }
+            }
+            let sp = cfg.width_z.max(cfg.height).max(cfg.width_x) * 1.2 + 0.3;
+            let (x0, z0) = (0.5f32, 0.5f32);
+            let ground = 65.0f32;
+            let y = if water { ground + 2.0 } else { ground };
+            let mobs: Vec<MobInstance<'_>> = palettes
+                .iter()
+                .enumerate()
+                .map(|(i, p)| MobInstance {
+                    model_id: &cfg.id,
+                    position: Vec3::new(x0, y, z0 + (i as f32 - 2.5) * sp),
+                    yaw_rad: 0.0,
+                    pitch_rad: 0.0,
+                    missing_scale: Vec3::new(cfg.width_x, cfg.height, cfg.width_z),
+                    light: 1.0,
+                    pose: bytemuck::cast_slice(p),
+                })
+                .collect();
+            // Vue de profil depuis -X, champ étroit (presque orthographique).
+            let fov = 0.5f32;
+            let width = 6.0 * sp + 1.0;
+            let dist = (width / (16.0 / 9.0)).max(cfg.height * 1.6) / 2.0 / (fov / 2.0).tan();
+            let cam = Camera {
+                position: Vec3::new(x0 - dist.max(12.0), y + cfg.height * 0.5 + 0.3, z0),
+                pitch_deg: 0.0,
+                yaw_deg: 90.0,
+                fov_y_rad: fov,
+                ..Camera::default()
+            };
+            let mut clock = SkyClock::new();
+            clock.set_time(900.0);
+            let input = FrameInput {
+                camera: &cam,
+                time_seconds: 3.0,
+                sky_clock: &clock,
+                eye_fluid: EyeFluid::None,
+                heat_intensity: 0.0,
+                mobs: &mobs,
+                particles: &[],
+                highlight_block: None,
+            };
+            for _ in 0..2 {
+                r.render(&input).unwrap();
+            }
+            let img = r.render(&input).unwrap();
+            img.save(dir.join(format!("anim_{id}_{state}.png")))
+                .unwrap();
+        }
+    }
+}
+
+/// Sol plat d'herbe (y ≤ 64) sur 7×7 chunks : fond neutre pour les planches de poses.
+fn build_flat_world(r: &mut OffscreenRenderer) {
+    let reg = BlockRegistry::builtin();
+    let ids = *reg.ids();
+    let atlas = r.scene.block_atlas().clone();
+    let table = BlockTable::from_registry(&reg, |n| atlas.layer(n));
+    let mut voxels = HashMap::new();
+    for cz in -4..=4 {
+        for cx in -4..=4 {
+            let mut v = ChunkVoxels::filled(0);
+            for lx in 0..16usize {
+                for lz in 0..16usize {
+                    for y in 0..65usize {
+                        v.set(
+                            lx,
+                            y,
+                            lz,
+                            if y == 64 {
+                                ids.grass
+                            } else if y > 60 {
+                                ids.dirt
+                            } else {
+                                ids.stone
+                            },
+                        );
+                    }
+                }
+            }
+            voxels.insert((cx, cz), v);
+        }
+    }
+    for cz in -3..=3 {
+        for cx in -3..=3 {
+            let n: [Option<&ChunkVoxels>; 9] = std::array::from_fn(|i| {
+                voxels.get(&(cx + (i % 3) as i32 - 1, cz + (i / 3) as i32 - 1))
+            });
+            let mesh = mesh_chunk(
+                ChunkPos::new(cx, cz),
+                &Neighborhood::from_voxels(n),
+                &table,
+                &UniformBiome(0),
+            );
+            r.scene
+                .upload_chunk_mesh(ChunkPos::new(cx, cz), &mesh.vertices)
+                .unwrap();
+        }
     }
 }

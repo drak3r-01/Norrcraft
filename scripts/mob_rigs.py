@@ -416,10 +416,26 @@ def recipe_quad(m, sp, t):
         rear = t.get("rear", False)
         reach = t.get("reach", 3.0)
         if rear:
+            def tilt(u):
+                return -30 * bump(u, 0.05, 0.3, 0.45, 0.8)
+
+            cy = m["legh"] + m["H"] / 2          # centre du corps (pivot du tangage)
+            zf = m["L"] / 2 - 2.0                # hanche avant, devant le centre
+            yf = m["legh"] - cy
+
+            def hip(u, axis):
+                """Déplacement de la hanche avant quand le corps pivote de `tilt(u)` autour de son centre."""
+                th = math.radians(tilt(u))
+                dy = yf * math.cos(th) - zf * math.sin(th) - yf
+                dz = yf * math.sin(th) + zf * math.cos(th) - zf - 1.0 * bump(u, 0.05, 0.3, 0.45, 0.8) * -1
+                return dy if axis == "y" else dz
+
             clips["attack"] = clip(1.0, [
-                C("body", rx=KO(lambda u: -30 * bump(u, 0.05, 0.3, 0.45, 0.8)), tz=KO(lambda u: -1.0 * bump(u, 0.05, 0.3, 0.45, 0.8))),
-                C("leg_fl", rx=KO(lambda u: -85 * bump(u, 0.1, 0.32, 0.4, 0.62) + 25 * bump(u, 0.4, 0.5, 0.55, 0.7))),
-                C("leg_fr", rx=KO(lambda u: -85 * bump(u, 0.14, 0.36, 0.5, 0.7))),
+                C("body", rx=KO(tilt), tz=KO(lambda u: -1.0 * bump(u, 0.05, 0.3, 0.45, 0.8))),
+                C("leg_fl", rx=KO(lambda u: tilt(u) - 85 * bump(u, 0.1, 0.32, 0.4, 0.62) + 25 * bump(u, 0.4, 0.5, 0.55, 0.7)),
+                  ty=KO(lambda u: hip(u, "y")), tz=KO(lambda u: hip(u, "z"))),
+                C("leg_fr", rx=KO(lambda u: tilt(u) - 85 * bump(u, 0.14, 0.36, 0.5, 0.7)),
+                  ty=KO(lambda u: hip(u, "y")), tz=KO(lambda u: hip(u, "z"))),
                 C("neck", rx=KO(lambda u: 18 * bump(u, 0.38, 0.5, 0.58, 0.8))),
                 C("head", rx=KO(lambda u: -10 * bump(u, 0.1, 0.3, 0.38, 0.5) + 32 * bump(u, 0.4, 0.5, 0.58, 0.8))),
                 C("tail", rx=KO(lambda u: -20 * bump(u, 0.1, 0.3, 0.6, 0.9))),

@@ -6,17 +6,18 @@ use std::collections::HashMap;
 
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
+use nb_mesh::Frustum;
 
 use super::pipelines::Pipelines;
 use super::resources::{Buffer, Image, ImageDesc};
 use super::scene::upload_atlas;
 use super::{GpuContext, Result};
 use crate::atlas::TextureArrayCpu;
-use crate::frame::FrameInput;
+use crate::frame::{FrameInput, MobInstance};
 use crate::mob_model::{
     missing_cube, missing_texture, mob_model_matrix, particle_model_matrix, MobModelCpu, MobRoots,
-    PARTICLE_QUAD,
+    MobVertex, PARTICLE_QUAD,
 };
 
 /// Push constants des particules (miroir du bloc `Push` de `particle.vert/.frag`).
@@ -126,12 +127,67 @@ impl TextureSets {
     }
 }
 
+/// Sommet envoyé au GPU : `MobVertex` + os porteur (44 o, binding 0).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct GpuVertex {
+    v: MobVertex,
+    bone: u32,
+}
+
+const _: () = assert!(std::mem::size_of::<GpuVertex>() == 44);
+
+/// Données par instance (80 o, binding 1) : matrice modèle (colonnes) et paramètres
+/// `(lumière, indice de la 1re matrice de la palette, 0, 0)`.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct InstanceData {
+    model: [f32; 16],
+    params: [f32; 4],
+}
+
+const _: () = assert!(std::mem::size_of::<InstanceData>() == 80);
+
+/// Palette identité placée en tête du tampon : os 0..`IDENTITY_BONES` des instances sans pose.
+const IDENTITY_BONES: usize = nb_anim::MAX_BONES;
+const IDENTITY: [f32; 12] = nb_anim::Mat34::IDENTITY.0;
+/// Capacités initiales (matrices, instances) des tampons par frame ; ils grandissent à la demande.
+const INITIAL_MATRICES: usize = 2048;
+const INITIAL_INSTANCES: usize = 256;
+
+/// Sphère englobante d'un modèle (espace modèle), élargie pour contenir les poses animées.
+#[derive(Clone, Copy, Debug)]
+struct Bounds {
+    center: Vec3,
+    radius: f32,
+}
+
 struct GpuModel {
     buffer: Buffer,
     opaque: u32,
     transparent: u32,
     /// `None` : mode couleur (texture blanche).
     texture: Option<(Image, TexSet)>,
+    bounds: Bounds,
+    /// Nombre d'os référencés par les sommets.
+    bone_count: usize,
+}
+
+/// Tampons d'une frame en vol : palette des os, instances, set de descripteurs (set 2).
+struct MobSlot {
+    palette: Buffer,
+    palette_cap: usize,
+    instances: Buffer,
+    instance_cap: usize,
+    set: vk::DescriptorSet,
+}
+
+/// Un dessin instancié : `count` mobs du modèle `model`, à partir de l'instance `first`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Draw {
+    model: usize,
+    first: u32,
+    count: u32,
 }
 
 /// Assets GPU des mobs et des particules.
@@ -141,13 +197,25 @@ pub(super) struct MobResources {
     sampler: vk::Sampler,
     white: Image,
     white_set: TexSet,
-    missing: GpuModel,
-    models: HashMap<String, GpuModel>,
+    /// Modèles par indice ; l'indice 0 est le cube manquant.
+    models: Vec<GpuModel>,
+    index: HashMap<String, usize>,
     particle_atlas_cpu: TextureArrayCpu,
     particle_atlas: Image,
     particle_set: TexSet,
     particle_quad: Buffer,
     roots: MobRoots,
+    // -- Palette, instances et dessins.
+    slots: Vec<MobSlot>,
+    slot_pool: vk::DescriptorPool,
+    slot_layout: vk::DescriptorSetLayout,
+    /// Dessins de la frame en cours (remplis par `prepare`).
+    draws: Vec<Draw>,
+    palette_cpu: Vec<[f32; 12]>,
+    instances_cpu: Vec<(usize, InstanceData)>,
+    instances_sorted: Vec<InstanceData>,
+    /// Mobs réellement dessinés à la dernière frame (hors frustum exclus), pour les tests.
+    last_drawn: usize,
 }
 
 fn upload_rgba(ctx: &GpuContext, img: &image::RgbaImage, name: &str) -> Result<Image> {
@@ -164,11 +232,83 @@ fn upload_rgba(ctx: &GpuContext, img: &image::RgbaImage, name: &str) -> Result<I
     )
 }
 
+fn bounds_of(m: &MobModelCpu) -> Bounds {
+    let mut lo = Vec3::splat(f32::MAX);
+    let mut hi = Vec3::splat(f32::MIN);
+    for v in &m.vertices {
+        lo = lo.min(Vec3::from(v.pos));
+        hi = hi.max(Vec3::from(v.pos));
+    }
+    let center = (lo + hi) * 0.5;
+    // Marge d'animation : membres qui balancent, tête baissée, queue…
+    Bounds {
+        center,
+        radius: (hi - lo).length() * 0.5 * 1.3 + 0.25,
+    }
+}
+
+fn new_slot(
+    ctx: &GpuContext,
+    pool: vk::DescriptorPool,
+    layout: vk::DescriptorSetLayout,
+    matrices: usize,
+    instances: usize,
+) -> Result<MobSlot> {
+    let palette = Buffer::new(
+        ctx,
+        (matrices * 48) as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        gpu_allocator::MemoryLocation::CpuToGpu,
+        "mob-palette",
+    )?;
+    let instances_buf = Buffer::new(
+        ctx,
+        (instances * std::mem::size_of::<InstanceData>()) as u64,
+        vk::BufferUsageFlags::VERTEX_BUFFER,
+        gpu_allocator::MemoryLocation::CpuToGpu,
+        "mob-instances",
+    )?;
+    let layouts = [layout];
+    let ai = vk::DescriptorSetAllocateInfo::default()
+        .descriptor_pool(pool)
+        .set_layouts(&layouts);
+    // SAFETY : pool dimensionné pour un set par créneau.
+    let set = unsafe { ctx.device.allocate_descriptor_sets(&ai)? }[0];
+    let slot = MobSlot {
+        palette,
+        palette_cap: matrices,
+        instances: instances_buf,
+        instance_cap: instances,
+        set,
+    };
+    write_palette_set(ctx, &slot);
+    Ok(slot)
+}
+
+fn write_palette_set(ctx: &GpuContext, slot: &MobSlot) {
+    let info = [vk::DescriptorBufferInfo {
+        buffer: slot.palette.raw,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let write = vk::WriteDescriptorSet::default()
+        .dst_set(slot.set)
+        .dst_binding(0)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .buffer_info(&info);
+    // SAFETY : le créneau n'est plus utilisé par le GPU (fence de la frame précédente attendu).
+    unsafe { ctx.device.update_descriptor_sets(&[write], &[]) };
+}
+
 impl MobResources {
-    /// `sampler` : NEAREST/REPEAT ; `atlas_sampler` : celui des atlas (§5.4).
+    /// `sampler` : NEAREST/REPEAT ; `atlas_sampler` : celui des atlas (§5.4) ; `slot_layout` :
+    /// set 2 (palette) ; `slots` : nombre de frames en vol.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         ctx: &GpuContext,
         texture_set_layout: vk::DescriptorSetLayout,
+        slot_layout: vk::DescriptorSetLayout,
+        slots: usize,
         sampler: vk::Sampler,
         atlas_sampler: vk::Sampler,
         particle_atlas_cpu: TextureArrayCpu,
@@ -193,24 +333,65 @@ impl MobResources {
         let missing_cpu =
             MobModelCpu::from_lists(missing_cube(), Vec::new(), Some(missing_texture()))
                 .expect("cube manquant");
+        let sizes = [vk::DescriptorPoolSize {
+            ty: vk::DescriptorType::STORAGE_BUFFER,
+            descriptor_count: slots as u32,
+        }];
+        let pool_ci = vk::DescriptorPoolCreateInfo::default()
+            .max_sets(slots as u32)
+            .pool_sizes(&sizes);
+        // SAFETY : device valide.
+        let slot_pool = unsafe { ctx.device.create_descriptor_pool(&pool_ci, None)? };
+        let mut slot_bufs = Vec::with_capacity(slots);
+        for _ in 0..slots {
+            slot_bufs.push(new_slot(
+                ctx,
+                slot_pool,
+                slot_layout,
+                INITIAL_MATRICES,
+                INITIAL_INSTANCES,
+            )?);
+        }
         let mut r = Self {
-            missing: Self::upload_model(ctx, &mut sets, sampler, &missing_cpu)?,
+            models: vec![Self::upload_model(ctx, &mut sets, sampler, &missing_cpu)?],
+            index: HashMap::new(),
             sets,
             sampler,
             white,
             white_set,
-            models: HashMap::new(),
             particle_atlas_cpu,
             particle_atlas,
             particle_set,
             particle_quad,
             roots,
+            slots: slot_bufs,
+            slot_pool,
+            slot_layout,
+            draws: Vec::new(),
+            palette_cpu: Vec::new(),
+            instances_cpu: Vec::new(),
+            instances_sorted: Vec::new(),
+            last_drawn: 0,
         };
         for (id, m) in models {
             let g = Self::upload_model(ctx, &mut r.sets, sampler, &m)?;
-            r.models.insert(id, g);
+            r.insert_model(&id, g, ctx);
         }
         Ok(r)
+    }
+
+    /// Place un modèle sous `id` (en remplaçant et détruisant l'ancien).
+    fn insert_model(&mut self, id: &str, g: GpuModel, ctx: &GpuContext) {
+        match self.index.get(id) {
+            Some(&i) => {
+                let old = std::mem::replace(&mut self.models[i], g);
+                Self::destroy_model(&self.sets, ctx, old);
+            }
+            None => {
+                self.index.insert(id.to_owned(), self.models.len());
+                self.models.push(g);
+            }
+        }
     }
 
     fn upload_model(
@@ -219,9 +400,19 @@ impl MobResources {
         sampler: vk::Sampler,
         m: &MobModelCpu,
     ) -> Result<GpuModel> {
+        let max_bone = (IDENTITY_BONES - 1) as u32;
+        let verts: Vec<GpuVertex> = m
+            .vertices
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| GpuVertex {
+                v,
+                bone: m.bones.get(i).copied().unwrap_or(0).min(max_bone),
+            })
+            .collect();
         let mut buffer = Buffer::with_data(
             ctx,
-            &m.vertices,
+            &verts,
             vk::BufferUsageFlags::VERTEX_BUFFER,
             "mob-model",
         )?;
@@ -251,6 +442,8 @@ impl MobResources {
             opaque: m.opaque_count,
             transparent: m.transparent_count,
             texture,
+            bounds: bounds_of(m),
+            bone_count: m.bone_count().min(IDENTITY_BONES),
         })
     }
 
@@ -272,16 +465,21 @@ impl MobResources {
 
     /// `(opaques, transparents)` du modèle chargé pour `id`.
     pub(super) fn model_counts(&self, id: &str) -> Option<(u32, u32)> {
-        self.models.get(id).map(|m| (m.opaque, m.transparent))
+        self.index
+            .get(id)
+            .map(|&i| (self.models[i].opaque, self.models[i].transparent))
+    }
+
+    /// Mobs dessinés à la dernière frame (après le culling par frustum).
+    pub(super) fn drawn_last_frame(&self) -> usize {
+        self.last_drawn
     }
 
     /// `loadMob` : remplace (et détruit) l'ancien modèle. L'appelant garantit que le GPU est
     /// inactif.
     pub(super) fn replace(&mut self, ctx: &GpuContext, id: &str, m: &MobModelCpu) -> Result<()> {
         let g = Self::upload_model(ctx, &mut self.sets, self.sampler, m)?;
-        if let Some(old) = self.models.insert(id.to_owned(), g) {
-            Self::destroy_model(&self.sets, ctx, old);
-        }
+        self.insert_model(id, g, ctx);
         Ok(())
     }
 
@@ -293,22 +491,132 @@ impl MobResources {
         roots: MobRoots,
         models: HashMap<String, MobModelCpu>,
     ) -> Result<()> {
-        for (_, old) in self.models.drain() {
+        // L'indice 0 (cube manquant) reste ; les autres sont détruits.
+        for old in self.models.drain(1..) {
             Self::destroy_model(&self.sets, ctx, old);
         }
+        self.index.clear();
         self.roots = roots;
         for (id, m) in models {
             let g = Self::upload_model(ctx, &mut self.sets, self.sampler, &m)?;
-            self.models.insert(id, g);
+            self.insert_model(&id, g, ctx);
+        }
+        Ok(())
+    }
+
+    /// Prépare le dessin des mobs de la frame : culling par frustum, regroupement par modèle,
+    /// palette des os et instances écrites dans les tampons du créneau `slot` (le GPU a fini de
+    /// lire ce créneau : fence de la frame précédente attendu).
+    pub(super) fn prepare(
+        &mut self,
+        ctx: &GpuContext,
+        slot: usize,
+        mobs: &[MobInstance<'_>],
+        frustum: &Frustum,
+    ) -> Result<()> {
+        self.draws.clear();
+        self.palette_cpu.clear();
+        self.palette_cpu
+            .extend(std::iter::repeat_n(IDENTITY, IDENTITY_BONES));
+        self.instances_cpu.clear();
+        for m in mobs {
+            // Modèle absent → cube manquant mis à l'échelle de la config (§14.1).
+            let (mi, scale) = match self.index.get(m.model_id) {
+                Some(&i) => (i, None),
+                None => (0, Some(m.missing_scale)),
+            };
+            let model = &self.models[mi];
+            let mat = mob_model_matrix(m.position, m.yaw_rad, m.pitch_rad, scale);
+            // Culling : sphère englobante (agrandie par la plus grande échelle du modèle).
+            let c = mat.transform_point3(model.bounds.center);
+            let s = mat
+                .x_axis
+                .truncate()
+                .length()
+                .max(mat.y_axis.truncate().length())
+                .max(mat.z_axis.truncate().length());
+            let r = model.bounds.radius * s;
+            if !frustum.test_aab((c - r).to_array(), (c + r).to_array()) {
+                continue;
+            }
+            let base = if m.pose.is_empty() {
+                0
+            } else {
+                let base = self.palette_cpu.len();
+                self.palette_cpu.extend_from_slice(m.pose);
+                if m.pose.len() < model.bone_count {
+                    self.palette_cpu.extend(std::iter::repeat_n(
+                        IDENTITY,
+                        model.bone_count - m.pose.len(),
+                    ));
+                }
+                base
+            };
+            self.instances_cpu.push((
+                mi,
+                InstanceData {
+                    model: mat.to_cols_array(),
+                    params: [m.light, base as f32, 0.0, 0.0],
+                },
+            ));
+        }
+        self.last_drawn = self.instances_cpu.len();
+        // Regroupement par modèle (tri stable : l'ordre des mobs est conservé dans un groupe).
+        self.instances_cpu.sort_by_key(|&(mi, _)| mi);
+        self.instances_sorted.clear();
+        for &(mi, d) in &self.instances_cpu {
+            match self.draws.last_mut() {
+                Some(dr) if dr.model == mi => dr.count += 1,
+                _ => self.draws.push(Draw {
+                    model: mi,
+                    first: self.instances_sorted.len() as u32,
+                    count: 1,
+                }),
+            }
+            self.instances_sorted.push(d);
+        }
+        // Tampons du créneau (agrandis si besoin ; set de descripteurs mis à jour).
+        let s = &mut self.slots[slot];
+        if self.palette_cpu.len() > s.palette_cap {
+            let cap = self.palette_cpu.len().next_power_of_two();
+            s.palette.destroy(ctx);
+            s.palette = Buffer::new(
+                ctx,
+                (cap * 48) as u64,
+                vk::BufferUsageFlags::STORAGE_BUFFER,
+                gpu_allocator::MemoryLocation::CpuToGpu,
+                "mob-palette",
+            )?;
+            s.palette_cap = cap;
+            write_palette_set(ctx, s);
+        }
+        if self.instances_sorted.len() > s.instance_cap {
+            let cap = self.instances_sorted.len().next_power_of_two();
+            s.instances.destroy(ctx);
+            s.instances = Buffer::new(
+                ctx,
+                (cap * std::mem::size_of::<InstanceData>()) as u64,
+                vk::BufferUsageFlags::VERTEX_BUFFER,
+                gpu_allocator::MemoryLocation::CpuToGpu,
+                "mob-instances",
+            )?;
+            s.instance_cap = cap;
+        }
+        s.palette
+            .write(0, bytemuck::cast_slice(&self.palette_cpu))?;
+        if !self.instances_sorted.is_empty() {
+            s.instances
+                .write(0, bytemuck::cast_slice(&self.instances_sorted))?;
         }
         Ok(())
     }
 
     /// Mobs puis particules (§6 étapes 9–10), dans une passe dont la profondeur HDR est
-    /// attachée en écriture.
+    /// attachée en écriture. [`Self::prepare`] doit avoir été appelé pour cette frame.
     ///
     /// # Safety
     /// `cmd` en cours d'enregistrement dans une passe compatible avec les pipelines B2.
+    #[allow(clippy::too_many_arguments)]
     pub(super) unsafe fn record(
         &self,
         ctx: &GpuContext,
@@ -317,53 +625,48 @@ impl MobResources {
         frame_set: vk::DescriptorSet,
         view: &Mat4,
         input: &FrameInput<'_>,
+        slot: usize,
     ) {
-        let (mobs, particles) = (input.mobs, input.particles);
+        let particles = input.particles;
         let d = &ctx.device;
         let g = vk::PipelineBindPoint::GRAPHICS;
+        let s = &self.slots[slot];
         // SAFETY : garanti par l'appelant ; ressources vivantes jusqu'à la fin de la frame
         // (remplacements après attente du GPU).
         unsafe {
-            if !mobs.is_empty() {
+            if !self.draws.is_empty() {
                 d.cmd_bind_descriptor_sets(cmd, g, p.mob_layout, 0, &[frame_set], &[]);
-                let mut bound = vk::Pipeline::null();
-                let mut bind = |pipeline: vk::Pipeline| {
-                    if bound != pipeline {
-                        d.cmd_bind_pipeline(cmd, g, pipeline);
-                        bound = pipeline;
-                    }
-                };
-                for m in mobs {
-                    // Modèle absent → cube manquant mis à l'échelle de la config (§14.1).
-                    let (model, scale) = match self.models.get(m.model_id) {
-                        Some(model) => (model, None),
-                        None => (&self.missing, Some(m.missing_scale)),
-                    };
-                    let mat = mob_model_matrix(m.position, m.yaw_rad, m.pitch_rad, scale);
-                    let mut push = [0.0f32; 20];
-                    push[..16].copy_from_slice(&mat.to_cols_array());
-                    push[16] = m.light;
-                    let set = model
-                        .texture
-                        .as_ref()
-                        .map_or(self.white_set.set, |(_, s)| s.set);
-                    d.cmd_bind_descriptor_sets(cmd, g, p.mob_layout, 1, &[set], &[]);
-                    d.cmd_push_constants(
+                d.cmd_bind_descriptor_sets(cmd, g, p.mob_layout, 2, &[s.set], &[]);
+                d.cmd_bind_vertex_buffers(cmd, 1, &[s.instances.raw], &[0]);
+                // Toutes les plages opaques d'abord (écriture de profondeur), puis toutes les
+                // translucides (sans tri global, comme avant).
+                for transparent in [false, true] {
+                    d.cmd_bind_pipeline(
                         cmd,
-                        p.mob_layout,
-                        vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
-                        0,
-                        bytemuck::cast_slice(&push),
+                        g,
+                        if transparent {
+                            p.mob_transparent
+                        } else {
+                            p.mob_opaque
+                        },
                     );
-                    d.cmd_bind_vertex_buffers(cmd, 0, &[model.buffer.raw], &[0]);
-                    // Par mob : plage opaque puis plage transparente (pas de tri global).
-                    if model.opaque > 0 {
-                        bind(p.mob_opaque);
-                        d.cmd_draw(cmd, model.opaque, 1, 0, 0);
-                    }
-                    if model.transparent > 0 {
-                        bind(p.mob_transparent);
-                        d.cmd_draw(cmd, model.transparent, 1, model.opaque, 0);
+                    for dr in &self.draws {
+                        let model = &self.models[dr.model];
+                        let (first_vertex, count) = if transparent {
+                            (model.opaque, model.transparent)
+                        } else {
+                            (0, model.opaque)
+                        };
+                        if count == 0 {
+                            continue;
+                        }
+                        let set = model
+                            .texture
+                            .as_ref()
+                            .map_or(self.white_set.set, |(_, s)| s.set);
+                        d.cmd_bind_descriptor_sets(cmd, g, p.mob_layout, 1, &[set], &[]);
+                        d.cmd_bind_vertex_buffers(cmd, 0, &[model.buffer.raw], &[0]);
+                        d.cmd_draw(cmd, count, dr.count, first_vertex, dr.first);
                     }
                 }
             }
@@ -400,13 +703,16 @@ impl MobResources {
 
     /// Le GPU doit être inactif.
     pub(super) fn destroy(&mut self, ctx: &GpuContext) {
-        for (_, m) in self.models.drain() {
+        for m in self.models.drain(..) {
             Self::destroy_model(&self.sets, ctx, m);
         }
-        self.missing.buffer.destroy(ctx);
-        if let Some((mut img, _)) = self.missing.texture.take() {
-            img.destroy(ctx);
+        for s in &mut self.slots {
+            s.palette.destroy(ctx);
+            s.instances.destroy(ctx);
         }
+        // SAFETY : GPU inactif ; les sets sont libérés avec leur pool.
+        unsafe { ctx.device.destroy_descriptor_pool(self.slot_pool, None) };
+        let _ = self.slot_layout;
         self.white.destroy(ctx);
         self.particle_atlas.destroy(ctx);
         self.particle_quad.destroy(ctx);

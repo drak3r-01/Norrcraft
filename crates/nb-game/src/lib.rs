@@ -20,6 +20,7 @@
 //!    ([`Game::unload_to_menu_world`]) ; le Java le laissait chargé et pouvait le resauvegarder
 //!    sous un nom périmé (dossier d'un monde renommé ou supprimé recréé).
 
+pub mod anim;
 pub mod chat;
 pub mod chunks;
 pub mod fixed_step;
@@ -32,6 +33,7 @@ pub mod session;
 pub mod state;
 pub mod ui;
 
+pub use anim::{AnimKey, MobAnimSystem};
 pub use chat::{Chat, ChatColor, ChatMessage, ChatView};
 pub use chunks::{WorldBiomes, WorldChunks};
 pub use fixed_step::{FixedStep, TIME_STEP};

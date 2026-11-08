@@ -14,7 +14,8 @@ enum Vertex {
     Chunk { color: bool },
     /// `vec3` seul (12 o) : AABB d'occlusion, contour de bloc.
     Position,
-    /// `MobVertex` (40 o) : vec3, vec2, vec4, float.
+    /// `MobVertex` + os (44 o, binding 0) : vec3, vec2, vec4, float, uint ; instance (80 o,
+    /// binding 1) : matrice modèle (4 vec4) et paramètres (vec4).
     Mob,
     /// Quad de particule (20 o) : vec3, vec2.
     Particle,
@@ -118,16 +119,54 @@ fn build(ctx: &GpuContext, d: &Desc<'_>) -> Result<vk::Pipeline> {
             vec![f(0, vk::Format::R32G32B32_SFLOAT, 0)],
         ),
         Vertex::Mob => (
-            vec![vk::VertexInputBindingDescription {
-                binding: 0,
-                stride: 40,
-                input_rate: vk::VertexInputRate::VERTEX,
-            }],
+            vec![
+                vk::VertexInputBindingDescription {
+                    binding: 0,
+                    stride: 44,
+                    input_rate: vk::VertexInputRate::VERTEX,
+                },
+                vk::VertexInputBindingDescription {
+                    binding: 1,
+                    stride: 80,
+                    input_rate: vk::VertexInputRate::INSTANCE,
+                },
+            ],
             vec![
                 f(0, vk::Format::R32G32B32_SFLOAT, 0),
                 f(1, vk::Format::R32G32_SFLOAT, 12),
                 f(2, vk::Format::R32G32B32A32_SFLOAT, 20),
                 f(3, vk::Format::R32_SFLOAT, 36),
+                f(4, vk::Format::R32_UINT, 40),
+                vk::VertexInputAttributeDescription {
+                    location: 5,
+                    binding: 1,
+                    format: vk::Format::R32G32B32A32_SFLOAT,
+                    offset: 0,
+                },
+                vk::VertexInputAttributeDescription {
+                    location: 6,
+                    binding: 1,
+                    format: vk::Format::R32G32B32A32_SFLOAT,
+                    offset: 16,
+                },
+                vk::VertexInputAttributeDescription {
+                    location: 7,
+                    binding: 1,
+                    format: vk::Format::R32G32B32A32_SFLOAT,
+                    offset: 32,
+                },
+                vk::VertexInputAttributeDescription {
+                    location: 8,
+                    binding: 1,
+                    format: vk::Format::R32G32B32A32_SFLOAT,
+                    offset: 48,
+                },
+                vk::VertexInputAttributeDescription {
+                    location: 9,
+                    binding: 1,
+                    format: vk::Format::R32G32B32A32_SFLOAT,
+                    offset: 64,
+                },
             ],
         ),
         Vertex::Particle => (
@@ -272,8 +311,11 @@ pub struct Pipelines {
     pub hl_layout: vk::PipelineLayout,
     pub blur_layout: vk::PipelineLayout,
     pub pp_layout: vk::PipelineLayout,
-    /// Mobs : set 0 (UBO) + set 1 (texture du modèle), push `model` (64 o, vertex).
+    /// Mobs : set 0 (UBO) + set 1 (texture du modèle) + set 2 (palette des os, SSBO) ; matrice
+    /// modèle et paramètres par instance (attributs de sommet).
     pub mob_layout: vk::PipelineLayout,
+    /// Set 2 des mobs : palette de matrices de peau (stockage, vertex).
+    pub mob_set_layout: vk::DescriptorSetLayout,
     /// Particules : set 0 (UBO) + set 1 (atlas particules), push `model`, `colorTint`,
     /// `layer` (80 o, vertex + fragment).
     pub particle_layout: vk::PipelineLayout,
@@ -307,10 +349,11 @@ impl Pipelines {
         let hl_layout = pipeline_layout(ctx, &[frame_set_layout], Some((S::VERTEX, 64)))?;
         let blur_layout = pipeline_layout(ctx, &[texture_set_layout], Some((S::FRAGMENT, 4)))?;
         let pp_layout = pipeline_layout(ctx, &[pp_set_layout], None)?;
+        let mob_set_layout = set_layout(ctx, &[(T::STORAGE_BUFFER, S::VERTEX)])?;
         let mob_layout = pipeline_layout(
             ctx,
-            &[frame_set_layout, texture_set_layout],
-            Some((S::VERTEX | S::FRAGMENT, 80)),
+            &[frame_set_layout, texture_set_layout, mob_set_layout],
+            None,
         )?;
         let particle_layout = pipeline_layout(
             ctx,
@@ -477,6 +520,7 @@ impl Pipelines {
             texture_set_layout,
             fluid_set_layout,
             pp_set_layout,
+            mob_set_layout,
             terrain_layout,
             fluid_layout,
             hl_layout,
@@ -531,6 +575,7 @@ impl Pipelines {
                 self.texture_set_layout,
                 self.fluid_set_layout,
                 self.pp_set_layout,
+                self.mob_set_layout,
             ] {
                 ctx.device.destroy_descriptor_set_layout(l, None);
             }

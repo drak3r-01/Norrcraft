@@ -245,7 +245,10 @@ impl Animator {
         let gaits = self.active_gaits(rig);
         if !gaits.is_empty() && self.speed > 0.02 {
             let (pair, n, _) = gait_blend(gaits, self.speed);
-            let stride: f32 = pair[..n].iter().map(|&(i, w)| gaits[i].stride * w).sum::<f32>()
+            let stride: f32 = pair[..n]
+                .iter()
+                .map(|&(i, w)| gaits[i].stride * w)
+                .sum::<f32>()
                 / pair[..n].iter().map(|&(_, w)| w).sum::<f32>().max(1e-4);
             self.phase = (self.phase + self.speed / stride.max(0.05) * dt).fract();
         }
@@ -381,7 +384,12 @@ impl Animator {
             let (pair, n, iw) = gait_blend(gaits, self.speed);
             idle_w += iw * set_w;
             for &(gi, w) in &pair[..n] {
-                accumulate(&mut sc.acc[..nb], &rig.clips[gaits[gi].clip], self.phase, w * set_w);
+                accumulate(
+                    &mut sc.acc[..nb],
+                    &rig.clips[gaits[gi].clip],
+                    self.phase,
+                    w * set_w,
+                );
             }
         }
         if idle_w > 1e-4 {
@@ -404,7 +412,12 @@ impl Animator {
         // 2. Couches superposées.
         if let Some(v) = &self.variant {
             let c = &rig.clips[v.clip as usize];
-            overlay(&mut sc.local[..nb], c, v.t / c.duration, envelope(v.t, c) * v.fade.clamp(0.0, 1.0));
+            overlay(
+                &mut sc.local[..nb],
+                c,
+                v.t / c.duration,
+                envelope(v.t, c) * v.fade.clamp(0.0, 1.0),
+            );
         }
         for o in self.actions.iter().flatten() {
             let c = &rig.clips[o.clip as usize];
@@ -419,7 +432,8 @@ impl Animator {
         if let Some(l) = &rig.look {
             if self.look[0].abs() > 1e-4 || self.look[1].abs() > 1e-4 {
                 for &(b, w) in &l.bones {
-                    let q = Quat::from_euler(EulerRot::YXZ, self.look[0] * w, -self.look[1] * w, 0.0);
+                    let q =
+                        Quat::from_euler(EulerRot::YXZ, self.look[0] * w, -self.look[1] * w, 0.0);
                     let x = &mut sc.local[b as usize];
                     x.q = (x.q * q).normalize();
                 }
@@ -444,6 +458,7 @@ impl Animator {
         }
 
         // 5. Hiérarchie → matrices de peau.
+        #[allow(clippy::needless_range_loop)] // `world[parent]` : indice d'un os précédent
         for i in 0..nb {
             let b = &rig.bones[i];
             let l = &sc.local[i];
@@ -536,24 +551,37 @@ mod tests {
         };
         d.clips.insert(
             "walk".into(),
-            clip(0.8, true, false, vec![ch("leg_l", 35.0, 0.0), ch("leg_r", 35.0, 0.5)]),
+            clip(
+                0.8,
+                true,
+                false,
+                vec![ch("leg_l", 35.0, 0.0), ch("leg_r", 35.0, 0.5)],
+            ),
         );
         d.clips.insert(
             "run".into(),
-            clip(0.5, true, false, vec![ch("leg_l", 55.0, 0.0), ch("leg_r", 55.0, 0.5)]),
+            clip(
+                0.5,
+                true,
+                false,
+                vec![ch("leg_l", 55.0, 0.0), ch("leg_r", 55.0, 0.5)],
+            ),
         );
         let mut breathe = ChannelDef::new("body");
         breathe.sy = Some(Curve::Wave(Wave {
             o: 1.0,
             ..Wave::sin(0.02, 1.0, 0.0)
         }));
-        d.clips.insert("idle".into(), clip(3.0, true, false, vec![breathe]));
+        d.clips
+            .insert("idle".into(), clip(3.0, true, false, vec![breathe]));
         let mut bow = ChannelDef::new("head");
         bow.rx = Some(Curve::Keys(vec![[0.0, 0.0], [0.5, 40.0], [1.0, 0.0]]));
-        d.clips.insert("graze".into(), clip(2.0, false, false, vec![bow]));
+        d.clips
+            .insert("graze".into(), clip(2.0, false, false, vec![bow]));
         let mut flinch = ChannelDef::new("body");
         flinch.rx = Some(Curve::Keys(vec![[0.0, 0.0], [0.3, -15.0], [1.0, 0.0]]));
-        d.clips.insert("hurt".into(), clip(0.4, false, true, vec![flinch]));
+        d.clips
+            .insert("hurt".into(), clip(0.4, false, true, vec![flinch]));
         d.gaits = vec![
             GaitDef {
                 clip: "walk".into(),
@@ -594,7 +622,12 @@ mod tests {
     fn setup() -> (Rig, Animator, Box<Scratch>, Vec<Mat34>) {
         let rig = Rig::compile(&rig_def()).unwrap();
         let n = rig.bone_count();
-        (rig, Animator::new(7), Scratch::new(), vec![Mat34::IDENTITY; n])
+        (
+            rig,
+            Animator::new(7),
+            Scratch::new(),
+            vec![Mat34::IDENTITY; n],
+        )
     }
 
     fn run(a: &mut Animator, rig: &Rig, inp: &AnimInput, secs: f32) {
@@ -644,7 +677,10 @@ mod tests {
         let (rig, mut a, mut sc, mut out) = setup();
         run(&mut a, &rig, &mv(0.0), 0.5);
         a.evaluate(&rig, &mut sc, &mut out);
-        assert!(tilt(&out[3]).abs() < 0.5, "pas de balancement des jambes à l'arrêt");
+        assert!(
+            tilt(&out[3]).abs() < 0.5,
+            "pas de balancement des jambes à l'arrêt"
+        );
         assert!(tilt(&out[4]).abs() < 0.5);
     }
 
@@ -657,10 +693,16 @@ mod tests {
             a.update(&rig, &mv(1.0), 1.0 / 60.0);
             a.evaluate(&rig, &mut sc, &mut out);
             let (l, r) = (tilt(&out[3]), tilt(&out[4]));
-            assert!((l + r).abs() < 1.5, "jambes en opposition de phase : {l} {r}");
+            assert!(
+                (l + r).abs() < 1.5,
+                "jambes en opposition de phase : {l} {r}"
+            );
             seen_l = (seen_l.0.min(l), seen_l.1.max(l));
         }
-        assert!(seen_l.1 > 30.0 && seen_l.0 < -30.0, "amplitude ≈ 35° : {seen_l:?}");
+        assert!(
+            seen_l.1 > 30.0 && seen_l.0 < -30.0,
+            "amplitude ≈ 35° : {seen_l:?}"
+        );
     }
 
     #[test]

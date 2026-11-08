@@ -108,6 +108,7 @@ fn demo_mob_descs() -> Vec<MobModelDesc> {
         id: "cow".into(),
         built_in: false,
         geometry: None,
+        bones: Vec::new(),
     });
     d
 }
@@ -127,6 +128,7 @@ fn demo_mobs(t: f32) -> Vec<MobInstance<'static>> {
             pitch_rad: 0.0,
             missing_scale: s,
             light: 1.0,
+            pose: &[],
         }
     };
     vec![

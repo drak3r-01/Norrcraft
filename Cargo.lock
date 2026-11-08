@@ -868,6 +868,7 @@ name = "nb-game"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "nb-anim",
  "nb-core",
  "nb-data",
  "nb-ecs",
@@ -889,6 +890,7 @@ dependencies = [
  "glam",
  "gpu-allocator",
  "image",
+ "nb-anim",
  "nb-core",
  "nb-data",
  "nb-mesh",

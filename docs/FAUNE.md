@@ -8,12 +8,16 @@ fichiers générés par `scripts/gen_mobs.py` :
 * `assets/mob_geometry_nb.json` : géométrie en boîtes colorées (pixels MC, 16 px = 1 bloc, museau
   vers +Z), comme le renne d'origine.
 
-Les animaux n'ont pas de texture : ce sont des **placeholders en boîtes colorées** (623 boîtes au
+Les animaux n'ont pas de texture : ce sont des **placeholders en boîtes colorées** (625 boîtes au
 total). Quand Gabriel fournira de vraies textures ou des modèles `.jem`, l'ordre de résolution
 existant (JEM → forme vanilla → géométrie → boîte texturée) les fera passer devant. Les
 identifiants évitent ceux des formes vanilla de `nb-gfx` (`sheep`, `wolf`, `rabbit`, `squid`… qui
 donneraient un damier) : d'où `mouflon`, `grey_wolf`, `hare`, `ink_squid` ; un test vérifie qu'il
 n'y a aucune collision.
+
+Chaque animal (et les 3 mobs d'origine) est **animé** : squelette, marche, course, repos, variantes
+d'idle, regard, réactions aux dégâts, attaque, nage… générés avec la géométrie
+(`assets/mob_rigs.json`). Voir [`ANIMATION.md`](ANIMATION.md).
 
 Pour régénérer (ou aperçu PNG de tous les animaux) :
 

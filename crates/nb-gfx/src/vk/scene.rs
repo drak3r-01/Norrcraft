@@ -420,6 +420,8 @@ impl SceneRenderer {
         let mobs = MobResources::new(
             c,
             pipelines.texture_set_layout,
+            pipelines.mob_set_layout,
+            FRAMES_IN_FLIGHT,
             samplers.nearest_repeat,
             samplers.atlas,
             assets.particle_atlas,
@@ -675,6 +677,11 @@ impl SceneRenderer {
         self.mobs.model_counts(id)
     }
 
+    /// Nombre de mobs dessinés à la dernière frame enregistrée (après le culling par frustum).
+    pub fn mobs_drawn_last_frame(&self) -> usize {
+        self.mobs.drawn_last_frame()
+    }
+
     /// `reloadMobModel(id)` (`loadMob`, §5.2, §14.2) avec les racines actives : l'ancien modèle
     /// n'est remplacé que si un nouveau est construit. Retourne `true` si remplacé.
     pub fn reload_mob_model(&mut self, desc: &MobModelDesc) -> Result<bool> {
@@ -918,6 +925,10 @@ impl SceneRenderer {
         self.record_pending_uploads(token.cmd);
         let extent = out.extent;
         let derived = FrameDerived::new(input, (extent.width, extent.height), &self.settings);
+        // Mobs : culling, regroupement par modèle, palette des os (tampons du créneau en cours).
+        let mob_frustum = Frustum::from_gl_matrix(&derived.camera.frustum_matrix_gl());
+        self.mobs
+            .prepare(&self.ctx, token.slot, input.mobs, &mob_frustum)?;
 
         // 1–2, 6. Culling caméra et lumière (quadtree reconstruit chaque frame).
         self.quadtree.build(self.meshes.keys().copied());
@@ -1236,8 +1247,15 @@ impl SceneRenderer {
                 let depth_att = depth_attachment(t.depth.view, vk::AttachmentLoadOp::LOAD, false);
                 begin_rendering(d, cmd, extent, &colors, Some(&depth_att));
                 set_viewport(d, cmd, extent);
-                self.mobs
-                    .record(ctx, cmd, &self.pipelines, frame_set, &derived.view, input);
+                self.mobs.record(
+                    ctx,
+                    cmd,
+                    &self.pipelines,
+                    frame_set,
+                    &derived.view,
+                    input,
+                    token.slot,
+                );
                 d.cmd_end_rendering(cmd);
                 barrier(
                     ctx,

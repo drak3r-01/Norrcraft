@@ -180,6 +180,8 @@ pub struct Game {
     lan_message: Option<(String, bool)>,
     /// Interpolation de rendu entre ticks (voir [`RenderInterp`]).
     interp: RenderInterp,
+    /// Animation des mobs et des avatars (voir [`Game::animate`]).
+    anim: crate::anim::MobAnimSystem,
 }
 
 impl std::fmt::Debug for Game {
@@ -269,6 +271,7 @@ impl Game {
             lan_view: LanView::default(),
             lan_message: None,
             interp: RenderInterp::default(),
+            anim: crate::anim::MobAnimSystem::new(),
             opts,
         };
         g.apply_initial_settings();
@@ -486,7 +489,59 @@ impl Game {
             self.avatars(),
             &self.interp,
             look,
+            Some(&self.anim),
         )
+    }
+
+    /// Fait avancer l'animation des mobs et des avatars de `dt` secondes (temps réel d'une
+    /// frame). À appeler une fois par frame après [`Self::set_render_alpha`] : les vitesses sont
+    /// déduites des positions affichées. [`Self::update`] l'appelle déjà (un pas fixe).
+    /// Figée en pause.
+    pub fn animate(&mut self, dt: f32) {
+        use crate::anim::{AnimCamera, MobSample};
+        if self.state == GameState::Paused {
+            return;
+        }
+        let sim = &self.session.sim;
+        let mobs = crate::render::interpolated_mobs(sim, &self.interp);
+        let e = &sim.entities;
+        let samples: Vec<MobSample<'_>> = mobs
+            .iter()
+            .map(|m| MobSample {
+                entity: m.entity,
+                mob_id: &m.mob_id,
+                pos: m.position,
+                yaw: m.yaw,
+                grounded: e
+                    .copy::<nb_ecs::Velocity>(m.entity)
+                    .is_none_or(|v| v.grounded),
+                health: e.copy::<nb_ecs::Health>(m.entity).map(|h| h.health),
+                attack_cooldown: e
+                    .copy::<nb_ecs::AggressiveAi>(m.entity)
+                    .map(|a| a.attack_cooldown),
+            })
+            .collect();
+        let c = self.session.camera();
+        let (yaw, pitch) = (c.yaw_deg.to_radians(), c.pitch_deg.to_radians());
+        let tan_y = (c.fov * 0.5).tan();
+        let tan_x = tan_y * self.aspect;
+        let cam = AnimCamera {
+            eye: c.position,
+            forward: Vec3::new(
+                yaw.sin() * pitch.cos(),
+                -pitch.sin(),
+                -yaw.cos() * pitch.cos(),
+            ),
+            half_diag: tan_x.hypot(tan_y).atan(),
+        };
+        let avatars = self.avatars();
+        self.anim
+            .update(dt, &cam, &self.regs.mobs, &samples, &avatars);
+    }
+
+    /// Système d'animation des mobs (statistiques, tests).
+    pub fn anim(&self) -> &crate::anim::MobAnimSystem {
+        &self.anim
     }
 
     /// Active l'interpolation de rendu : `alpha` = part du pas fixe écoulée depuis le dernier
@@ -557,6 +612,7 @@ impl Game {
     pub fn update(&mut self, dt: f64) {
         self.update_tick(dt);
         self.update_streaming();
+        self.animate(dt as f32);
     }
 
     /// Un tick de simulation (entrées, horloge, chat, état). La plateforme l'appelle `n` fois

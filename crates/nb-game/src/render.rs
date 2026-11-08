@@ -15,6 +15,7 @@ use nb_gfx::{
 };
 use nb_world::World;
 
+use crate::anim::{AnimKey, MobAnimSystem};
 use crate::net::Avatar;
 use crate::state::GameState;
 
@@ -142,6 +143,7 @@ impl ParticleLayers {
 pub fn gfx_mobs<'a>(
     mobs: &[MobInstance],
     reg: &'a MobRegistry,
+    anim: Option<&'a MobAnimSystem>,
     light: impl Fn(DVec3) -> f32,
 ) -> Vec<nb_gfx::MobInstance<'a>> {
     mobs.iter()
@@ -154,6 +156,7 @@ pub fn gfx_mobs<'a>(
                 pitch_rad: m.pitch,
                 missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
                 light: light(m.position),
+                pose: anim.map_or(&[][..], |a| a.pose(AnimKey::Mob(m.entity))),
             })
         })
         .collect()
@@ -191,7 +194,10 @@ pub fn mob_light(world: &World, reg: &BlockRegistry, pos: DVec3) -> f32 {
 
 /// Avatars des autres joueurs pour nb-gfx. Le modèle porte une couleur par numéro de joueur ;
 /// le lacet de la caméra (degrés, 0 = vers −Z) devient le lacet du modèle (face vers +Z).
-pub fn gfx_avatars(avatars: &[Avatar]) -> Vec<nb_gfx::MobInstance<'static>> {
+pub fn gfx_avatars<'a>(
+    avatars: &[Avatar],
+    anim: Option<&'a MobAnimSystem>,
+) -> Vec<nb_gfx::MobInstance<'a>> {
     avatars
         .iter()
         .map(|a| nb_gfx::MobInstance {
@@ -201,6 +207,7 @@ pub fn gfx_avatars(avatars: &[Avatar]) -> Vec<nb_gfx::MobInstance<'static>> {
             pitch_rad: 0.0,
             missing_scale: Vec3::new(0.6, 1.8, 0.6),
             light: 1.0,
+            pose: anim.map_or(&[][..], |s| s.pose(AnimKey::Player(a.id))),
         })
         .collect()
 }
@@ -310,6 +317,25 @@ pub fn mob_instances(sim: &Simulation) -> Vec<MobInstance> {
         .collect()
 }
 
+/// Mobs de la simulation tels qu'affichés : interpolés entre le tick précédent et le courant
+/// quand l'interpolation de rendu est active.
+pub fn interpolated_mobs(sim: &Simulation, interp: &RenderInterp) -> Vec<MobInstance> {
+    let mut mobs = mob_instances(sim);
+    if interp.enabled {
+        let t = interp.alpha.clamp(0.0, 1.0);
+        for m in &mut mobs {
+            if let Some(&(pp, py, pq)) = interp.prev_mobs.get(&m.entity) {
+                if (m.position - pp).length_squared() < f64::from(TELEPORT_DIST_SQ) {
+                    m.position = pp.lerp(m.position, f64::from(t));
+                    m.yaw = lerp_angle(py, m.yaw, t);
+                    m.pitch = lerp_angle(pq, m.pitch, t);
+                }
+            }
+        }
+    }
+    mobs
+}
+
 /// Construit la vue de rendu.
 #[allow(clippy::too_many_arguments)]
 pub fn build_view<'a>(
@@ -324,6 +350,7 @@ pub fn build_view<'a>(
     avatars: Vec<Avatar>,
     interp: &RenderInterp,
     look: Option<(f32, f32)>,
+    anim: Option<&'a MobAnimSystem>,
 ) -> RenderView<'a> {
     let player = sim.player.and_then(|p| sim.entities.copy::<Player>(p));
     let cam = player.map(|p| p.camera).unwrap_or_else(|| {
@@ -351,19 +378,7 @@ pub fn build_view<'a>(
     } else {
         None
     };
-    let mut mobs = mob_instances(sim);
-    if interp.enabled {
-        let t = interp.alpha.clamp(0.0, 1.0);
-        for m in &mut mobs {
-            if let Some(&(pp, py, pq)) = interp.prev_mobs.get(&m.entity) {
-                if (m.position - pp).length_squared() < f64::from(TELEPORT_DIST_SQ) {
-                    m.position = pp.lerp(m.position, f64::from(t));
-                    m.yaw = lerp_angle(py, m.yaw, t);
-                    m.pitch = lerp_angle(pq, m.pitch, t);
-                }
-            }
-        }
-    }
+    let mobs = interpolated_mobs(sim, interp);
     let particles = sim.particles.particles();
     RenderView {
         state,
@@ -373,8 +388,8 @@ pub fn build_view<'a>(
         heat_intensity: heat,
         highlight_block: highlight,
         gfx_mobs: {
-            let mut g = gfx_mobs(&mobs, mob_reg, |p| mob_light(world, reg, p));
-            let mut av = gfx_avatars(&avatars);
+            let mut g = gfx_mobs(&mobs, mob_reg, anim, |p| mob_light(world, reg, p));
+            let mut av = gfx_avatars(&avatars, anim);
             for (g, a) in av.iter_mut().zip(&avatars) {
                 g.light = mob_light(world, reg, a.pos);
             }
@@ -404,7 +419,7 @@ mod tests {
         };
         // Le modèle regarde vers +Z quand son lacet est nul : (sin, cos) du lacet = direction.
         let dir = |a: &Avatar| {
-            let g = &gfx_avatars(std::slice::from_ref(a))[0];
+            let g = &gfx_avatars(std::slice::from_ref(a), None)[0];
             (g.yaw_rad.sin(), g.yaw_rad.cos())
         };
         let cam_dir = |yaw_deg: f32| {
@@ -419,7 +434,7 @@ mod tests {
                 "yaw {yaw}"
             );
         }
-        let g = gfx_avatars(&[mk(10.0)]);
+        let g = gfx_avatars(&[mk(10.0)], None);
         assert_eq!(g[0].model_id, "nb_player_2");
         assert_eq!(g[0].position, Vec3::new(1.0, 70.0, 2.0));
         assert_eq!(g[0].pitch_rad, 0.0, "le corps ne s'incline pas");
@@ -445,7 +460,7 @@ mod tests {
                 pitch: 0.0,
             },
         ];
-        let g = gfx_mobs(&mobs, &reg, |_| 0.5);
+        let g = gfx_mobs(&mobs, &reg, None, |_| 0.5);
         assert_eq!(g.len(), 1, "config introuvable → ignoré");
         assert_eq!(g[0].model_id, "reindeer");
         assert_eq!(g[0].position, Vec3::new(1.5, 70.25, -3.0));

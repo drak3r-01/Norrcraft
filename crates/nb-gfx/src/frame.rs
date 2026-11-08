@@ -91,6 +91,9 @@ pub struct MobInstance<'a> {
     pub missing_scale: Vec3,
     /// Niveau de lumière du lieu, 0..1 (1 = ciel ouvert), appliqué à l'éclairage du mob.
     pub light: f32,
+    /// Palette de peau (une matrice 3×4 par os, voir `nb_anim::Mat34`) calculée par le moteur
+    /// d'animation ; vide : pose de repos (modèle statique ou pas encore animé).
+    pub pose: &'a [[f32; 12]],
 }
 
 /// Particule à dessiner (§15).

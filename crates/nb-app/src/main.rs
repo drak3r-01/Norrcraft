@@ -382,6 +382,7 @@ impl Running {
             // Chargement des chunks et remaillages : une fois par frame, pas par tick.
             g.update_streaming();
             g.set_render_alpha(alpha);
+            g.animate(frame as f32);
             self.perf.ticks(n, t1 - t0, t1.elapsed());
         }
         self.apply_window_requests(el);

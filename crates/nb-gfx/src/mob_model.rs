@@ -61,6 +61,8 @@ pub struct MobModelDesc {
     pub built_in: bool,
     /// Géométrie couleur (`cfg.geometry`).
     pub geometry: Option<Vec<ColorBox>>,
+    /// Os de chaque boîte de la géométrie (rig d'animation) ; vide = modèle statique.
+    pub bones: Vec<u16>,
 }
 
 impl MobModelDesc {
@@ -72,6 +74,11 @@ impl MobModelDesc {
                 .geometry
                 .as_ref()
                 .map(|g| g.boxes.iter().map(ColorBox::from_row).collect()),
+            bones: cfg
+                .rig
+                .as_ref()
+                .map(|r| r.boxes.clone())
+                .unwrap_or_default(),
         }
     }
 
@@ -146,6 +153,11 @@ pub fn player_boxes(shirt: [f32; 3]) -> Vec<ColorBox> {
         .collect()
 }
 
+/// Os de chaque boîte de l'avatar (rig [`nb_anim::humanoid::humanoid`]).
+pub fn player_bones() -> Vec<u16> {
+    nb_anim::humanoid::humanoid().boxes
+}
+
 /// Descriptions des huit avatars de joueurs.
 pub fn player_descs() -> Vec<MobModelDesc> {
     PLAYER_MODEL_IDS
@@ -155,6 +167,7 @@ pub fn player_descs() -> Vec<MobModelDesc> {
             id: (*id).to_owned(),
             built_in: true,
             geometry: Some(player_boxes(shirt)),
+            bones: player_bones(),
         })
         .collect()
 }
@@ -167,9 +180,21 @@ pub struct MobModelCpu {
     pub opaque_count: u32,
     pub transparent_count: u32,
     pub texture: Option<RgbaImage>,
+    /// Os (indice dans la palette de l'instance) de chaque sommet, dans l'ordre de `vertices` ;
+    /// vide = tous les sommets suivent l'os 0 (modèle statique).
+    pub bones: Vec<u32>,
 }
 
 impl MobModelCpu {
+    /// Nombre d'os référencés (au moins 1).
+    pub fn bone_count(&self) -> usize {
+        self.bones
+            .iter()
+            .copied()
+            .max()
+            .map_or(1, |m| m as usize + 1)
+    }
+
     /// Opaques puis transparents ; `None` si aucun sommet.
     pub fn from_lists(
         mut opaque: Vec<MobVertex>,
@@ -186,6 +211,7 @@ impl MobModelCpu {
             opaque_count: o,
             transparent_count: t,
             texture,
+            bones: Vec::new(),
         })
     }
 }
@@ -418,9 +444,17 @@ pub fn build_vanilla(shape: &VanillaShape, texture: RgbaImage) -> MobModelCpu {
 
 /// `buildFromGeometry` (mode couleur) ; `None` si aucune boîte.
 pub fn build_geometry(boxes: &[ColorBox]) -> Option<MobModelCpu> {
+    build_geometry_rigged(boxes, &[])
+}
+
+/// [`build_geometry`] avec l'os de chaque boîte (`bones[i]` pour `boxes[i]`, os 0 si la liste
+/// est plus courte) : chaque sommet reçoit l'os de sa boîte. `bones` vide : modèle statique.
+pub fn build_geometry_rigged(boxes: &[ColorBox], bones: &[u16]) -> Option<MobModelCpu> {
     let mut opaque = Vec::new();
     let mut trans = Vec::new();
-    for b in boxes {
+    let (mut bones_o, mut bones_t) = (Vec::new(), Vec::new());
+    for (i, b) in boxes.iter().enumerate() {
+        let bone = u32::from(bones.get(i).copied().unwrap_or(0));
         let dims = [
             b.min_px[0],
             b.min_px[1],
@@ -429,14 +463,21 @@ pub fn build_geometry(boxes: &[ColorBox]) -> Option<MobModelCpu> {
             b.size_px[1],
             b.size_px[2],
         ];
-        let out = if b.rgba[3] < 1.0 {
-            &mut trans
+        let (out, ob) = if b.rgba[3] < 1.0 {
+            (&mut trans, &mut bones_t)
         } else {
-            &mut opaque
+            (&mut opaque, &mut bones_o)
         };
+        let before = out.len();
         add_color_box(out, &dims, b.rgba);
+        ob.resize(ob.len() + out.len() - before, bone);
     }
-    MobModelCpu::from_lists(opaque, trans, None)
+    let mut m = MobModelCpu::from_lists(opaque, trans, None)?;
+    if !bones.is_empty() {
+        bones_o.extend(bones_t);
+        m.bones = bones_o;
+    }
+    Some(m)
 }
 
 /// `buildTexturedBox` : boîte `(-8,0,-8, 16,16,16)` sur un « atlas » 1×1. [JAVA-BUG] reproduit :
@@ -632,7 +673,11 @@ pub fn load_mob_model(desc: &MobModelDesc, roots: &MobRoots) -> Option<MobModelC
         let tex = find_entity_texture(&desc.id, roots).unwrap_or_else(missing_texture);
         return Some(build_vanilla(&shape, tex));
     }
-    if let Some(m) = desc.geometry.as_deref().and_then(build_geometry) {
+    if let Some(m) = desc
+        .geometry
+        .as_deref()
+        .and_then(|g| build_geometry_rigged(g, &desc.bones))
+    {
         return Some(m);
     }
     if !desc.built_in {
@@ -948,6 +993,7 @@ mod tests {
             id: id.into(),
             built_in,
             geometry,
+            bones: Vec::new(),
         };
         let red = ColorBox::from_row(&[0., 0., 0., 16., 16., 16., 1., 0., 0., 1.]);
         // Vanilla sans texture → damier (texture 16×16, hauteur corrigée).

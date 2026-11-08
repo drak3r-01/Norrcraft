@@ -65,8 +65,10 @@ pub fn humanoid() -> RigDef {
             body,
         ]
     };
-    def.clips
-        .insert("walk".into(), clip(0.65, true, false, gait(38.0, 30.0, 0.5)));
+    def.clips.insert(
+        "walk".into(),
+        clip(0.65, true, false, gait(38.0, 30.0, 0.5)),
+    );
     def.clips
         .insert("run".into(), clip(0.5, true, false, gait(55.0, 50.0, 0.9)));
     let mut breathe = ChannelDef::new("body");
@@ -84,8 +86,10 @@ pub fn humanoid() -> RigDef {
         o: 2.0,
         ..Wave::sin(1.5, 1.0, 0.5)
     }));
-    def.clips
-        .insert("idle".into(), clip(3.2, true, false, vec![breathe, sway_l, sway_r]));
+    def.clips.insert(
+        "idle".into(),
+        clip(3.2, true, false, vec![breathe, sway_l, sway_r]),
+    );
     def.clips.insert(
         "air".into(),
         clip(
@@ -107,8 +111,14 @@ pub fn humanoid() -> RigDef {
             false,
             true,
             vec![
-                rx("body", Curve::Keys(vec![[0.0, 0.0], [0.25, -14.0], [1.0, 0.0]])),
-                rx("head", Curve::Keys(vec![[0.0, 0.0], [0.25, 12.0], [1.0, 0.0]])),
+                rx(
+                    "body",
+                    Curve::Keys(vec![[0.0, 0.0], [0.25, -14.0], [1.0, 0.0]]),
+                ),
+                rx(
+                    "head",
+                    Curve::Keys(vec![[0.0, 0.0], [0.25, 12.0], [1.0, 0.0]]),
+                ),
             ],
         ),
     );

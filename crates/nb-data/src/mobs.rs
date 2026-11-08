@@ -536,13 +536,24 @@ mod tests {
             }
             // Les actions et variantes d'idle jouent sans produire de valeur invalide.
             let mut a = Animator::new(5);
-            for act in [nb_anim::Action::Hurt, nb_anim::Action::Attack, nb_anim::Action::Jump] {
+            for act in [
+                nb_anim::Action::Hurt,
+                nb_anim::Action::Attack,
+                nb_anim::Action::Jump,
+            ] {
                 a.trigger(&rig, act);
             }
             for i in 0..rig.clips.len() {
                 a.play_variant(i);
                 for _ in 0..30 {
-                    a.update(&rig, &AnimInput { grounded: true, ..Default::default() }, 1.0 / 30.0);
+                    a.update(
+                        &rig,
+                        &AnimInput {
+                            grounded: true,
+                            ..Default::default()
+                        },
+                        1.0 / 30.0,
+                    );
                     a.evaluate(&rig, &mut sc, &mut pal);
                     assert!(pal.iter().all(|m| m.0.iter().all(|v| v.is_finite())));
                 }
@@ -560,7 +571,8 @@ mod tests {
     #[test]
     fn custom_mobs_inherit_the_reindeer_rig() {
         let mut reg = MobRegistry::builtin();
-        reg.apply_overrides(r#"{ "mobs": [ { "id": "zombie" } ] }"#).unwrap();
+        reg.apply_overrides(r#"{ "mobs": [ { "id": "zombie" } ] }"#)
+            .unwrap();
         let z = reg.get("zombie").unwrap();
         assert!(z.rig.is_some(), "rig hérité avec la géométrie du renne");
     }
