@@ -18,6 +18,9 @@
 //! - `wait-meshes N MAX` : attend au plus MAX frames qu'au moins N chunks soient maillés ;
 //! - `spawn-mob ID DIST` : (outil) crée le mob ID à DIST blocs devant la caméra ;
 //! - `spawn-particles ID N` : (outil) N particules ID devant la caméra ;
+//! - `give OBJET N` : (outil) ajoute N exemplaires de l'objet à l'inventaire ;
+//! - `vitals FAIM CHALEUR ENDURANCE` : (outil) fixe la faim (0-20), la chaleur et l'endurance ;
+//! - `third-person` : (outil) bascule la vue à la 3e personne ;
 //! - `quit`.
 
 use nb_core::glam::Vec3;
@@ -42,6 +45,9 @@ pub enum Cmd {
     WaitMeshes(usize, u32),
     SpawnMob(String, f32),
     SpawnParticles(String, u32),
+    Give(String, i32),
+    Vitals(f32, f32, f32),
+    ThirdPerson,
     Quit,
 }
 
@@ -128,6 +134,12 @@ pub fn parse(text: &str) -> Result<Vec<Cmd>, String> {
                 args.first().ok_or_else(|| err("id attendu"))?.to_string(),
                 num(1)? as u32,
             ),
+            "give" => Cmd::Give(
+                args.first().ok_or_else(|| err("objet attendu"))?.to_string(),
+                num(1)? as i32,
+            ),
+            "vitals" => Cmd::Vitals(num(0)? as f32, num(1)? as f32, num(2)? as f32),
+            "third-person" => Cmd::ThirdPerson,
             "quit" => Cmd::Quit,
             _ => return Err(err("commande inconnue")),
         });
@@ -274,6 +286,25 @@ impl Runner {
                 }
                 Cmd::SpawnMob(id, dist) => self.spawn_mob(g, &id, dist),
                 Cmd::SpawnParticles(id, n) => self.spawn_particles(g, &id, n),
+                Cmd::Give(name, n) => {
+                    if let Some(item) = g.regs.items.id_of(&name) {
+                        if let Some(inv) = g.session_mut().inventory_mut() {
+                            inv.add_stack(nb_ecs::ItemStack::new(item, n));
+                        }
+                    } else {
+                        eprintln!("give : objet inconnu {name}");
+                    }
+                }
+                Cmd::Vitals(h, w, s) => {
+                    if let Some(p) = g.session().player() {
+                        if let Some(v) = g.session_mut().sim.entities.get_mut::<nb_ecs::Vitals>(p) {
+                            v.hunger = h;
+                            v.warmth = w;
+                            v.stamina = s;
+                        }
+                    }
+                }
+                Cmd::ThirdPerson => g.toggle_third_person(),
                 Cmd::Quit => {
                     out.quit = true;
                     self.pc = self.cmds.len();

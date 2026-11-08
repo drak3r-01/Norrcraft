@@ -543,6 +543,11 @@ impl Game {
         view
     }
 
+    /// Bascule la vue à la 3e personne (touche F5).
+    pub fn toggle_third_person(&mut self) {
+        self.third_person = !self.third_person;
+    }
+
     /// Identifiant de l'avatar du joueur local (hors des numéros de joueurs du réseau).
     pub const LOCAL_AVATAR_ID: u16 = 200;
 
