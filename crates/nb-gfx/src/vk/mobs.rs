@@ -556,7 +556,7 @@ impl MobResources {
                 mi,
                 InstanceData {
                     model: mat.to_cols_array(),
-                    params: [m.light, base as f32, 0.0, 0.0],
+                    params: [m.light, base as f32, m.water_surface, 0.0],
                 },
             ));
         }

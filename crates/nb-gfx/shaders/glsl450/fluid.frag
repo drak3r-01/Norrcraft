@@ -35,6 +35,7 @@ layout (location = 5) in float IsFluid;
 layout (location = 6) in float IsLeaf;
 layout (set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout (set = 0, binding = 2) uniform sampler2D shadowMap;
+#include "shadow.glsl"
 layout (set = 1, binding = 0) uniform sampler2D opaqueDepth;
 layout (set = 1, binding = 1) uniform sampler2D refractTex;
 
@@ -46,24 +47,6 @@ const vec3  WATER_DEEP  = vec3(0.012, 0.075, 0.115);
 float getLinearDepth(float depth) {
     float zNdc = depth * 2.0 - 1.0;
     return u.projGl.y / (zNdc + u.projGl.x);
-}
-
-// Part d'ombre [0,1] : PCF 3x3 sur la carte d'ombre.
-float ShadowCalculation(vec4 fragPosLightSpace, vec3 normal) {
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords.xy = projCoords.xy * 0.5 + 0.5;
-    if (projCoords.z > 1.0) return 0.0;
-    float currentDepth = projCoords.z;
-    float bias = max(0.005 * (1.0 - dot(normal, -u.lightDir.xyz)), 0.001);
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / vec2(textureSize(shadowMap, 0));
-    for (int x = -1; x <= 1; ++x) {
-        for (int y = -1; y <= 1; ++y) {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
-        }
-    }
-    return shadow / 9.0;
 }
 
 float hash21(vec2 p) {
@@ -231,7 +214,7 @@ void main() {
     vec3 viewDir = normalize(camPos - FragPos);
     vec3 geoNormal = normalize(cross(dFdx(FragPos), dFdy(FragPos)));
     if (dot(geoNormal, viewDir) < 0.0) geoNormal = -geoNormal;
-    float shadow = ShadowCalculation(FragPosLightSpace, geoNormal);
+    float shadow = softShadow(FragPos, geoNormal, 0.0);
     vec3 lightScale = u.ambientColor.xyz + u.lightColor.xyz * (1.0 - shadow);
 
     vec4 texColor = texture(textureArray, vec3(TexCoord, Layer));

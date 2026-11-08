@@ -27,6 +27,8 @@ layout (location = 1) out vec4 vTint;
 layout (location = 2) out float vBrightness;
 layout (location = 3) out vec4 vLightSpace;
 layout (location = 4) flat out float vLight;
+layout (location = 5) out vec3 vWorld;
+layout (location = 6) flat out float vWaterY;
 void main() {
     vUV         = aUV;
     vTint       = aTint;
@@ -36,6 +38,8 @@ void main() {
     vec4 p4     = vec4(aPos, 1.0);
     vec3 skinned = vec3(dot(pal.rows[m], p4), dot(pal.rows[m + 1u], p4), dot(pal.rows[m + 2u], p4));
     vec4 world  = mat4(iM0, iM1, iM2, iM3) * vec4(skinned, 1.0);
+    vWorld      = world.xyz;
+    vWaterY     = iParams.z;
     vLightSpace = u.lightSpaceVk * world;
     gl_Position = u.projVk * u.view * world;
 }

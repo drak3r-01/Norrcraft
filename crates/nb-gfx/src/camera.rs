@@ -96,9 +96,22 @@ pub fn light_view(camera_pos: Vec3, shadow_light_dir: Vec3) -> Mat4 {
     Mat4::look_at_rh(light_pos, camera_pos, Vec3::Y)
 }
 
+/// Demi-étendue de la projection de la lumière (unités monde).
+pub const LIGHT_HALF_EXTENT: f32 = 120.0;
+
 /// `Lp_gl · Lv` (convention GL, pour le culling de la passe d'ombre).
-pub fn light_space_gl(camera_pos: Vec3, shadow_light_dir: Vec3) -> Mat4 {
-    light_projection_gl() * light_view(camera_pos, shadow_light_dir)
+/// La vue est calée sur la grille de texels de la shadow map (`shadow_res` texels de côté) : quand la
+/// caméra bouge, l'image de la carte d'ombre se translate par texels entiers, donc les bords
+/// d'ombre ne « nagent » plus et ne scintillent plus.
+pub fn light_space_gl(camera_pos: Vec3, shadow_light_dir: Vec3, shadow_res: u32) -> Mat4 {
+    let view = light_view(camera_pos, shadow_light_dir);
+    let res = shadow_res.max(1) as f32;
+    let texel = 2.0 * LIGHT_HALF_EXTENT / res;
+    let c = view.transform_point3(camera_pos);
+    let dx = (c.x / texel).round() * texel - c.x;
+    let dy = (c.y / texel).round() * texel - c.y;
+    let snapped = Mat4::from_translation(Vec3::new(dx, dy, 0.0)) * view;
+    light_projection_gl() * snapped
 }
 
 #[cfg(test)]
@@ -161,8 +174,8 @@ mod tests {
     fn light_space_keeps_camera_in_view() {
         let dir = crate::sky::sky_params(900.0).shadow_light_dir;
         let cam = Vec3::new(10.0, 80.0, 10.0);
-        let p = light_space_gl(cam, dir) * cam.extend(1.0);
-        assert!(p.x.abs() < 1e-3 && p.y.abs() < 1e-3);
+        let p = light_space_gl(cam, dir, 4096) * cam.extend(1.0);
+        assert!(p.x.abs() < 0.01 && p.y.abs() < 0.01);
         // Caméra à 150 unités de l'œil : z_ndc = (2·150 − 401) / 399.
         assert!((p.z - (300.0 - 401.0) / 399.0).abs() < 1e-4);
     }

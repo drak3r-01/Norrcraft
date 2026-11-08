@@ -145,6 +145,7 @@ pub fn gfx_mobs<'a>(
     reg: &'a MobRegistry,
     anim: Option<&'a MobAnimSystem>,
     light: impl Fn(DVec3) -> f32,
+    water: impl Fn(DVec3) -> f32,
 ) -> Vec<nb_gfx::MobInstance<'a>> {
     mobs.iter()
         .filter_map(|m| {
@@ -156,6 +157,7 @@ pub fn gfx_mobs<'a>(
                 pitch_rad: m.pitch,
                 missing_scale: Vec3::new(c.width_x, c.height, c.width_z),
                 light: light(m.position),
+                water_surface: water(m.position),
                 pose: anim.map_or(&[][..], |a| a.pose(AnimKey::Mob(m.entity))),
             })
         })
@@ -192,6 +194,33 @@ pub fn mob_light(world: &World, reg: &BlockRegistry, pos: DVec3) -> f32 {
     level as f32 / 15.0
 }
 
+/// Hauteur de la surface de l'eau au-dessus d'un mob qui baigne dedans (`NO_WATER` sinon) : on
+/// monte depuis le bloc de son centre tant que le bloc est de l'eau ; la surface est au sommet du
+/// dernier bloc d'eau moins la hauteur de bassin (0,1) du mailleur.
+pub fn mob_water_surface(world: &World, reg: &BlockRegistry, pos: DVec3) -> f32 {
+    use nb_core::math::{block_index, CHUNK_SIZE_Y};
+    let (x, z) = (pos.x.floor() as i32, pos.z.floor() as i32);
+    let Some(chunk) = world
+        .chunk_manager()
+        .chunk(nb_core::ChunkPos::new(x.div_euclid(16), z.div_euclid(16)))
+    else {
+        return nb_gfx::NO_WATER;
+    };
+    let guard = chunk.read();
+    let voxels = guard.voxels();
+    let (lx, lz) = (x.rem_euclid(16) as usize, z.rem_euclid(16) as usize);
+    let water = reg.ids().water;
+    // Centre du mob : un peu au-dessus des pieds (les poissons nagent à ras de sol).
+    let mut y = (pos.y + 0.4).floor() as i32;
+    if y < 0 || y >= CHUNK_SIZE_Y as i32 || voxels[block_index(lx, y as usize, lz)] != water {
+        return nb_gfx::NO_WATER;
+    }
+    while y + 1 < CHUNK_SIZE_Y as i32 && voxels[block_index(lx, (y + 1) as usize, lz)] == water {
+        y += 1;
+    }
+    (y + 1) as f32 - 0.1
+}
+
 /// Avatars des autres joueurs pour nb-gfx. Le modèle porte une couleur par numéro de joueur ;
 /// le lacet de la caméra (degrés, 0 = vers −Z) devient le lacet du modèle (face vers +Z).
 pub fn gfx_avatars<'a>(
@@ -207,6 +236,7 @@ pub fn gfx_avatars<'a>(
             pitch_rad: 0.0,
             missing_scale: Vec3::new(0.6, 1.8, 0.6),
             light: 1.0,
+            water_surface: nb_gfx::NO_WATER,
             pose: anim.map_or(&[][..], |s| s.pose(AnimKey::Player(a.id))),
         })
         .collect()
@@ -388,10 +418,11 @@ pub fn build_view<'a>(
         heat_intensity: heat,
         highlight_block: highlight,
         gfx_mobs: {
-            let mut g = gfx_mobs(&mobs, mob_reg, anim, |p| mob_light(world, reg, p));
+            let mut g = gfx_mobs(&mobs, mob_reg, anim, |p| mob_light(world, reg, p), |p| mob_water_surface(world, reg, p));
             let mut av = gfx_avatars(&avatars, anim);
             for (g, a) in av.iter_mut().zip(&avatars) {
                 g.light = mob_light(world, reg, a.pos);
+                g.water_surface = mob_water_surface(world, reg, a.pos);
             }
             g.extend(av);
             g
@@ -460,7 +491,7 @@ mod tests {
                 pitch: 0.0,
             },
         ];
-        let g = gfx_mobs(&mobs, &reg, None, |_| 0.5);
+        let g = gfx_mobs(&mobs, &reg, None, |_| 0.5, |_| nb_gfx::NO_WATER);
         assert_eq!(g.len(), 1, "config introuvable → ignoré");
         assert_eq!(g[0].model_id, "reindeer");
         assert_eq!(g[0].position, Vec3::new(1.5, 70.25, -3.0));

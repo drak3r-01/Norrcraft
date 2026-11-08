@@ -78,6 +78,9 @@ impl EyeFluid {
     }
 }
 
+/// Valeur de `MobInstance::water_surface` pour un mob hors de l'eau.
+pub const NO_WATER: f32 = -1000.0;
+
 /// Mob à dessiner (§14.1). L'appelant ne transmet que les entités dont la config existe.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MobInstance<'a> {
@@ -91,6 +94,9 @@ pub struct MobInstance<'a> {
     pub missing_scale: Vec3,
     /// Niveau de lumière du lieu, 0..1 (1 = ciel ouvert), appliqué à l'éclairage du mob.
     pub light: f32,
+    /// Hauteur monde de la surface de l'eau juste au-dessus du mob (`NO_WATER` : hors de l'eau). Sert à
+    /// teinter, absorber et refléter le mob vu depuis l'air à travers la surface.
+    pub water_surface: f32,
     /// Palette de peau (une matrice 3×4 par os, voir `nb_anim::Mat34`) calculée par le moteur
     /// d'animation ; vide : pose de repos (modèle statique ou pas encore animé).
     pub pose: &'a [[f32; 12]],
@@ -186,7 +192,8 @@ impl FrameDerived {
         let (fluid_state, clear_color) = input.eye_fluid.state_and_color(sky.base_fog);
         let proj_gl = camera.proj_gl();
         let view = camera.view();
-        let light_space_gl = light_space_gl(camera.position, sky.shadow_light_dir);
+        let shadow_res = shadow_resolution(settings.shadow_quality).unwrap_or(1024);
+        let light_space_gl = light_space_gl(camera.position, sky.shadow_light_dir, shadow_res);
         let uniforms = FrameUniforms {
             proj_vk: (VK_CLIP_CORRECTION * proj_gl).to_cols_array_2d(),
             view: view.to_cols_array_2d(),
