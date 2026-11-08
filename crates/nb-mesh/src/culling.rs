@@ -227,7 +227,16 @@ impl ChunkQuadtree {
     fn query_node(&self, node: usize, f: &Frustum, out: &mut Vec<ChunkPos>) {
         let n = &self.pool[node];
         let h = CHUNK_SIZE_Y as f32;
-        if !f.test_aab([n.min_x, 0.0, n.min_z], [n.max_x, h, n.max_z]) {
+        // Un chunk est rangé selon son centre : il peut dépasser de la moitié de sa taille hors
+        // du quadrant de son nœud. Sans cette marge, un nœud entièrement derrière le plan
+        // proche (caméra au sol, contre le bord de son quadrant) était rejeté alors que le
+        // chunk sous les pieds du joueur était visible : un pan d'écran montrait le dessous
+        // du monde.
+        let (mx, mz) = (CHUNK_SIZE_X as f32 / 2.0, CHUNK_SIZE_Z as f32 / 2.0);
+        if !f.test_aab(
+            [n.min_x - mx, 0.0, n.min_z - mz],
+            [n.max_x + mx, h, n.max_z + mz],
+        ) {
             return;
         }
         if let Some(children) = n.children {
