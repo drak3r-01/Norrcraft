@@ -46,6 +46,19 @@ pub fn sorted_active_positions(m: &ChunkManager) -> Vec<ChunkPos> {
     v
 }
 
+/// Positions actives triées par distance croissante au chunk `center` (puis par (x, z) : ordre
+/// déterministe). Le planificateur de maillage soumet dans cet ordre : les chunks autour du
+/// joueur sont maillés avant ceux du fond de la zone.
+pub fn sorted_active_positions_near(m: &ChunkManager, center: ChunkPos) -> Vec<ChunkPos> {
+    let mut v = m.active_positions();
+    v.sort_by_key(|p| {
+        let dx = i64::from(p.x) - i64::from(center.x);
+        let dz = i64::from(p.z) - i64::from(center.z);
+        (dx * dx + dz * dz, p.x, p.z)
+    });
+    v
+}
+
 /// Biomes du monde pour le mailleur (`BiomeSystem` possédé, partageable entre threads).
 #[derive(Clone, Debug)]
 pub struct WorldBiomes(pub BiomeSystem);

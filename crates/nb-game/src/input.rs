@@ -355,6 +355,19 @@ impl InputManager {
         self.selected_slot
     }
 
+    /// Déplacement de la souris depuis le dernier [`Self::update`] (donc pas encore appliqué par
+    /// un tick) : sert à tourner la caméra sans attendre le prochain pas de simulation.
+    pub fn pending_mouse_delta(&self) -> Vec2 {
+        if self.first_mouse || self.typing_mode {
+            Vec2::ZERO
+        } else {
+            Vec2::new(
+                (self.cursor.0 - self.last_mouse.0) as f32,
+                (self.cursor.1 - self.last_mouse.1) as f32,
+            )
+        }
+    }
+
     pub fn mouse_delta(&self) -> Vec2 {
         self.mouse_delta
     }

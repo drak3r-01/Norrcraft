@@ -7,10 +7,9 @@
 use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, RwLock};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 use std::thread::JoinHandle;
 
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use nb_core::glam::Vec3;
 use nb_core::{ChunkPos, Result};
 use nb_data::{BlockId, BlockRegistry};
@@ -32,6 +31,68 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 #[inline]
 pub fn chunk_coord(v: i32) -> i32 {
     (v as f32 / CHUNK_SIZE_X as f32).floor() as i32
+}
+
+/// File de travaux de chunks servie par **distance croissante au joueur** (au lieu d'un FIFO) :
+/// quand le joueur avance, les chunks qu'il voit en premier sont générés / éclairés avant ceux
+/// du fond de la zone, quel que soit l'ordre dans lequel ils ont été demandés.
+struct PrioQueue {
+    /// (tâches en attente, file fermée)
+    state: Mutex<(Vec<ChunkPos>, bool)>,
+    cv: Condvar,
+}
+
+impl PrioQueue {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new((Vec::new(), false)),
+            cv: Condvar::new(),
+        }
+    }
+
+    fn push(&self, p: ChunkPos) {
+        let mut g = lock(&self.state);
+        if g.1 {
+            return;
+        }
+        g.0.push(p);
+        drop(g);
+        self.cv.notify_one();
+    }
+
+    /// Ferme la file : les tâches restantes sont abandonnées, les threads se réveillent.
+    fn close(&self) {
+        let mut g = lock(&self.state);
+        g.1 = true;
+        g.0.clear();
+        drop(g);
+        self.cv.notify_all();
+    }
+
+    /// Attend une tâche et renvoie la plus proche de `center()`. `None` une fois fermée.
+    fn pop(&self, center: impl Fn() -> (i32, i32)) -> Option<ChunkPos> {
+        let mut g = lock(&self.state);
+        loop {
+            if g.1 {
+                return None;
+            }
+            if !g.0.is_empty() {
+                let (cx, cz) = center();
+                let dist = |p: &ChunkPos| {
+                    let dx = i64::from(p.x) - i64::from(cx);
+                    let dz = i64::from(p.z) - i64::from(cz);
+                    dx * dx + dz * dz
+                };
+                let best =
+                    g.0.iter()
+                        .enumerate()
+                        .min_by_key(|(_, p)| dist(p))
+                        .map_or(0, |(i, _)| i);
+                return Some(g.0.swap_remove(best));
+            }
+            g = self.cv.wait(g).unwrap_or_else(|e| e.into_inner());
+        }
+    }
 }
 
 struct Inner {
@@ -71,6 +132,13 @@ impl Inner {
             .unwrap_or_else(|e| e.into_inner())
             .get(&pos)
             .cloned()
+    }
+
+    fn player_chunk_xz(&self) -> (i32, i32) {
+        (
+            self.player_chunk_x.load(Ordering::Relaxed),
+            self.player_chunk_z.load(Ordering::Relaxed),
+        )
     }
 
     fn is_active(&self, pos: ChunkPos) -> bool {
@@ -195,8 +263,8 @@ pub struct ChunkManager {
     inner: Arc<Inner>,
     generator: Arc<WorldGenerator>,
     registry: Arc<BlockRegistry>,
-    gen_tx: Mutex<Option<Sender<ChunkPos>>>,
-    light_tx: Mutex<Option<Sender<ChunkPos>>>,
+    gen_q: Arc<PrioQueue>,
+    light_q: Arc<PrioQueue>,
     workers: Mutex<Vec<JoinHandle<()>>>,
 }
 
@@ -216,8 +284,7 @@ impl ChunkManager {
         cfg: Arc<WorldConfig>,
         registry: Arc<BlockRegistry>,
     ) -> Self {
-        let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-        let n = (cores / 2).max(1);
+        let n = nb_core::thread::background_pool_size();
         Self::with_threads(storage, seed, cfg, registry, n, n)
     }
 
@@ -277,19 +344,20 @@ impl ChunkManager {
             extra_centers: Mutex::new(Vec::new()),
             remote: AtomicBool::new(false),
         });
-        let (gen_tx, gen_rx) = unbounded::<ChunkPos>();
-        let (light_tx, light_rx) = unbounded::<ChunkPos>();
+        let gen_q = Arc::new(PrioQueue::new());
+        let light_q = Arc::new(PrioQueue::new());
         let mut workers = Vec::new();
         for i in 0..gen_threads.max(1) {
             let inner = inner.clone();
-            let rx: Receiver<ChunkPos> = gen_rx.clone();
+            let q = gen_q.clone();
             // Un générateur par thread (copie indépendante, résultat identique).
             let generator = WorldGenerator::clone(&generator);
             workers.push(
                 std::thread::Builder::new()
                     .name(format!("nb-chunkgen-{i}"))
                     .spawn(move || {
-                        for pos in rx.iter() {
+                        nb_core::thread::lower_priority();
+                        while let Some(pos) = q.pop(|| inner.player_chunk_xz()) {
                             if inner.shutdown.load(Ordering::Acquire) {
                                 break;
                             }
@@ -307,13 +375,14 @@ impl ChunkManager {
         }
         for i in 0..light_threads.max(1) {
             let inner = inner.clone();
-            let rx: Receiver<ChunkPos> = light_rx.clone();
+            let q = light_q.clone();
             workers.push(
                 std::thread::Builder::new()
                     .name(format!("nb-light-{i}"))
                     .spawn(move || {
+                        nb_core::thread::lower_priority();
                         let mut ctx = LightContext::default();
-                        for pos in rx.iter() {
+                        while let Some(pos) = q.pop(|| inner.player_chunk_xz()) {
                             if inner.shutdown.load(Ordering::Acquire) {
                                 break;
                             }
@@ -334,8 +403,8 @@ impl ChunkManager {
             inner,
             generator,
             registry,
-            gen_tx: Mutex::new(Some(gen_tx)),
-            light_tx: Mutex::new(Some(light_tx)),
+            gen_q,
+            light_q,
             workers: Mutex::new(workers),
         }
     }
@@ -381,51 +450,82 @@ impl ChunkManager {
         self.inner.player_chunk_z.store(pcz, Ordering::Relaxed);
         let r = self.render_distance();
 
-        let mut expected = Vec::new();
-        for x in -r..=r {
-            for z in -r..=r {
-                expected.push(ChunkPos::new(pcx.wrapping_add(x), pcz.wrapping_add(z)));
-            }
-        }
-        for &(ex, ez, er) in &extra_chunks {
-            for x in -er..=er {
-                for z in -er..=er {
-                    let p = ChunkPos::new(ex.wrapping_add(x), ez.wrapping_add(z));
-                    if !expected.contains(&p) {
-                        expected.push(p);
-                    }
-                }
-            }
-        }
         let remote = self.inner.remote.load(Ordering::Acquire);
-        let expected_set: HashSet<ChunkPos> = expected.iter().copied().collect();
+        let inside = |p: ChunkPos, cx: i32, cz: i32, r: i32| {
+            (i64::from(p.x) - i64::from(cx)).abs() <= i64::from(r)
+                && (i64::from(p.z) - i64::from(cz)).abs() <= i64::from(r)
+        };
+        let wanted = |p: ChunkPos| {
+            inside(p, pcx, pcz, r)
+                || extra_chunks
+                    .iter()
+                    .any(|&(ex, ez, er)| inside(p, ex, ez, er))
+        };
 
+        // Déchargements : un seul passage sous verrou de lecture, sans table intermédiaire.
         let to_unload: Vec<ChunkPos> = self
-            .active_positions()
-            .into_iter()
-            .filter(|p| !expected_set.contains(p))
+            .inner
+            .active
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .keys()
+            .copied()
+            .filter(|p| !wanted(*p))
             .collect();
         for pos in to_unload {
             self.unload_chunk(pos);
         }
 
-        for pos in expected {
-            match self.inner.active_get(pos) {
+        // Chargements et lumière : un seul verrou de lecture pour toute la zone. Pas de liste
+        // `expected` ni d'`active_get` par chunk (centaines d'acquisitions de verrou par appel).
+        let mut to_load = Vec::new();
+        let mut to_light = Vec::new();
+        {
+            let active = self.inner.active.read().unwrap_or_else(|e| e.into_inner());
+            let mut visit = |pos: ChunkPos| match active.get(&pos) {
                 // Monde client : seuls les chunks reçus de l'hôte sont chargés.
                 None if remote && !self.inner.storage.has_chunk(pos) => {}
-                None => {
-                    if !lock(&self.inner.generating).contains(&pos) {
-                        self.load_chunk_async(pos);
-                    }
-                }
+                None => to_load.push(pos),
                 Some(chunk) => {
                     if chunk.flags.is_light_dirty()
-                        && !lock(&self.inner.lighting).contains(&pos)
-                        && self.has_neighbors(pos)
+                        && (-1..=1).all(|x| {
+                            (-1..=1)
+                                .all(|z| active.contains_key(&ChunkPos::new(pos.x + x, pos.z + z)))
+                        })
                     {
-                        self.compute_light_async(pos);
+                        to_light.push(pos);
                     }
                 }
+            };
+            for x in -r..=r {
+                for z in -r..=r {
+                    visit(ChunkPos::new(pcx.wrapping_add(x), pcz.wrapping_add(z)));
+                }
+            }
+            for (i, &(ex, ez, er)) in extra_chunks.iter().enumerate() {
+                for x in -er..=er {
+                    for z in -er..=er {
+                        let p = ChunkPos::new(ex.wrapping_add(x), ez.wrapping_add(z));
+                        // Déjà vu : zone principale ou centre supplémentaire précédent.
+                        let seen = inside(p, pcx, pcz, r)
+                            || extra_chunks[..i]
+                                .iter()
+                                .any(|&(fx, fz, fr)| inside(p, fx, fz, fr));
+                        if !seen {
+                            visit(p);
+                        }
+                    }
+                }
+            }
+        }
+        for pos in to_load {
+            if !lock(&self.inner.generating).contains(&pos) {
+                self.load_chunk_async(pos);
+            }
+        }
+        for pos in to_light {
+            if !lock(&self.inner.lighting).contains(&pos) {
+                self.compute_light_async(pos);
             }
         }
     }
@@ -438,21 +538,13 @@ impl ChunkManager {
     }
 
     fn load_chunk_async(&self, pos: ChunkPos) {
-        if let Some(tx) = lock(&self.gen_tx).as_ref() {
-            lock(&self.inner.generating).insert(pos);
-            if tx.send(pos).is_err() {
-                lock(&self.inner.generating).remove(&pos);
-            }
-        }
+        lock(&self.inner.generating).insert(pos);
+        self.gen_q.push(pos);
     }
 
     fn compute_light_async(&self, pos: ChunkPos) {
-        if let Some(tx) = lock(&self.light_tx).as_ref() {
-            lock(&self.inner.lighting).insert(pos);
-            if tx.send(pos).is_err() {
-                lock(&self.inner.lighting).remove(&pos);
-            }
-        }
+        lock(&self.inner.lighting).insert(pos);
+        self.light_q.push(pos);
     }
 
     /// Retire un chunk et le sauvegarde s'il est `dirty` (E/S sur le thread appelant).
@@ -658,8 +750,8 @@ impl ChunkManager {
     /// Annule les tâches en attente et arrête les threads (n'écrit rien sur disque).
     pub fn shutdown(&self) {
         self.inner.shutdown.store(true, Ordering::Release);
-        lock(&self.gen_tx).take();
-        lock(&self.light_tx).take();
+        self.gen_q.close();
+        self.light_q.close();
         let workers: Vec<_> = lock(&self.workers).drain(..).collect();
         for w in workers {
             let _ = w.join();

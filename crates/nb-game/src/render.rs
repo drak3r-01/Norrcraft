@@ -18,6 +18,44 @@ use nb_world::World;
 use crate::net::Avatar;
 use crate::state::GameState;
 
+/// Interpolation de rendu entre deux ticks de simulation (60 Hz).
+///
+/// La simulation avance par pas fixes ; sans interpolation, l'image affichée ne change qu'à
+/// chaque tick : sur un écran à 75 / 120 / 144 Hz des images consécutives montrent la même
+/// position puis un saut (saccades régulières), et la souris n'est lue qu'à 60 Hz. Ici la
+/// caméra et les mobs sont placés entre l'état du tick précédent et celui du tick courant
+/// (`alpha` = reliquat de l'accumulateur / pas), et la rotation de la souris non encore
+/// consommée par un tick est appliquée immédiatement. Désactivée par défaut (tests,
+/// captures hors écran : rendu exact de l'état de simulation).
+#[derive(Clone, Debug)]
+pub struct RenderInterp {
+    pub enabled: bool,
+    /// 0 = état du tick précédent, 1 = état du tick courant.
+    pub alpha: f32,
+    pub prev_cam_pos: Option<Vec3>,
+    pub prev_mobs: HashMap<EntityId, (DVec3, f32, f32)>,
+}
+
+impl Default for RenderInterp {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            alpha: 1.0,
+            prev_cam_pos: None,
+            prev_mobs: HashMap::new(),
+        }
+    }
+}
+
+/// Au-delà, le déplacement entre deux ticks est une téléportation : pas d'interpolation.
+const TELEPORT_DIST_SQ: f32 = 16.0;
+
+fn lerp_angle(a: f32, b: f32, t: f32) -> f32 {
+    use std::f32::consts::{PI, TAU};
+    let d = (b - a + PI).rem_euclid(TAU) - PI;
+    a + d * t
+}
+
 /// Un mob à dessiner (`MobRenderer.render` : entités `(Transform, MobType)`, ordre ECS).
 #[derive(Clone, Debug, PartialEq)]
 pub struct MobInstance {
@@ -88,10 +126,14 @@ impl ParticleLayers {
     }
 
     pub fn layer(&self, texture: &str) -> u32 {
-        self.names
-            .get(&texture.to_lowercase())
-            .copied()
-            .unwrap_or(self.missing)
+        // Nom déjà en minuscules (cas courant) : pas d'allocation, cette fonction est appelée
+        // pour chaque particule à chaque frame.
+        let layer = if texture.bytes().any(|b| b.is_ascii_uppercase()) {
+            self.names.get(&texture.to_lowercase())
+        } else {
+            self.names.get(texture)
+        };
+        layer.copied().unwrap_or(self.missing)
     }
 }
 
@@ -154,23 +196,39 @@ pub fn gfx_camera(c: &CameraState, aspect: f32) -> Camera {
 /// §8.2 : distance² minimale à une lave dans le cube [-8, 8]³ autour de la caméra (256 si
 /// aucune), arithmétique `float` du Java.
 pub fn nearest_lava_dist_sq(world: &World, lava: u8, cam: Vec3) -> f32 {
+    use nb_core::math::{block_index, CHUNK_SIZE_Y};
     let (cx, cy, cz) = (
         cam.x.floor() as i32,
         cam.y.floor() as i32,
         cam.z.floor() as i32,
     );
     let mut min = 256.0f32;
-    for x in -8..=8 {
-        for y in -8..=8 {
-            for z in -8..=8 {
-                let (bx, by, bz) = (cx + x, cy + y, cz + z);
-                if world.block(bx, by, bz) == lava {
-                    let dx = (bx as f32 + 0.5) - cam.x;
-                    let dy = (by as f32 + 0.5) - cam.y;
-                    let dz = (bz as f32 + 0.5) - cam.z;
-                    let d = dx * dx + dy * dy + dz * dz;
-                    if d < min {
-                        min = d;
+    // Le cube [-8, 8]³ touche au plus 4 chunks : on les prend une fois chacun (un verrou par
+    // chunk) et on lit les voxels directement, au lieu de 4913 `World::block` qui prenaient
+    // chacun deux verrous et une recherche dans la table des chunks, à chaque frame.
+    let cm = world.chunk_manager();
+    let (y0, y1) = ((cy - 8).max(0), (cy + 8).min(CHUNK_SIZE_Y as i32 - 1));
+    for chunk_x in (cx - 8).div_euclid(16)..=(cx + 8).div_euclid(16) {
+        for chunk_z in (cz - 8).div_euclid(16)..=(cz + 8).div_euclid(16) {
+            let Some(chunk) = cm.chunk(nb_core::ChunkPos::new(chunk_x, chunk_z)) else {
+                continue;
+            };
+            let guard = chunk.read();
+            let voxels = guard.voxels();
+            let (bx0, bz0) = (chunk_x * 16, chunk_z * 16);
+            for bx in (cx - 8).max(bx0)..=(cx + 8).min(bx0 + 15) {
+                for bz in (cz - 8).max(bz0)..=(cz + 8).min(bz0 + 15) {
+                    for by in y0..=y1 {
+                        let i = block_index((bx - bx0) as usize, by as usize, (bz - bz0) as usize);
+                        if voxels[i] == lava {
+                            let dx = (bx as f32 + 0.5) - cam.x;
+                            let dy = (by as f32 + 0.5) - cam.y;
+                            let dz = (bz as f32 + 0.5) - cam.z;
+                            let d = dx * dx + dy * dy + dz * dz;
+                            if d < min {
+                                min = d;
+                            }
+                        }
                     }
                 }
             }
@@ -228,6 +286,8 @@ pub fn build_view<'a>(
     sky: &SkyClock,
     aspect: f32,
     avatars: Vec<Avatar>,
+    interp: &RenderInterp,
+    look: Option<(f32, f32)>,
 ) -> RenderView<'a> {
     let player = sim.player.and_then(|p| sim.entities.copy::<Player>(p));
     let cam = player.map(|p| p.camera).unwrap_or_else(|| {
@@ -236,7 +296,17 @@ pub fn build_view<'a>(
             nb_ecs::player::default_fov(),
         )
     });
-    let camera = gfx_camera(&cam, aspect);
+    let mut camera = gfx_camera(&cam, aspect);
+    if interp.enabled && player.is_some() {
+        if let Some(prev) = interp.prev_cam_pos {
+            if (cam.position - prev).length_squared() < TELEPORT_DIST_SQ {
+                camera.position = prev.lerp(cam.position, interp.alpha.clamp(0.0, 1.0));
+            }
+        }
+        if let Some((d_pitch, d_yaw)) = look {
+            camera.rotate(d_pitch, d_yaw);
+        }
+    }
     let fluid = player.map_or(reg.ids().air, |p| p.fluid_at_eye_level);
     let heat =
         heat_from_nearest_lava_dist_sq(nearest_lava_dist_sq(world, reg.ids().lava, cam.position));
@@ -245,7 +315,19 @@ pub fn build_view<'a>(
     } else {
         None
     };
-    let mobs = mob_instances(sim);
+    let mut mobs = mob_instances(sim);
+    if interp.enabled {
+        let t = interp.alpha.clamp(0.0, 1.0);
+        for m in &mut mobs {
+            if let Some(&(pp, py, pq)) = interp.prev_mobs.get(&m.entity) {
+                if (m.position - pp).length_squared() < f64::from(TELEPORT_DIST_SQ) {
+                    m.position = pp.lerp(m.position, f64::from(t));
+                    m.yaw = lerp_angle(py, m.yaw, t);
+                    m.pitch = lerp_angle(pq, m.pitch, t);
+                }
+            }
+        }
+    }
     let particles = sim.particles.particles();
     RenderView {
         state,

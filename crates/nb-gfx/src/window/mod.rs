@@ -246,8 +246,11 @@ impl Renderer {
         let Some(sc) = &self.swapchain else {
             return Ok(());
         };
+        let perf = std::env::var_os("NB_PERF").is_some_and(|v| v != "0");
+        let t_start = std::time::Instant::now();
         let slot = self.scene.next_slot();
         self.scene.wait_slot(slot)?;
+        let t_wait = t_start.elapsed();
         // SAFETY : le sémaphore de ce créneau n'est plus en attente (fence attendu).
         let acquired = unsafe {
             sc.loader
@@ -264,6 +267,7 @@ impl Renderer {
             }
             Err(e) => return Err(e.into()),
         };
+        let t_acquire = t_start.elapsed();
         let out = OutputTarget {
             image: sc.images[index],
             view: sc.views[index],
@@ -271,7 +275,9 @@ impl Renderer {
             final_state: crate::vk::Transition::PRESENT,
         };
         let token = self.scene.begin_frame()?;
+        let t_begin = t_start.elapsed();
         record(&mut self.scene, token, &out)?;
+        let t_record = t_start.elapsed();
         let waits = [vk::SemaphoreSubmitInfo::default()
             .semaphore(self.acquire[slot])
             .stage_mask(vk::PipelineStageFlags2::COLOR_ATTACHMENT_OUTPUT)];
@@ -279,6 +285,7 @@ impl Renderer {
             .semaphore(self.present[index])
             .stage_mask(vk::PipelineStageFlags2::ALL_COMMANDS)];
         self.scene.submit_frame(token, &waits, &signals)?;
+        let t_submit = t_start.elapsed();
         let sc = self.swapchain.as_ref().expect("swapchain");
         let wait = [self.present[index]];
         let swapchains = [sc.raw];
@@ -291,6 +298,18 @@ impl Renderer {
             Ok(suboptimal) => self.needs_recreate |= suboptimal,
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => self.needs_recreate = true,
             Err(e) => return Err(e.into()),
+        }
+        if perf && t_start.elapsed().as_millis() > 30 {
+            let ms = |d: std::time::Duration| d.as_secs_f64() * 1000.0;
+            eprintln!(
+                "[perf-gfx] attente créneau {:.1} | acquire {:.1} | begin_frame {:.1} | enregistrement {:.1} | submit {:.1} | present {:.1} ms",
+                ms(t_wait),
+                ms(t_acquire - t_wait),
+                ms(t_begin - t_acquire),
+                ms(t_record - t_begin),
+                ms(t_submit - t_record),
+                ms(t_start.elapsed() - t_submit)
+            );
         }
         Ok(())
     }

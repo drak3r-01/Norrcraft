@@ -47,10 +47,9 @@ pub enum MeshAction {
     Remove(ChunkPos),
 }
 
-/// Nombre de threads par défaut : `max(1, cœurs / 2)`.
+/// Nombre de threads par défaut : la moitié des cœurs, entre 1 et 4.
 pub fn default_threads() -> usize {
-    let cpus = std::thread::available_parallelism().map_or(1, |n| n.get());
-    (cpus / 2).max(1)
+    nb_core::thread::background_pool_size()
 }
 
 struct Job {
@@ -87,6 +86,7 @@ impl Drop for InFlightGuard<'_> {
 }
 
 fn worker(shared: Arc<Shared>, jobs: Receiver<Job>, results: Sender<MeshResult>) {
+    nb_core::thread::lower_priority();
     while let Ok(job) = jobs.recv() {
         let _guard = InFlightGuard {
             shared: &shared,
@@ -186,39 +186,55 @@ impl MeshScheduler {
             actions.push(MeshAction::Remove(p));
         }
 
-        // 2. Soumettre les chunks sales dont le voisinage est prêt.
+        // 2. Soumettre les chunks sales dont le voisinage est prêt, dans l'ordre de `active`
+        //    (le jeu le trie par distance au joueur). Le nombre de tâches en cours est borné :
+        //    la file des threads reste courte, donc l'ordre de priorité est réévalué à chaque
+        //    frame au lieu d'être figé dans une file de centaines de tâches, et le thread
+        //    principal ne copie pas des dizaines de voisinages dans la même frame.
+        let cap = self.workers.len() * 2 + 2;
+        let mut in_flight = self.shared.in_flight().len();
         for &pos in active {
-            if !world.is_loaded(pos)
-                || !world.mesh_dirty(pos)
-                || self.shared.in_flight().contains(&pos)
-            {
+            if in_flight >= cap {
+                break;
+            }
+            // Test le moins cher d'abord : presque tous les chunks sont propres.
+            if !world.mesh_dirty(pos) {
+                continue;
+            }
+            if self.shared.in_flight().contains(&pos) {
+                continue;
+            }
+            // Voisinage prêt (9 chunks chargés et éclairés) avant de copier le moindre voxel.
+            let ready = (-1..=1).all(|dz| {
+                (-1..=1).all(|dx| {
+                    let np = ChunkPos::new(pos.x + dx, pos.z + dz);
+                    world.is_loaded(np) && !world.light_dirty(np)
+                })
+            });
+            if !ready {
                 continue;
             }
             let mut chunks: [Option<Arc<ChunkVoxels>>; 9] = Default::default();
-            let mut ready = true;
+            let mut complete = true;
             'outer: for dz in -1..=1 {
                 for dx in -1..=1 {
                     let np = ChunkPos::new(pos.x + dx, pos.z + dz);
-                    let snap = if world.light_dirty(np) {
-                        None
-                    } else {
-                        world.snapshot(np)
-                    };
-                    match snap {
+                    match world.snapshot(np) {
                         Some(s) => chunks[((dz + 1) * 3 + (dx + 1)) as usize] = Some(s),
                         None => {
-                            ready = false;
+                            complete = false;
                             break 'outer;
                         }
                     }
                 }
             }
-            if !ready {
+            if !complete {
                 continue;
             }
             let Some(jobs) = &self.jobs else { continue };
             world.set_mesh_dirty(pos, false);
             self.shared.in_flight().insert(pos);
+            in_flight += 1;
             let job = Job {
                 pos,
                 chunks,
@@ -227,6 +243,7 @@ impl MeshScheduler {
                 biomes: biomes.clone(),
             };
             if jobs.send(job).is_err() {
+                in_flight -= 1;
                 self.shared.in_flight().remove(&pos);
                 world.set_mesh_dirty(pos, true);
             }

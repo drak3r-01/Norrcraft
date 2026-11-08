@@ -119,8 +119,17 @@ pub struct FrameToken {
 }
 
 struct ChunkMesh {
+    /// Mémoire locale au GPU (rempli par une copie depuis un tampon de transfert).
     buffer: Buffer,
     vertex_count: u32,
+}
+
+/// Maillage en attente de copie vers la mémoire GPU : la copie est enregistrée au début de la
+/// prochaine frame 3D (pas de soumission ni d'attente dédiée).
+struct PendingUpload {
+    staging: Buffer,
+    dst: vk::Buffer,
+    size: u64,
 }
 
 struct Slot {
@@ -268,6 +277,7 @@ pub struct SceneRenderer {
     mobs: MobResources,
     meshes: HashMap<ChunkPos, ChunkMesh>,
     retired: Vec<(Option<u64>, Buffer)>,
+    pending_uploads: HashMap<ChunkPos, PendingUpload>,
     quadtree: ChunkQuadtree,
     visible: Vec<ChunkPos>,
     shadow_visible: Vec<ChunkPos>,
@@ -426,6 +436,7 @@ impl SceneRenderer {
             mobs,
             meshes: HashMap::new(),
             retired: Vec::new(),
+            pending_uploads: HashMap::new(),
             quadtree: ChunkQuadtree::new(),
             visible: Vec::new(),
             shadow_visible: Vec::new(),
@@ -479,17 +490,52 @@ impl SceneRenderer {
     // ------------------------------------------------------------------ ressources
 
     /// Remplace le maillage d'un chunk ; vide = suppression. Destruction différée de l'ancien.
+    ///
+    /// Les sommets vont dans un tampon de transfert (mémoire hôte), copié dans un tampon en
+    /// mémoire locale au GPU au début de la prochaine frame : le terrain est relu deux fois par
+    /// frame (ombre + scène) et une fois de plus pour les fluides, et sur une carte dédiée de la
+    /// mémoire visible de l'hôte ferait passer ces lectures par le bus PCIe à chaque image.
     pub fn upload_chunk_mesh(&mut self, pos: ChunkPos, vertices: &[ChunkVertex]) -> Result<()> {
         if vertices.is_empty() {
             self.remove_chunk_mesh(pos);
             return Ok(());
         }
-        let buffer = Buffer::with_data(
+        let bytes: &[u8] = bytemuck::cast_slice(vertices);
+        let size = bytes.len() as u64;
+        let mut staging = Buffer::new(
             &self.ctx,
-            vertices,
-            vk::BufferUsageFlags::VERTEX_BUFFER,
-            "chunk-mesh",
+            size,
+            vk::BufferUsageFlags::TRANSFER_SRC,
+            MemoryLocation::CpuToGpu,
+            "chunk-staging",
         )?;
+        if let Err(e) = staging.write(0, bytes) {
+            staging.destroy(&self.ctx);
+            return Err(e);
+        }
+        let buffer = match Buffer::gpu_only(
+            &self.ctx,
+            size,
+            vk::BufferUsageFlags::VERTEX_BUFFER | vk::BufferUsageFlags::TRANSFER_DST,
+            "chunk-mesh",
+        ) {
+            Ok(b) => b,
+            Err(e) => {
+                staging.destroy(&self.ctx);
+                return Err(e);
+            }
+        };
+        // Une copie encore en attente pour ce chunk est périmée (jamais soumise : détruite
+        // tout de suite).
+        self.drop_pending(pos);
+        self.pending_uploads.insert(
+            pos,
+            PendingUpload {
+                staging,
+                dst: buffer.raw,
+                size,
+            },
+        );
         let mesh = ChunkMesh {
             buffer,
             vertex_count: vertices.len() as u32,
@@ -500,16 +546,58 @@ impl SceneRenderer {
         Ok(())
     }
 
+    fn drop_pending(&mut self, pos: ChunkPos) {
+        if let Some(mut p) = self.pending_uploads.remove(&pos) {
+            p.staging.destroy(&self.ctx);
+        }
+    }
+
     pub fn remove_chunk_mesh(&mut self, pos: ChunkPos) {
+        self.drop_pending(pos);
         if let Some(old) = self.meshes.remove(&pos) {
             self.retire(old.buffer);
         }
     }
 
     pub fn clear_chunk_meshes(&mut self) {
+        for (_, mut p) in self.pending_uploads.drain() {
+            p.staging.destroy(&self.ctx);
+        }
         let all: Vec<_> = self.meshes.drain().map(|(_, m)| m.buffer).collect();
         for b in all {
             self.retire(b);
+        }
+    }
+
+    /// Enregistre les copies des maillages en attente au début de la frame `cmd`, puis une
+    /// barrière transfert → lecture de sommets. Les tampons de transfert sont détruits quand
+    /// cette frame est terminée.
+    fn record_pending_uploads(&mut self, cmd: vk::CommandBuffer) {
+        if self.pending_uploads.is_empty() {
+            return;
+        }
+        let d = &self.ctx.device;
+        for (_, p) in self.pending_uploads.iter() {
+            let region = [vk::BufferCopy {
+                src_offset: 0,
+                dst_offset: 0,
+                size: p.size,
+            }];
+            // SAFETY : tampon de commandes ouvert, hors passe de rendu ; les deux tampons
+            // vivent au moins jusqu'à la fin de cette frame (voir `retired` ci-dessous).
+            unsafe { d.cmd_copy_buffer(cmd, p.staging.raw, p.dst, &region) };
+        }
+        let mb = [vk::MemoryBarrier2::default()
+            .src_stage_mask(vk::PipelineStageFlags2::COPY)
+            .src_access_mask(vk::AccessFlags2::TRANSFER_WRITE)
+            .dst_stage_mask(vk::PipelineStageFlags2::VERTEX_INPUT)
+            .dst_access_mask(vk::AccessFlags2::VERTEX_ATTRIBUTE_READ)];
+        let dep = vk::DependencyInfo::default().memory_barriers(&mb);
+        // SAFETY : tampon de commandes ouvert.
+        unsafe { d.cmd_pipeline_barrier2(cmd, &dep) };
+        let frame = self.frame_counter;
+        for (_, p) in self.pending_uploads.drain() {
+            self.retired.push((Some(frame), p.staging));
         }
     }
 
@@ -802,6 +890,7 @@ impl SceneRenderer {
         overlay: &mut dyn FnMut(&mut OverlayPass<'_>),
     ) -> Result<()> {
         self.ensure_targets(out.extent)?;
+        self.record_pending_uploads(token.cmd);
         let extent = out.extent;
         let derived = FrameDerived::new(input, (extent.width, extent.height), &self.settings);
 
@@ -1350,6 +1439,9 @@ impl Drop for SceneRenderer {
         ctx.wait_idle();
         for (_, mut m) in self.meshes.drain() {
             m.buffer.destroy(&ctx);
+        }
+        for (_, mut p) in self.pending_uploads.drain() {
+            p.staging.destroy(&ctx);
         }
         for (_, mut b) in self.retired.drain(..) {
             b.destroy(&ctx);

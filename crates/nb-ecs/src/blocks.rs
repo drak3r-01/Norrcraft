@@ -24,6 +24,16 @@ pub trait BlockAccess {
         None
     }
 
+    /// Toute la colonne `(x, z)` (`y = 0..128`) dans `out`, comme autant d'appels à
+    /// [`Self::block`]. Les implémentations sur un vrai monde la lisent en un seul accès au
+    /// chunk : l'apparition des mobs balaie des colonnes entières (127 blocs) des dizaines de
+    /// fois par seconde.
+    fn read_column(&self, x: i32, z: i32, out: &mut [BlockId; CHUNK_SIZE_Y]) {
+        for (y, o) in out.iter_mut().enumerate() {
+            *o = self.block(x, y as i32, z);
+        }
+    }
+
     /// Raccourci sur un `IVec3`.
     fn block_at(&self, p: IVec3) -> BlockId {
         self.block(p.x, p.y, p.z)
@@ -46,6 +56,25 @@ impl BlockAccess for WorldBlocks<'_> {
 
     fn is_chunk_loaded(&self, wx: i32, wz: i32) -> bool {
         self.0.is_chunk_loaded(wx, wz)
+    }
+
+    fn read_column(&self, x: i32, z: i32, out: &mut [BlockId; CHUNK_SIZE_Y]) {
+        use nb_core::math::block_index;
+        let cm = self.0.chunk_manager();
+        let (cx, cz) = (x.div_euclid(16), z.div_euclid(16));
+        let reg = cm.registry();
+        match cm.chunk(nb_core::ChunkPos::new(cx, cz)) {
+            Some(c) => {
+                let guard = c.read();
+                let voxels = guard.voxels();
+                let (lx, lz) = ((x - cx * 16) as usize, (z - cz * 16) as usize);
+                for (y, o) in out.iter_mut().enumerate() {
+                    // Même résultat que `ChunkManager::block` : identifiant canonique.
+                    *o = reg.from_id(voxels[block_index(lx, y, lz)]).id;
+                }
+            }
+            None => out.fill(reg.ids().air),
+        }
     }
 
     fn leaves_tint(&self, x: i32, z: i32) -> [f64; 3] {

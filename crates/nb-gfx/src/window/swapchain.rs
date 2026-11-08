@@ -16,6 +16,18 @@ pub struct Swapchain {
 
 /// Choix du mode : vsync → FIFO ; sinon IMMEDIATE, à défaut MAILBOX (déviation), repli FIFO.
 pub fn choose_present_mode(available: &[vk::PresentModeKHR], vsync: bool) -> vk::PresentModeKHR {
+    // Diagnostic : `NB_PRESENT=fifo|mailbox|immediate` force le mode (s'il est disponible).
+    if let Ok(v) = std::env::var("NB_PRESENT") {
+        let forced = match v.to_ascii_lowercase().as_str() {
+            "fifo" => Some(vk::PresentModeKHR::FIFO),
+            "mailbox" => Some(vk::PresentModeKHR::MAILBOX),
+            "immediate" => Some(vk::PresentModeKHR::IMMEDIATE),
+            _ => None,
+        };
+        if let Some(m) = forced.filter(|m| available.contains(m)) {
+            return m;
+        }
+    }
     if vsync {
         return vk::PresentModeKHR::FIFO;
     }

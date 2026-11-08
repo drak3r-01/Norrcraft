@@ -3,6 +3,7 @@
 
 use std::f64::consts::PI;
 
+use nb_core::math::CHUNK_SIZE_Y;
 use nb_core::JavaRandom;
 use nb_data::{BlockRegistry, MobBehaviorType, MobConfig, MobMedium};
 
@@ -234,12 +235,16 @@ impl Spawner<'_> {
 /// `findSurfaceY` : premier bloc solide (de 127 à 1) surmonté d'AIR → `y + 1`, sinon −1.
 pub fn find_surface_y(blocks: &dyn BlockAccess, reg: &BlockRegistry, x: i32, z: i32) -> i32 {
     let air = reg.ids().air;
-    for y in (1..=127).rev() {
-        if !reg.from_id(blocks.block(x, y, z)).solid {
+    let mut col = [air; CHUNK_SIZE_Y];
+    blocks.read_column(x, z, &mut col);
+    for y in (1..=127usize).rev() {
+        if !reg.from_id(col[y]).solid {
             continue;
         }
-        if blocks.block(x, y + 1, z) == air {
-            return y + 1;
+        // `y + 1 = 128` est hors du monde : de l'air, comme `BlockAccess::block`.
+        let above = col.get(y + 1).copied().unwrap_or(air);
+        if above == air {
+            return y as i32 + 1;
         }
     }
     -1
@@ -255,11 +260,20 @@ pub fn find_water_y(
 ) -> i32 {
     let water = reg.ids().water;
     let min_depth = min_depth.max(1);
+    let mut col = [reg.ids().air; CHUNK_SIZE_Y];
+    blocks.read_column(x, z, &mut col);
+    let at = |y: i32| {
+        usize::try_from(y)
+            .ok()
+            .and_then(|i| col.get(i))
+            .copied()
+            .unwrap_or(reg.ids().air)
+    };
     for y in (min_depth..=127).rev() {
-        if blocks.block(x, y, z) != water {
+        if at(y) != water {
             continue;
         }
-        if (1..min_depth).all(|dy| blocks.block(x, y + dy, z) == water) {
+        if (1..min_depth).all(|dy| at(y + dy) == water) {
             return y + (min_depth - 1) / 2;
         }
     }

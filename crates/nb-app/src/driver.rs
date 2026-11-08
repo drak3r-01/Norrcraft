@@ -2,8 +2,10 @@
 //! l'interface, demandes de la plateforme (réglages, packs, modèles de mobs), maillages, rendu
 //! d'une frame (scène 3D + UI, ou UI seule).
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use image::RgbaImage;
 use nb_game::{Game, GameOptions, MeshAction, NbUi, PlatformRequest, Registries, UiFrame};
@@ -133,6 +135,15 @@ pub struct Driver {
     pub ui: UiRenderer,
     /// Dernière liste de dessin 2D (tests, captures).
     pub last_ui: UiFrame,
+    /// Maillages reçus du jeu, pas encore envoyés au GPU (voir [`Self::mesh_budget`]).
+    mesh_backlog: VecDeque<MeshAction>,
+    /// Temps maximal passé à envoyer des maillages au GPU par frame (au moins un maillage est
+    /// toujours envoyé). `None` = tout envoyer tout de suite (tests, captures hors écran).
+    ///
+    /// Quand le joueur avance, des dizaines de chunks sont maillés presque en même temps ;
+    /// tous les envoyer dans la même frame (allocations GPU, copies) crée un pic. Les
+    /// maillages restants partent aux frames suivantes, les plus proches du joueur d'abord.
+    pub mesh_budget: Option<Duration>,
 }
 
 impl Driver {
@@ -176,6 +187,8 @@ impl Driver {
             game,
             ui,
             last_ui: UiFrame::default(),
+            mesh_backlog: VecDeque::new(),
+            mesh_budget: None,
         })
     }
 
@@ -229,10 +242,33 @@ impl Driver {
         window
     }
 
+    /// Envoie au GPU les maillages produits par le jeu, dans la limite de
+    /// [`Self::mesh_budget`] ; le reste attend la frame suivante. Les suppressions sont
+    /// toujours immédiates (gratuites).
     pub fn apply_meshes(&mut self, b: &mut impl Backend) {
+        let pos_of = |a: &MeshAction| match a {
+            MeshAction::Upload(p, _) | MeshAction::Remove(p) => *p,
+        };
         for a in self.game.take_mesh_actions() {
+            // Une action plus récente sur le même chunk remplace celles qui attendent encore.
+            if !self.mesh_backlog.is_empty() {
+                let p = pos_of(&a);
+                self.mesh_backlog.retain(|old| pos_of(old) != p);
+            }
+            self.mesh_backlog.push_back(a);
+        }
+        let start = Instant::now();
+        let mut uploads = 0u32;
+        while let Some(a) = self.mesh_backlog.pop_front() {
             match a {
                 MeshAction::Upload(pos, mesh) => {
+                    if let Some(budget) = self.mesh_budget {
+                        if uploads > 0 && start.elapsed() >= budget {
+                            self.mesh_backlog.push_front(MeshAction::Upload(pos, mesh));
+                            break;
+                        }
+                    }
+                    uploads += 1;
                     if let Err(e) = b.scene_mut().upload_chunk_mesh(pos, &mesh.vertices) {
                         eprintln!("upload du chunk {pos:?} : {e}");
                     }
@@ -240,6 +276,11 @@ impl Driver {
                 MeshAction::Remove(pos) => b.scene_mut().remove_chunk_mesh(pos),
             }
         }
+    }
+
+    /// Nombre de maillages qui attendent encore leur envoi au GPU.
+    pub fn mesh_backlog_len(&self) -> usize {
+        self.mesh_backlog.len()
     }
 
     /// `stateManager.render()` + `chatController.render` : scène 3D si l'état la montre, puis

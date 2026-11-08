@@ -107,3 +107,65 @@ et `floor` ~8 %.
 * **Allocations par tick (nb-ecs, nb-game)** : pas de banc dédié, pas de modification.
 * Les mesures viennent d'une seule machine sous Docker/WSL2. Elles n'ont pas été reproduites
   sur d'autres processeurs.
+
+# Saccades et chutes d'images (passe « fluidité »)
+
+La phase 7 mesurait le débit CPU (génération, maillage). Cette passe traite ce que le joueur
+ressent : des images irrégulières, des creux d'images/s, des pics au passage d'une limite de
+chunk. Contrairement à la phase 7, les sorties ne sont plus identiques bit à bit sur un point :
+le rendu montre une position interpolée entre deux ticks (la simulation, elle, est inchangée ;
+vecteurs Java, tests dorés de maillage et rendus dorés lavapipe restent verts).
+
+## Mesurer : `NB_PERF=1`
+
+`NB_PERF=1 norrblock.exe` affiche une ligne par seconde (images/s, durée moyenne et maximale
+d'une frame, temps des ticks, du chargement des chunks, de l'envoi des maillages, du rendu) et
+une ligne `SACCADE` pour chaque frame de plus de 25 ms. Pour un rendu fenêtré, une ligne
+`[perf-gfx]` détaille où une frame lente a attendu (créneau, acquire, enregistrement, submit,
+present). `NB_PRESENT=fifo|mailbox|immediate` force le mode de présentation (diagnostic).
+
+## Causes trouvées et corrigées
+
+1. **Pas d'interpolation entre ticks.** La simulation tourne à 60 Hz fixes et le rendu montrait
+   l'état du dernier tick : sur un écran 75/120/144/165 Hz, des images consécutives affichaient
+   la même position puis un saut, et la souris n'était lue qu'à 60 Hz. Le rendu place maintenant
+   la caméra et les mobs entre le tick précédent et le courant (`RenderInterp`,
+   `Game::set_render_alpha`), et la rotation de souris non encore consommée est appliquée tout
+   de suite. Désactivé hors fenêtre (tests, `--headless`) : état exact de la simulation.
+2. **Apparition des mobs, une fois par seconde** (`nb-ecs/src/spawn.rs`). Jusqu'à 40 tentatives
+   par espèce, chacune balayant 127 blocs par autant d'appels `World::block` (deux verrous et
+   une recherche de chunk chacun) : un pic toutes les secondes. Les balayages lisent maintenant
+   la colonne en un seul accès (`BlockAccess::read_column`) ; mêmes résultats, même suite de
+   tirages aléatoires.
+3. **Lave autour de la caméra** (`nearest_lava_dist_sq`) : 4913 `World::block` à chaque
+   frame. Lecture directe des voxels des 4 chunks concernés.
+4. **Streaming et maillage répétés à chaque tick.** Les frames de rattrapage (jusqu'à 15 ticks)
+   rechargeaient la zone et replanifiaient les maillages à chaque tick. Ils ne le sont plus
+   qu'une fois par frame (`Game::update_tick` / `Game::update_streaming` ; `Game::update` fait
+   les deux et reste l'API des tests).
+5. **Ordre de génération et de maillage.** Les chunks étaient générés dans l'ordre (x, z) de
+   la zone puis maillés dans l'ordre (x, z) : ceux du fond avant ceux sous les pieds du joueur.
+   Files de génération et de lumière servies par distance croissante au joueur
+   (`PrioQueue`), maillage soumis par distance croissante, nombre de tâches de maillage en
+   cours borné (la file reste courte, l'ordre est réévalué à chaque frame). Le test de
+   préparation du voisinage 3×3 ne copie plus de voxels pour rien.
+6. **Threads de fond.** Trois pools de `cœurs/2` threads (génération, lumière, maillage) pour
+   un total de 1,5 × cœurs threads actifs, tous à la priorité du thread de rendu. Les pools sont
+   limités à 4 threads et passent en priorité basse (`nb_core::thread`, Windows).
+7. **Envoi des maillages au GPU.** Sommets en mémoire visible de l'hôte, relus deux à trois fois
+   par frame (ombre, scène, fluides) : lecture par le bus PCIe sur une carte dédiée. Les
+   maillages sont maintenant copiés (tampon de transfert, copie enregistrée au début de la
+   frame 3D) dans des tampons en mémoire locale au GPU. L'envoi est borné à 1,5 ms par frame
+   (`Driver::mesh_budget`), les plus proches du joueur d'abord ; le reste attend la frame
+   suivante.
+8. Allocation par particule et par frame (`to_lowercase` du nom de texture) supprimée.
+
+## À savoir : présentation sans vsync
+
+Sur la machine de test (RTX 4070 Laptop, session Windows non interactive), les modes
+`IMMEDIATE` et `MAILBOX` (vsync désactivé, valeur par défaut des réglages) provoquent une
+attente d'environ 500 ms sur le fence d'une frame, une fois par seconde, y compris dans le menu
+principal et à 60 images/s plafonnées. Avec le vsync (`FIFO`) ces arrêts disparaissent (166
+images/s stables, frame maximale ~11 ms). La cause n'a pas été isolée (pilote, DWM ou session de
+test) ; si le jeu saccade à la seconde chez un joueur, activer le vsync dans les réglages est le
+premier réflexe, et `NB_PERF=1` dit si l'attente vient bien de `present`/`attente créneau`.

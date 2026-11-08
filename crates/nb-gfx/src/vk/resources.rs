@@ -60,7 +60,18 @@ impl Buffer {
         })
     }
 
+    /// Tampon en mémoire locale au GPU (non mappé) : à remplir par une copie `TRANSFER_DST`.
+    pub fn gpu_only(
+        ctx: &GpuContext,
+        size: u64,
+        usage: vk::BufferUsageFlags,
+        name: &str,
+    ) -> Result<Self> {
+        Self::new(ctx, size, usage, MemoryLocation::GpuOnly, name)
+    }
+
     /// Tampon visible de l'hôte rempli avec `data`.
+
     pub fn with_data<T: bytemuck::Pod>(
         ctx: &GpuContext,
         data: &[T],

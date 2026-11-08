@@ -8,7 +8,8 @@ use nb_core::JavaRandom;
 use nb_data::GameSettings;
 use nb_data::Station;
 use nb_ecs::{
-    CameraState, CraftingGrid, EcsEvent, EcsRngs, GameMode, InventoryCursor, MobType, TICK_DT,
+    CameraState, CraftingGrid, EcsEvent, EcsRngs, GameMode, InventoryCursor, MobType, Transform,
+    TICK_DT,
 };
 use nb_gfx::{GfxSettings, SkyClock};
 use nb_mesh::{BlockTable, MeshAction, MeshScheduler};
@@ -16,10 +17,10 @@ use nb_world::save::{self, WorldMetadata};
 use nb_world::{FileChunkStorage, InMemoryChunkStorage, World, WorldConfig};
 
 use crate::chat::Chat;
-use crate::chunks::{sorted_active_positions, WorldChunks};
+use crate::chunks::{sorted_active_positions_near, WorldChunks};
 use crate::input::{Action, InputManager};
 use crate::net::{LanBrowser, LanView, NetMode};
-use crate::render::{build_view, ParticleLayers, RenderView};
+use crate::render::{build_view, ParticleLayers, RenderInterp, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
 
@@ -177,6 +178,8 @@ pub struct Game {
     lan_view: LanView,
     /// Dernier message de l'écran Multiplayer (texte, erreur ?).
     lan_message: Option<(String, bool)>,
+    /// Interpolation de rendu entre ticks (voir [`RenderInterp`]).
+    interp: RenderInterp,
 }
 
 impl std::fmt::Debug for Game {
@@ -265,6 +268,7 @@ impl Game {
             lan_browser: LanBrowser::for_options(&opts),
             lan_view: LanView::default(),
             lan_message: None,
+            interp: RenderInterp::default(),
             opts,
         };
         g.apply_initial_settings();
@@ -463,6 +467,13 @@ impl Game {
 
     /// Données de rendu de la frame.
     pub fn render_view(&self) -> RenderView<'_> {
+        // Rotation de la souris pas encore consommée par un tick : appliquée tout de suite.
+        let look = (self.interp.enabled && self.mouse_locked && self.state == GameState::Playing)
+            .then(|| {
+                let d = self.input.pending_mouse_delta();
+                let s = self.settings.sensitivity;
+                (d.y * s, d.x * s)
+            });
         build_view(
             self.state,
             &self.session.world,
@@ -473,7 +484,17 @@ impl Game {
             &self.sky,
             self.aspect,
             self.avatars(),
+            &self.interp,
+            look,
         )
+    }
+
+    /// Active l'interpolation de rendu : `alpha` = part du pas fixe écoulée depuis le dernier
+    /// tick (`FixedStep::accumulator() / step`). À appeler une fois par frame avant
+    /// [`Self::render_view`]. Sans cet appel, la vue montre exactement l'état du dernier tick.
+    pub fn set_render_alpha(&mut self, alpha: f32) {
+        self.interp.enabled = true;
+        self.interp.alpha = alpha.clamp(0.0, 1.0);
     }
 
     /// Vue de l'interface (même contenu que celle passée à [`Ui::update`]).
@@ -534,6 +555,15 @@ impl Game {
 
     /// `Main.update(dt)`.
     pub fn update(&mut self, dt: f64) {
+        self.update_tick(dt);
+        self.update_streaming();
+    }
+
+    /// Un tick de simulation (entrées, horloge, chat, état). La plateforme l'appelle `n` fois
+    /// par frame, puis [`Self::update_streaming`] **une seule fois** : charger les chunks et
+    /// planifier les remaillages n'a pas à être refait à chaque tick de rattrapage.
+    pub fn update_tick(&mut self, dt: f64) {
+        self.capture_prev_for_interp();
         self.step(Step::Input);
         self.input.update();
 
@@ -568,14 +598,32 @@ impl Game {
         self.update_state(dt);
         self.net_post_tick(dt, ev_start);
         self.refresh_lan_view();
+        self.ticks += 1;
+    }
 
+    /// Chargement / déchargement des chunks autour de la caméra, puis remaillages.
+    pub fn update_streaming(&mut self) {
         self.step(Step::Chunks);
         let pos = self.session.camera().position;
         self.session.world.update(pos);
 
         self.step(Step::Meshes);
         self.update_meshes();
-        self.ticks += 1;
+    }
+
+    /// État du tick qui va s'exécuter, gardé pour l'interpolation de rendu.
+    fn capture_prev_for_interp(&mut self) {
+        if !self.interp.enabled {
+            return;
+        }
+        self.interp.prev_cam_pos = Some(self.session.camera().position);
+        self.interp.prev_mobs.clear();
+        let e = &self.session.sim.entities;
+        for id in e.query_ids::<(&Transform, &MobType)>() {
+            if let Some(t) = e.copy::<Transform>(id) {
+                self.interp.prev_mobs.insert(id, (t.pos, t.yaw, t.pitch));
+            }
+        }
     }
 
     /// Avance de `n` ticks fixes (tests, outils).
@@ -590,7 +638,11 @@ impl Game {
             return;
         }
         let cm = self.session.world.chunk_manager();
-        let active = self.visible_chunks(sorted_active_positions(cm));
+        let center = nb_core::ChunkPos::new(
+            (self.session.camera().position.x / 16.0).floor() as i32,
+            (self.session.camera().position.z / 16.0).floor() as i32,
+        );
+        let active = self.visible_chunks(sorted_active_positions_near(cm, center));
         let actions = self.meshes.update(
             &mut WorldChunks(cm),
             &active,

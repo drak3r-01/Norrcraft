@@ -4,6 +4,7 @@
 pub mod error;
 pub mod math;
 pub mod random;
+pub mod thread;
 
 pub use error::{Error, Result};
 pub use math::{BlockPos, ChunkPos};

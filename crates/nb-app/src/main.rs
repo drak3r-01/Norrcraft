@@ -16,6 +16,7 @@
 
 mod driver;
 mod keymap;
+mod perf;
 mod script;
 
 use std::path::PathBuf;
@@ -240,6 +241,8 @@ struct Running {
     cursor: (f64, f64),
     frames: u64,
     script: Option<script::Runner>,
+    /// Mesures de temps par frame (`NB_PERF=1`).
+    perf: perf::Perf,
 }
 
 struct App {
@@ -281,6 +284,8 @@ impl App {
             .args
             .game_options(packs_root, (size.width, size.height));
         let mut driver = Driver::new(&mut renderer, opts).map_err(|e| e.to_string())?;
+        // Envoi des maillages au GPU étalé sur plusieurs frames (voir `Driver::mesh_budget`).
+        driver.mesh_budget = Some(std::time::Duration::from_micros(1500));
         if let Some(name) = &self.args.world {
             start_in_world(&mut driver, name);
         }
@@ -297,6 +302,7 @@ impl App {
             cursor: (0.0, 0.0),
             frames: 0,
             script,
+            perf: perf::Perf::from_env(),
         })
     }
 }
@@ -348,12 +354,15 @@ impl Running {
         let now = Instant::now();
         let frame = (now - self.last).as_secs_f64();
         self.last = now;
+        self.perf.begin(frame);
         let meshes = self.renderer.scene().chunk_mesh_count();
         let mut stop = false;
         let mut t = self.start.elapsed().as_secs_f32();
         if let Some(mut s) = self.script.take() {
             let out = s.before_frame(&mut self.driver().game, meshes);
+            let t0 = Instant::now();
             self.driver().game.update(TIME_STEP);
+            self.perf.ticks(1, t0.elapsed(), std::time::Duration::ZERO);
             if let Some(name) = &out.capture {
                 eprintln!("capture {name} ignorée en mode fenêtré (utiliser --headless)");
             }
@@ -362,21 +371,34 @@ impl Running {
             self.script = Some(s);
         } else {
             let n = self.loop_.advance(frame);
+            let alpha = (self.loop_.accumulator() / self.loop_.step()) as f32;
+            let g = &mut self.driver.as_mut().expect("jeu actif").game;
+            let t0 = Instant::now();
             for _ in 0..n {
-                self.driver().game.update(TIME_STEP);
+                g.update_tick(TIME_STEP);
             }
+            let t1 = Instant::now();
+            // Chargement des chunks et remaillages : une fois par frame, pas par tick.
+            g.update_streaming();
+            g.set_render_alpha(alpha);
+            self.perf.ticks(n, t1 - t0, t1.elapsed());
         }
         self.apply_window_requests(el);
         let d = self.driver.as_mut().expect("jeu actif");
+        let t_mesh = Instant::now();
         d.apply_meshes(&mut self.renderer);
+        self.perf.meshes(t_mesh.elapsed(), d.mesh_backlog_len());
         let _ = d.game.take_events();
         if let Some(e) = d.game.take_error() {
             eprintln!("{e}");
         }
+        let t_render = Instant::now();
         if let Err(e) = d.render(&mut self.renderer, t) {
             eprintln!("rendu : {e}");
         }
+        self.perf.render(t_render.elapsed());
         d.game.input.end_frame();
+        self.perf.end();
         self.frames += 1;
         stop || d.game.quit_requested()
     }
