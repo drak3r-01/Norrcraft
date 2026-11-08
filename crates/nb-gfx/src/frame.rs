@@ -142,9 +142,9 @@ pub struct FrameUniforms {
     pub sun_color: [f32; 4],
     /// x = `P_gl[2][2]`, y = `P_gl[3][2]`, z = W, w = H.
     pub proj_gl: [f32; 4],
-    /// x = auroraIntensity, y = auroraPhase, z = heatIntensity.
+    /// x = auroraIntensity, y = auroraPhase, z = heatIntensity, w = nuit (étoiles, lune).
     pub env: [f32; 4],
-    /// x = fluidState, y = correctif des seuils d'ombre.
+    /// x = fluidState, y = correctif des seuils d'ombre, z = 1 si la lune éclaire (sinon soleil).
     pub flags: [i32; 4],
 }
 
@@ -205,12 +205,12 @@ impl FrameDerived {
                 sky.aurora_intensity,
                 input.sky_clock.aurora_phase,
                 input.heat_intensity,
-                0.0,
+                sky.night,
             ],
             flags: [
                 fluid_state,
                 i32::from(settings.fix_shadow_layer_thresholds),
-                0,
+                i32::from(sky.moon_up),
                 0,
             ],
         };

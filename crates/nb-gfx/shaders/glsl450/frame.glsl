@@ -16,6 +16,6 @@ layout(set = 0, binding = 0, std140) uniform Frame {
     vec4 horizonColor;
     vec4 sunColor;
     vec4 projGl;        // x = P_gl[2][2], y = P_gl[3][2], z = W, w = H (uScreenSize)
-    vec4 env;           // x = auroraIntensity, y = auroraPhase, z = heatIntensity
-    ivec4 flags;        // x = fluidState (0 air / 1 eau / 2 lave), y = correctif seuils d'ombre
+    vec4 env;           // x = auroraIntensity, y = auroraPhase, z = heatIntensity, w = nuit (0 jour, 1 nuit)
+    ivec4 flags;        // x = fluidState (0 air / 1 eau / 2 lave), y = correctif seuils d'ombre, z = 1 si lune
 } u;
