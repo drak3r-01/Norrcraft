@@ -1,5 +1,7 @@
 # Inventaire, craft et blocs exclusifs
 
+> Mode survie nordique (outils, armures, faim, froid, pêche, cultures) : voir [`SURVIE.md`](SURVIE.md). Les 70 recettes de la survie y sont décrites ; le livre de recettes du jeu liste les 116 crafts.
+
 Système ajouté en phase 10 (aucun équivalent dans la version Java : le jeu d'origine n'avait ni
 objets ni recettes). Tout est piloté par des fichiers de données ; ajouter une recette ou un
 objet ne demande pas de toucher au code.

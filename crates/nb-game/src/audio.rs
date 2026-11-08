@@ -377,7 +377,36 @@ impl AudioDirector {
                 self.prev_feet = None;
             }
             EcsEvent::StationUsed { .. } => self.ui_sound(Sfx::UiOpen, 1.0),
-            EcsEvent::MobSpawned { .. } | EcsEvent::MobDespawned { .. } => {}
+            // --- Survie ---
+            EcsEvent::BlockMining { pos, block, .. } => {
+                if let Some(m) = self.material(ctx.regs, block) {
+                    self.world_sound(Sfx::Place(m), center(pos), Bus::Effects, 0.75, 1.15);
+                }
+            }
+            EcsEvent::Gained { .. } => self.ui_sound(Sfx::Pickup, 0.55),
+            EcsEvent::ItemBroke { .. } => self.ui_sound(Sfx::Break(Material::Metal), 1.0),
+            EcsEvent::Equipped { .. } => self.ui_sound(Sfx::Place(Material::Metal), 0.8),
+            EcsEvent::Tilled { pos } => {
+                self.world_sound(Sfx::Break(Material::Dirt), center(pos), Bus::Effects, 0.8, 0.9);
+            }
+            EcsEvent::Planted { pos } => {
+                self.world_sound(Sfx::Place(Material::Dirt), center(pos), Bus::Effects, 0.8, 1.2);
+            }
+            EcsEvent::Cast { pos } | EcsEvent::Reel { pos } => {
+                self.world_sound(Sfx::Splash, to_vec(pos), Bus::Effects, 0.6, 1.3);
+            }
+            EcsEvent::FishBite { pos } => {
+                self.world_sound(Sfx::Splash, to_vec(pos), Bus::Effects, 1.0, 0.9);
+            }
+            EcsEvent::Caught { .. } => self.ui_sound(Sfx::Pickup, 1.0),
+            EcsEvent::Eating { .. } => self.ui_sound(Sfx::Step(Material::Plant), 0.9),
+            EcsEvent::Ate { .. } => self.ui_sound(Sfx::Pickup, 0.7),
+            EcsEvent::Hurt { .. } => self.ui_sound(Sfx::PlayerHurt, 0.5),
+            EcsEvent::MobSpawned { .. }
+            | EcsEvent::MobDespawned { .. }
+            | EcsEvent::AttackDealt { .. }
+            | EcsEvent::Notice(_)
+            | EcsEvent::CropGrew { .. } => {}
         }
     }
 

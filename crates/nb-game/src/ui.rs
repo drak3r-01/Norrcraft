@@ -70,6 +70,8 @@ pub enum UiCommand {
     RefreshWorlds,
     /// Clic gauche sur une case d'inventaire (`-1` = hors grille).
     InventoryClick(i32),
+    /// Livre de recettes : remplir la grille de craft avec la recette `n` du livre.
+    RecipeFill(usize),
     /// Clic sur une case d'un écran d'inventaire / de station (voir `nb_ecs::crafting` pour la
     /// numérotation) : bouton, Maj.
     SlotClick {
@@ -142,6 +144,16 @@ pub struct UiView<'a> {
     pub block_table: &'a BlockTable,
     /// Objets (noms des objets purs : bâton, lingot…).
     pub items: &'a ItemRegistry,
+    /// Règles de survie (outils, nourriture, armures) pour les infobulles.
+    pub survival: &'a nb_data::SurvivalData,
+    /// Toutes les recettes (livre de recettes).
+    pub recipes: &'a nb_data::RecipeBook,
+    /// État de survie du joueur.
+    pub vitals: Option<nb_ecs::Vitals>,
+    /// Messages à afficher (texte, secondes restantes).
+    pub notices: &'a [(String, f32)],
+    /// Butin récent (nom, quantité, secondes restantes).
+    pub pickups: &'a [(String, i32, f32)],
     /// Couches de texture des objets purs.
     pub item_icons: &'a ItemIcons,
     /// Station affichée par l'écran d'inventaire (main, établi, fonderie).

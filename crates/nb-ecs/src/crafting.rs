@@ -6,8 +6,12 @@
 
 use nb_data::{ItemId, Output, RecipeBook, Station};
 
-use crate::inventory::{Inventory, InventoryCursor, ItemStack, HOTBAR_START, SIZE, STACK_MAX};
+use crate::inventory::{
+    stack_max, Inventory, InventoryCursor, ItemStack, HOTBAR_START, SIZE, STACK_MAX,
+};
 
+/// Première case d'armure (tête, torse, jambes, pieds) dans la numérotation d'un écran.
+pub const ARMOR_BASE: i32 = 100;
 /// Première case de la grille de craft dans la numérotation d'un écran.
 pub const GRID_BASE: i32 = 36;
 /// Case de résultat.
@@ -94,6 +98,54 @@ impl CraftingGrid {
             }
         }
         self.update(book);
+    }
+
+    /// Remplit la grille avec la recette `recipe` du livre, en prélevant les ingrédients dans
+    /// `inv` (la grille est d'abord vidée dans l'inventaire). `false` (grille laissée vide) si
+    /// la station ne convient pas ou qu'il manque un ingrédient.
+    pub fn autofill(&mut self, inv: &mut Inventory, book: &RecipeBook, recipe: usize) -> bool {
+        use nb_data::{Ingredient, Shape};
+        let Some(r) = book.recipes().get(recipe) else {
+            return false;
+        };
+        if !self.station.accepts(r.station) {
+            return false;
+        }
+        self.return_to(inv, book);
+        let (gw, _) = self.size();
+        let wanted: Vec<(usize, &Ingredient)> = match &r.shape {
+            Shape::Shaped {
+                width,
+                height,
+                cells,
+            } => {
+                let mut v = Vec::new();
+                for row in 0..*height {
+                    for col in 0..*width {
+                        if let Some(ing) = &cells[row * width + col] {
+                            v.push((row * gw + col, ing));
+                        }
+                    }
+                }
+                v
+            }
+            Shape::Shapeless(list) => list.iter().enumerate().collect(),
+        };
+        for (k, ing) in &wanted {
+            // L'objet compatible le plus abondant (un objet précis : lui-même).
+            let best = (0..SIZE as i32)
+                .filter_map(|i| inv.slot(i).map(|s| (i, s)))
+                .filter(|(_, s)| ing.matches(s.item) && s.count > 0)
+                .max_by_key(|(_, s)| s.count);
+            let Some((i, s)) = best else {
+                self.return_to(inv, book);
+                return false;
+            };
+            inv.remove_one(i);
+            self.cells[*k] = Some(ItemStack::new(s.item, 1).with_wear(s.wear));
+        }
+        self.update(book);
+        true
     }
 
     /// Vide la grille dans `inv` ; retourne le nombre d'objets **perdus** (inventaire plein).
@@ -200,7 +252,9 @@ impl InventoryCursor {
                 self.held_from = -1;
                 grid.consume(book);
             }
-            Some(mut h) if h.item == out.item && h.count + out.count <= STACK_MAX => {
+            Some(mut h)
+                if h.item == out.item && h.wear == out.wear && h.count + out.count <= stack_max(h.item) =>
+            {
                 h.count += out.count;
                 self.held = Some(h);
                 grid.consume(book);
@@ -244,8 +298,8 @@ fn quick_move_inventory(inv: &mut Inventory, slot: i32) {
             break;
         }
         if let Some(mut t) = inv.slot(i) {
-            if t.item == s.item && t.count < STACK_MAX {
-                let n = (STACK_MAX - t.count).min(s.count);
+            if t.item == s.item && t.wear == s.wear && t.count < stack_max(s.item) {
+                let n = (stack_max(s.item) - t.count).min(s.count);
                 t.count += n;
                 s.count -= n;
                 inv.set_slot(i, Some(t));
@@ -257,8 +311,8 @@ fn quick_move_inventory(inv: &mut Inventory, slot: i32) {
             break;
         }
         if inv.slot(i).is_none() {
-            let n = s.count.min(STACK_MAX);
-            inv.set_slot(i, Some(ItemStack::new(s.item, n)));
+            let n = s.count.min(stack_max(s.item));
+            inv.set_slot(i, Some(ItemStack::new(s.item, n).with_wear(s.wear)));
             s.count -= n;
         }
     }

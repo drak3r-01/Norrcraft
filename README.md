@@ -277,3 +277,13 @@ Multijoueur LAN **optionnel**, sans serveur dédié : un joueur héberge depuis 
 (**Échap → OPEN TO LAN**), les autres le rejoignent depuis **MULTIPLAYER** (liste automatique des
 parties du réseau, ou adresse saisie). Jusqu'à 8 joueurs, monde, blocs, mobs et chat partagés.
 Guide, ports, fonctionnement et limites : [`docs/LAN.md`](docs/LAN.md).
+
+## Phase 12 : survie nordique
+
+Faim, froid (chaleur corporelle), endurance, minage progressif avec **5 paliers d'outils**
+(bois → aurore), armures de fourrure / fer / diamant / aurore, chasse (butin des 45 mobs), pêche,
+labour et cultures (blé, pomme de terre, carotte), cuisine, 82 nouveaux objets et 70 recettes,
+**livre de recettes** (bouton dans l'inventaire), icônes d'inventaire en **cubes isométriques**,
+vue à la 3ᵉ personne (**F5**) avec avatar animé et protocole LAN v2. Le mode créatif reste
+inchangé. Guide complet : [`docs/SURVIE.md`](docs/SURVIE.md) (données générées par
+`scripts/gen_survival.py`).

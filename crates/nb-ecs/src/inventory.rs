@@ -1,6 +1,9 @@
 //! Inventaire (spec §14) : 36 cases, barre rapide en 27–35, piles de 64, et logique « curseur »
 //! de l'écran d'inventaire.
 
+use std::collections::HashSet;
+use std::sync::{OnceLock, RwLock};
+
 use nb_data::{BlockId, ItemId};
 
 /// Nombre de cases.
@@ -9,6 +12,26 @@ pub const SIZE: usize = 36;
 pub const HOTBAR_START: i32 = 27;
 /// Taille maximale d'une pile.
 pub const STACK_MAX: i32 = nb_data::STACK_MAX;
+
+fn unstackable() -> &'static RwLock<HashSet<ItemId>> {
+    static SET: OnceLock<RwLock<HashSet<ItemId>>> = OnceLock::new();
+    SET.get_or_init(|| RwLock::new(HashSet::new()))
+}
+
+/// Déclare les objets qui ne s'empilent pas (outils, armures : chacun porte sa propre usure).
+pub fn set_unstackable(ids: impl IntoIterator<Item = ItemId>) {
+    if let Ok(mut s) = unstackable().write() {
+        *s = ids.into_iter().collect();
+    }
+}
+
+/// Taille maximale de la pile de `item` (1 pour un outil ou une armure).
+pub fn stack_max(item: ItemId) -> i32 {
+    match unstackable().read() {
+        Ok(s) if s.contains(&item) => 1,
+        _ => STACK_MAX,
+    }
+}
 
 /// Ordre de remplissage : barre rapide 27..=35 puis grille 0..=26.
 pub const FILL_ORDER: [usize; SIZE] = {
@@ -30,6 +53,8 @@ pub const FILL_ORDER: [usize; SIZE] = {
 pub struct ItemStack {
     pub item: ItemId,
     pub count: i32,
+    /// Usure d'un outil ou d'une armure (0 = neuf).
+    pub wear: u16,
 }
 
 impl ItemStack {
@@ -38,19 +63,29 @@ impl ItemStack {
         Self {
             item: item.into(),
             count,
+            wear: 0,
         }
+    }
+
+    /// Même objet avec une autre usure.
+    pub fn with_wear(mut self, wear: u16) -> Self {
+        self.wear = wear;
+        self
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Inventory {
     slots: [Option<ItemStack>; SIZE],
+    /// Pièces d'armure portées : tête, torse, jambes, pieds.
+    armor: [Option<ItemStack>; 4],
 }
 
 impl Default for Inventory {
     fn default() -> Self {
         Self {
             slots: [None; SIZE],
+            armor: [None; 4],
         }
     }
 }
@@ -81,10 +116,11 @@ impl Inventory {
         if left <= 0 {
             return 0;
         }
+        let sm = stack_max(stack.item);
         for i in FILL_ORDER {
             if let Some(s) = &mut self.slots[i] {
-                if s.item == stack.item && s.count < STACK_MAX {
-                    let t = (STACK_MAX - s.count).min(left);
+                if s.item == stack.item && s.wear == stack.wear && s.count < sm {
+                    let t = (sm - s.count).min(left);
                     s.count += t;
                     left -= t;
                     if left == 0 {
@@ -95,8 +131,8 @@ impl Inventory {
         }
         for i in FILL_ORDER {
             if self.slots[i].is_none() {
-                let t = STACK_MAX.min(left);
-                self.slots[i] = Some(ItemStack::new(stack.item, t));
+                let t = sm.min(left);
+                self.slots[i] = Some(ItemStack::new(stack.item, t).with_wear(stack.wear));
                 left -= t;
                 if left == 0 {
                     return 0;
@@ -111,8 +147,8 @@ impl Inventory {
         self.slots
             .iter()
             .map(|s| match s {
-                None => STACK_MAX,
-                Some(s) if s.item == item => (STACK_MAX - s.count).max(0),
+                None => stack_max(item),
+                Some(s) if s.item == item => (stack_max(item) - s.count).max(0),
                 Some(_) => 0,
             })
             .sum()
@@ -168,6 +204,21 @@ impl Inventory {
 
     pub fn clear(&mut self) {
         self.slots = [None; SIZE];
+        self.armor = [None; 4];
+    }
+
+    /// Pièce d'armure portée à l'emplacement `slot`.
+    pub fn armor(&self, slot: nb_data::ArmorSlot) -> Option<ItemStack> {
+        self.armor[slot.index()]
+    }
+
+    pub fn set_armor(&mut self, slot: nb_data::ArmorSlot, stack: Option<ItemStack>) {
+        self.armor[slot.index()] = stack;
+    }
+
+    /// Les 4 pièces d'armure (tête, torse, jambes, pieds).
+    pub fn armor_slots(&self) -> &[Option<ItemStack>; 4] {
+        &self.armor
     }
 
     /// Toutes les cases (pour la sauvegarde et le rendu).
@@ -176,8 +227,61 @@ impl Inventory {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.slots.iter().all(Option::is_none)
+        self.slots.iter().all(Option::is_none) && self.armor.iter().all(Option::is_none)
     }
+}
+
+/// Clic sur un emplacement d'armure de l'écran d'inventaire (`slot` = `ARMOR_BASE + k`) :
+/// prendre la pièce portée, ou poser la pièce tenue (échange) si elle va à cet emplacement.
+/// `armor_slot(item)` donne l'emplacement d'une pièce d'armure. Retourne `true` si géré.
+pub fn armor_click(
+    inv: &mut Inventory,
+    cursor: &mut InventoryCursor,
+    slot: i32,
+    armor_slot: impl Fn(ItemId) -> Option<nb_data::ArmorSlot>,
+) -> bool {
+    let k = slot - crate::crafting::ARMOR_BASE;
+    if !(0..4).contains(&k) {
+        return false;
+    }
+    let which = nb_data::ArmorSlot::ALL[k as usize];
+    match cursor.held {
+        Some(h) => {
+            if armor_slot(h.item) == Some(which) {
+                let old = inv.armor(which);
+                inv.set_armor(which, Some(ItemStack::new(h.item, 1).with_wear(h.wear)));
+                cursor.held = old;
+                cursor.held_from = -1;
+            }
+        }
+        None => {
+            if let Some(a) = inv.armor(which) {
+                cursor.held = Some(a);
+                cursor.held_from = -1;
+                inv.set_armor(which, None);
+            }
+        }
+    }
+    true
+}
+
+/// Maj + clic sur une case d'inventaire contenant une pièce d'armure : l'équiper (échange avec
+/// la pièce déjà portée). Retourne `true` si l'objet était une armure.
+pub fn quick_equip(
+    inv: &mut Inventory,
+    slot: i32,
+    armor_slot: impl Fn(ItemId) -> Option<nb_data::ArmorSlot>,
+) -> bool {
+    let Some(s) = inv.slot(slot) else {
+        return false;
+    };
+    let Some(which) = armor_slot(s.item) else {
+        return false;
+    };
+    let old = inv.armor(which);
+    inv.set_armor(which, Some(ItemStack::new(s.item, 1).with_wear(s.wear)));
+    inv.set_slot(slot, old);
+    true
 }
 
 /// État « objet tenu au curseur » de l'écran d'inventaire (spec §14.3).
@@ -229,8 +333,10 @@ impl InventoryCursor {
                 self.held = None;
                 self.held_from = -1;
             }
-            (Some(mut h), Some(mut s)) if h.item == s.item => {
-                let t = (STACK_MAX - s.count).min(h.count);
+            (Some(mut h), Some(mut s))
+                if h.item == s.item && h.wear == s.wear && stack_max(h.item) > 1 =>
+            {
+                let t = (stack_max(h.item) - s.count).min(h.count);
                 s.count += t;
                 h.count -= t;
                 *cell = Some(s);
@@ -255,17 +361,20 @@ impl InventoryCursor {
             (None, None) => {}
             (None, Some(s)) => {
                 let take = (s.count + 1) / 2;
-                self.held = Some(ItemStack::new(s.item, take));
+                self.held = Some(ItemStack::new(s.item, take).with_wear(s.wear));
                 self.held_from = slot;
-                *cell = (s.count - take > 0).then(|| ItemStack::new(s.item, s.count - take));
+                *cell = (s.count - take > 0)
+                    .then(|| ItemStack::new(s.item, s.count - take).with_wear(s.wear));
             }
             (Some(mut h), None) => {
-                *cell = Some(ItemStack::new(h.item, 1));
+                *cell = Some(ItemStack::new(h.item, 1).with_wear(h.wear));
                 h.count -= 1;
                 self.set_held_or_clear(h);
             }
-            (Some(mut h), Some(mut s)) if h.item == s.item => {
-                if s.count < STACK_MAX {
+            (Some(mut h), Some(mut s))
+                if h.item == s.item && h.wear == s.wear && stack_max(h.item) > 1 =>
+            {
+                if s.count < stack_max(h.item) {
                     s.count += 1;
                     h.count -= 1;
                     *cell = Some(s);
@@ -307,8 +416,12 @@ impl InventoryCursor {
                         inv.set_slot(i, Some(h));
                         break;
                     }
-                    Some(mut s) if s.item == h.item && s.count < STACK_MAX => {
-                        let t = (STACK_MAX - s.count).min(h.count);
+                    Some(mut s)
+                        if s.item == h.item
+                            && s.wear == h.wear
+                            && s.count < stack_max(h.item) =>
+                    {
+                        let t = (stack_max(h.item) - s.count).min(h.count);
                         s.count += t;
                         h.count -= t;
                         inv.set_slot(i, Some(s));

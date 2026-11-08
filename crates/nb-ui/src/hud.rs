@@ -1,10 +1,11 @@
 //! HUD de jeu (`PlayingState`) : viseur, barre d'inventaire, sélecteur, icônes et quantités,
 //! nom de l'objet tenu, cœurs et faim (mode survie).
 
-use crate::draw::{DrawList, WHITE};
+use crate::draw::{DrawList, IconStyle, WHITE};
 use crate::font;
 use crate::input::UiInput;
 use crate::state::GameState;
+use crate::survival_hud::{self, ItemInfoView, SurvivalHud};
 use crate::textures::UiTexture;
 
 pub const HOTBAR_W: i32 = 544;
@@ -20,6 +21,9 @@ pub const ITEM_NAME_FADE: f32 = 0.5;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SlotView<'a> {
     pub icon_layer: u32,
+    pub style: IconStyle,
+    /// Description de l'objet (infobulle, barre d'usure).
+    pub info: ItemInfoView,
     pub count: i32,
     /// Nom interne du bloc (`oak_log`).
     pub name: &'a str,
@@ -33,6 +37,8 @@ pub struct HudView<'a> {
     pub creative: bool,
     /// `HealthComponent` (absent → 0 cœur).
     pub health: Option<(f32, f32)>,
+    /// État de survie (faim, chaleur, endurance…) ; `None` : la faim reste pleine.
+    pub survival: Option<SurvivalHud<'a>>,
 }
 
 /// `formatBlockName` : `oak_log` → `Oak Log`.
@@ -184,7 +190,10 @@ impl Hud {
         for (i, slot) in view.hotbar.iter().enumerate() {
             let Some(s) = slot else { continue };
             let (ix, iy) = l.icon(i);
-            dl.block_icon(s.icon_layer, ix, iy, ICON_SIZE);
+            dl.icon(s.icon_layer, s.style, ix, iy, ICON_SIZE);
+            if let Some(f) = s.info.durability_left() {
+                survival_hud::durability_bar(dl, ix, iy, ICON_SIZE, f);
+            }
             if s.count > 1 {
                 let text = s.count.to_string();
                 let scale = 1.8;
@@ -206,12 +215,22 @@ impl Hud {
             }
         }
 
+        if let (Some(sv), Some(Some(held))) = (&view.survival, view.hotbar.get(view.selected)) {
+            survival_hud::draw_held(dl, win_w, win_h, held.icon_layer, held.style, sv.swing);
+        }
         if !view.creative {
-            self.draw_vitals(dl, &l, view);
+            self.draw_vitals(dl, &l, win_w, win_h, view);
         }
     }
 
-    fn draw_vitals(&self, dl: &mut DrawList, l: &HotbarLayout, view: &HudView<'_>) {
+    fn draw_vitals(
+        &self,
+        dl: &mut DrawList,
+        l: &HotbarLayout,
+        win_w: i32,
+        win_h: i32,
+        view: &HudView<'_>,
+    ) {
         let step = HUD_ICON_SIZE + HUD_ICON_GAP;
         let hud_y = l.hotbar_y as f32 - HUD_ICON_SIZE - 4.0;
         let scaled = match view.health {
@@ -230,7 +249,11 @@ impl Hud {
             };
             dl.image(tex, l.hotbar_x as f32 + i as f32 * step, hud_y, s, s, WHITE);
         }
-        // La faim n'est pas simulée : toujours 10 icônes pleines.
+        if let Some(s) = &view.survival {
+            survival_hud::draw(dl, l, win_w, win_h, s);
+            return;
+        }
+        // Sans survie : la faim reste toujours pleine.
         let total = 10.0 * step - HUD_ICON_GAP;
         let start = l.hotbar_x as f32 + HOTBAR_W as f32 - total;
         for i in 0..10 {
@@ -257,12 +280,15 @@ mod tests {
             selected,
             creative,
             health: Some((15.0, 20.0)),
+            survival: None,
         }
     }
 
     fn stone(count: i32) -> Option<SlotView<'static>> {
         Some(SlotView {
             icon_layer: 5,
+            style: Default::default(),
+            info: Default::default(),
             count,
             name: "cobble_stone",
         })

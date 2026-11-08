@@ -4,7 +4,7 @@
 use crate::wire::{Reader, WireError, Writer};
 
 /// Version du protocole : refusée si elle diffère entre hôte et client.
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 /// Port TCP de jeu par défaut.
 pub const DEFAULT_GAME_PORT: u16 = 25570;
 /// Nombre maximal de joueurs (hôte compris).
@@ -67,15 +67,18 @@ pub enum ClientMsg {
         pitch: f32,
         health: f32,
         creative: bool,
+        /// Réduction des dégâts de mobs par l'armure portée (0..0,8).
+        reduction: f32,
     },
     /// Le joueur a posé (`block` ≠ air) ou cassé un bloc.
     BlockEdit {
         pos: [i32; 3],
         block: u8,
     },
-    /// Le joueur frappe le mob `entity`.
+    /// Le joueur frappe le mob `entity` avec `damage` (arme tenue).
     Attack {
         entity: u32,
+        damage: f32,
     },
     Chat(String),
     Ping(u32),
@@ -122,6 +125,8 @@ pub enum ServerMsg {
         text: String,
     },
     Kick(String),
+    /// Le mob `mob` (identifiant de type) vient d'être tué par ce joueur : il tire son butin.
+    MobKilled(String),
 }
 
 mod tag {
@@ -145,6 +150,7 @@ mod tag {
     pub const S_TIME: u8 = 110;
     pub const S_CHAT: u8 = 111;
     pub const S_KICK: u8 = 112;
+    pub const S_MOB_KILLED: u8 = 113;
 }
 
 fn vec3_f64(r: &mut Reader<'_>) -> Result<[f64; 3], WireError> {
@@ -172,10 +178,11 @@ impl ClientMsg {
                 pitch,
                 health,
                 creative,
+                reduction,
             } => {
                 let mut w = Writer::new(tag::C_STATE);
                 w.f64(pos[0]).f64(pos[1]).f64(pos[2]);
-                w.f32(*yaw).f32(*pitch).f32(*health).bool(*creative);
+                w.f32(*yaw).f32(*pitch).f32(*health).bool(*creative).f32(*reduction);
                 w.buf
             }
             ClientMsg::BlockEdit { pos, block } => {
@@ -183,9 +190,9 @@ impl ClientMsg {
                 w.i32(pos[0]).i32(pos[1]).i32(pos[2]).u8(*block);
                 w.buf
             }
-            ClientMsg::Attack { entity } => {
+            ClientMsg::Attack { entity, damage } => {
                 let mut w = Writer::new(tag::C_ATTACK);
-                w.u32(*entity);
+                w.u32(*entity).f32(*damage);
                 w.buf
             }
             ClientMsg::Chat(t) => {
@@ -216,12 +223,16 @@ impl ClientMsg {
                 pitch: r.f32()?,
                 health: r.f32()?,
                 creative: r.bool()?,
+                reduction: r.f32()?,
             },
             tag::C_BLOCK => ClientMsg::BlockEdit {
                 pos: [r.i32()?, r.i32()?, r.i32()?],
                 block: r.u8()?,
             },
-            tag::C_ATTACK => ClientMsg::Attack { entity: r.u32()? },
+            tag::C_ATTACK => ClientMsg::Attack {
+                entity: r.u32()?,
+                damage: r.f32()?,
+            },
             tag::C_CHAT => ClientMsg::Chat(r.str()?),
             tag::C_PING => ClientMsg::Ping(r.u32()?),
             tag::C_BYE => ClientMsg::Bye,
@@ -319,6 +330,11 @@ impl ServerMsg {
                 w.str(t);
                 w.buf
             }
+            ServerMsg::MobKilled(m) => {
+                let mut w = Writer::new(tag::S_MOB_KILLED);
+                w.str(m);
+                w.buf
+            }
         }
     }
 
@@ -408,6 +424,7 @@ impl ServerMsg {
                 text: r.str()?,
             },
             tag::S_KICK => ServerMsg::Kick(r.str()?),
+            tag::S_MOB_KILLED => ServerMsg::MobKilled(r.str()?),
             t => return Err(WireError::BadTag(t)),
         })
     }
@@ -448,12 +465,16 @@ mod tests {
                 pitch: -0.25,
                 health: 7.5,
                 creative: false,
+                reduction: 0.45,
             },
             ClientMsg::BlockEdit {
                 pos: [-5, 64, 1_000_000],
                 block: 12,
             },
-            ClientMsg::Attack { entity: 99 },
+            ClientMsg::Attack {
+                entity: 99,
+                damage: 5.5,
+            },
             ClientMsg::Chat("salut à tous".into()),
             ClientMsg::Ping(5),
             ClientMsg::Bye,
@@ -512,6 +533,7 @@ mod tests {
                 text: "yo".into(),
             },
             ServerMsg::Kick("fin de partie".into()),
+            ServerMsg::MobKilled("grey_wolf".into()),
         ];
         for m in msgs {
             assert_eq!(ServerMsg::decode(&m.encode()).unwrap(), m);

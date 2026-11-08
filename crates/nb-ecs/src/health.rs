@@ -38,6 +38,9 @@ impl System for HealthSystem {
             }
         }
         for id in dead {
+            if let Some(mob_id) = crate::survival::mob_type_of(world, id) {
+                crate::survival::loot_for_kill(world, ctx, id, &mob_id);
+            }
             world.destroy(id);
             ctx.events.push(EcsEvent::MobDied { entity: id });
         }
@@ -81,10 +84,22 @@ pub fn hit_mob(
     mobs: &MobRegistry,
     rng: &mut JavaRandom,
 ) {
+    hit_mob_damage(world, mob, player, cfg.attack_damage, mobs, rng);
+}
+
+/// Comme [`hit_mob`] avec des dégâts explicites (arme tenue en survie).
+pub fn hit_mob_damage(
+    world: &mut EntityWorld,
+    mob: EntityId,
+    player: Option<EntityId>,
+    damage: f32,
+    mobs: &MobRegistry,
+    rng: &mut JavaRandom,
+) {
     let Some(h) = world.get_mut::<Health>(mob) else {
         return;
     };
-    h.health -= cfg.attack_damage;
+    h.health -= damage;
     if h.health <= 0.0 {
         h.alive = false;
     } else if world.has::<PassiveAi>(mob) {

@@ -20,6 +20,23 @@ pub fn gray(g: f32) -> Rgba {
     [g, g, g, 1.0]
 }
 
+/// Style d'une icône d'inventaire.
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub enum IconStyle {
+    /// Quad plat (comportement d'origine).
+    #[default]
+    Flat,
+    /// Objet pur ou plante : sprite avec ombre portée.
+    Item,
+    /// Bloc plein : cube isométrique ; `layer` = dessus, ici les deux faces visibles.
+    Cube {
+        left: u32,
+        right: u32,
+        tint_top: [f32; 3],
+        tint_side: [f32; 3],
+    },
+}
+
 /// Texture d'un lot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TextureRef {
@@ -215,6 +232,99 @@ impl DrawList {
             [0.0, 0.0, 1.0, 1.0],
             WHITE,
         );
+    }
+
+    /// Quadrilatère quelconque (4 coins dans l'ordre horaire, UV par coin).
+    pub fn quad_pts(
+        &mut self,
+        texture: TextureRef,
+        pts: [[f32; 2]; 4],
+        uvs: [[f32; 2]; 4],
+        color: Rgba,
+    ) {
+        let first = self.vertices.len() as u32;
+        let v = |i: usize| Vertex {
+            pos: pts[i],
+            uv: uvs[i],
+            color,
+        };
+        self.vertices
+            .extend_from_slice(&[v(0), v(3), v(2), v(0), v(2), v(1)]);
+        match self.batches.last_mut() {
+            Some(b) if b.texture == texture && b.scissor == self.scissor => b.count += 6,
+            _ => self.batches.push(Batch {
+                texture,
+                scissor: self.scissor,
+                first,
+                count: 6,
+            }),
+        }
+    }
+
+    /// Icône d'objet façon Minecraft : cube isométrique (3 faces) pour un bloc plein, sprite
+    /// plat avec ombre portée (relief) pour un objet ou une plante.
+    /// `layer` = face du dessus (cube) ou texture du sprite.
+    pub fn icon(&mut self, layer: u32, style: IconStyle, x: f32, y: f32, size: f32) {
+        match style {
+            IconStyle::Flat => self.block_icon(layer, x, y, size),
+            IconStyle::Item => {
+                // Ombre portée puis sprite : donne de l'épaisseur au sprite.
+                let o = (size / 16.0).max(1.0);
+                self.quad_uv(
+                    TextureRef::BlockLayer(layer),
+                    x + o,
+                    y + o,
+                    size,
+                    size,
+                    [0.0, 0.0, 1.0, 1.0],
+                    [0.0, 0.0, 0.0, 0.38],
+                );
+                self.quad_uv(
+                    TextureRef::BlockLayer(layer),
+                    x,
+                    y,
+                    size,
+                    size,
+                    [0.0, 0.0, 1.0, 1.0],
+                    WHITE,
+                );
+            }
+            IconStyle::Cube {
+                left,
+                right,
+                tint_top,
+                tint_side,
+            } => {
+                let s = size;
+                let top = [x + 0.5 * s, y];
+                let ur = [x + s, y + 0.25 * s];
+                let lr = [x + s, y + 0.75 * s];
+                let bot = [x + 0.5 * s, y + s];
+                let ll = [x, y + 0.75 * s];
+                let ul = [x, y + 0.25 * s];
+                let c = [x + 0.5 * s, y + 0.5 * s];
+                let shade = |t: [f32; 3], k: f32| [t[0] * k, t[1] * k, t[2] * k, 1.0];
+                let uv = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
+                self.quad_pts(
+                    TextureRef::BlockLayer(layer),
+                    [top, ur, c, ul],
+                    uv,
+                    shade(tint_top, 1.0),
+                );
+                self.quad_pts(
+                    TextureRef::BlockLayer(left),
+                    [ul, c, bot, ll],
+                    uv,
+                    shade(tint_side, 0.78),
+                );
+                self.quad_pts(
+                    TextureRef::BlockLayer(right),
+                    [c, ur, lr, bot],
+                    uv,
+                    shade(tint_side, 0.58),
+                );
+            }
+        }
     }
 
     /// `ChatRenderer.renderText(text, x, y, scale, r, g, b, a)` : un quad uni par segment.

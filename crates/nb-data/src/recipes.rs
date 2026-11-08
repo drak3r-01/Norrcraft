@@ -16,6 +16,10 @@ use crate::items::{ItemId, ItemRegistry};
 /// Contenu de `assets/recipes.json`, embarqué dans le binaire.
 pub const RECIPES_JSON: &str = include_str!("../../../assets/recipes.json");
 
+/// Recettes du mode survie (`scripts/gen_survival.py`) ; leurs étiquettes s'ajoutent à celles
+/// de `recipes.json`.
+pub const SURVIVAL_RECIPES_JSON: &str = include_str!("../../../assets/recipes_survival.json");
+
 /// Station de craft.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -129,21 +133,48 @@ struct RawBook {
 #[derive(Clone, Debug, Default)]
 pub struct RecipeBook {
     recipes: Vec<Recipe>,
+    /// Étiquettes connues : nom → objets (affichage « n'importe quel … »).
+    tags: Vec<(String, Vec<ItemId>)>,
 }
 
 impl RecipeBook {
     /// Livre intégré (`recipes.json`).
     pub fn builtin(items: &ItemRegistry) -> Self {
-        Self::from_json(items, RECIPES_JSON).expect("recipes.json embarqué invalide")
+        Self::from_json_parts(items, &[RECIPES_JSON, SURVIVAL_RECIPES_JSON])
+            .expect("recipes.json embarqué invalide")
     }
 
     pub fn from_recipes(recipes: Vec<Recipe>) -> Self {
-        Self { recipes }
+        Self {
+            recipes,
+            tags: Vec::new(),
+        }
+    }
+
+    /// Nom de l'étiquette qui regroupe exactement `ids` (si elle existe).
+    pub fn tag_name(&self, ids: &[ItemId]) -> Option<&str> {
+        self.tags
+            .iter()
+            .find(|(_, v)| v.as_slice() == ids)
+            .map(|(n, _)| n.as_str())
     }
 
     pub fn from_json(items: &ItemRegistry, json: &str) -> Result<Self> {
+        Self::from_json_parts(items, &[json])
+    }
+
+    /// Plusieurs fichiers fusionnés : étiquettes et recettes s'additionnent.
+    pub fn from_json_parts(items: &ItemRegistry, parts: &[&str]) -> Result<Self> {
         let ctx = "recipes.json";
-        let raw: RawBook = serde_json::from_str(json).map_err(|e| Error::data(ctx, e))?;
+        let mut raw = RawBook {
+            tags: HashMap::new(),
+            recipes: Vec::new(),
+        };
+        for json in parts {
+            let part: RawBook = serde_json::from_str(json).map_err(|e| Error::data(ctx, e))?;
+            raw.tags.extend(part.tags);
+            raw.recipes.extend(part.recipes);
+        }
         let item = |name: &str| -> Result<ItemId> {
             items
                 .id_of(name)
@@ -231,7 +262,15 @@ impl RecipeBook {
                 output,
             });
         }
-        Ok(Self { recipes })
+        let mut tag_list: Vec<(String, Vec<ItemId>)> = tags
+            .iter()
+            .map(|(n, v)| ((*n).to_owned(), v.clone()))
+            .collect();
+        tag_list.sort();
+        Ok(Self {
+            recipes,
+            tags: tag_list,
+        })
     }
 
     pub fn recipes(&self) -> &[Recipe] {

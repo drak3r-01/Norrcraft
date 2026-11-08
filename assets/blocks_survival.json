@@ -1,0 +1,211 @@
+[
+ {
+  "id": 210,
+  "name": "wheat_0",
+  "textures": [
+   "crop_wheat_0",
+   "crop_wheat_0",
+   "crop_wheat_0",
+   "crop_wheat_0",
+   "crop_wheat_0",
+   "crop_wheat_0"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 211,
+  "name": "wheat_1",
+  "textures": [
+   "crop_wheat_1",
+   "crop_wheat_1",
+   "crop_wheat_1",
+   "crop_wheat_1",
+   "crop_wheat_1",
+   "crop_wheat_1"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 212,
+  "name": "wheat_2",
+  "textures": [
+   "crop_wheat_2",
+   "crop_wheat_2",
+   "crop_wheat_2",
+   "crop_wheat_2",
+   "crop_wheat_2",
+   "crop_wheat_2"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 213,
+  "name": "potato_0",
+  "textures": [
+   "crop_potato_0",
+   "crop_potato_0",
+   "crop_potato_0",
+   "crop_potato_0",
+   "crop_potato_0",
+   "crop_potato_0"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 214,
+  "name": "potato_1",
+  "textures": [
+   "crop_potato_1",
+   "crop_potato_1",
+   "crop_potato_1",
+   "crop_potato_1",
+   "crop_potato_1",
+   "crop_potato_1"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 215,
+  "name": "potato_2",
+  "textures": [
+   "crop_potato_2",
+   "crop_potato_2",
+   "crop_potato_2",
+   "crop_potato_2",
+   "crop_potato_2",
+   "crop_potato_2"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 216,
+  "name": "potato_3",
+  "textures": [
+   "crop_potato_3",
+   "crop_potato_3",
+   "crop_potato_3",
+   "crop_potato_3",
+   "crop_potato_3",
+   "crop_potato_3"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 217,
+  "name": "carrot_0",
+  "textures": [
+   "crop_carrot_0",
+   "crop_carrot_0",
+   "crop_carrot_0",
+   "crop_carrot_0",
+   "crop_carrot_0",
+   "crop_carrot_0"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 218,
+  "name": "carrot_1",
+  "textures": [
+   "crop_carrot_1",
+   "crop_carrot_1",
+   "crop_carrot_1",
+   "crop_carrot_1",
+   "crop_carrot_1",
+   "crop_carrot_1"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 219,
+  "name": "carrot_2",
+  "textures": [
+   "crop_carrot_2",
+   "crop_carrot_2",
+   "crop_carrot_2",
+   "crop_carrot_2",
+   "crop_carrot_2",
+   "crop_carrot_2"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ },
+ {
+  "id": 220,
+  "name": "carrot_3",
+  "textures": [
+   "crop_carrot_3",
+   "crop_carrot_3",
+   "crop_carrot_3",
+   "crop_carrot_3",
+   "crop_carrot_3",
+   "crop_carrot_3"
+  ],
+  "transparent": true,
+  "crossShaped": true,
+  "grassTinted": false,
+  "leavesTinted": false,
+  "solid": false,
+  "lightAttenuation": 0,
+  "lightEmission": 0
+ }
+]

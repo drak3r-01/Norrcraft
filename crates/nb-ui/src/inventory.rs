@@ -1,7 +1,7 @@
 //! Écran d'inventaire (`InventoryState`) : mise en page, hit-testing des cases et rendu.
 //! La logique du curseur (prendre / poser / fusionner / rendre) est `nb_ecs::InventoryCursor`.
 
-use crate::draw::{DrawList, WHITE};
+use crate::draw::{DrawList, Rgba, WHITE};
 use crate::hud::{format_block_name, SlotView};
 use crate::input::UiInput;
 use crate::textures::UiTexture;
@@ -26,6 +26,8 @@ const COUNT_MARGIN: f32 = 3.0;
 pub const GRID_BASE: i32 = 36;
 /// Case de résultat.
 pub const OUTPUT_SLOT: i32 = 45;
+/// Première case d'armure (tête, torse, jambes, pieds : `ARMOR_BASE..ARMOR_BASE + 4`).
+pub const ARMOR_BASE: i32 = 100;
 
 /// Bouton de souris d'un clic de case.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +48,8 @@ pub enum InventoryAction {
     },
     /// Inventaire / Échap : rendre la pile tenue puis revenir à PLAYING.
     Close,
+    /// Bouton « livre de recettes ».
+    ToggleBook,
 }
 
 /// Position (coin haut-gauche de l'objet, en unités de 176×166) de la case `k` de la grille.
@@ -101,6 +105,8 @@ pub struct InventoryScreen {
     station: Station,
     ui: Panel,
     size: (i32, i32),
+    /// Le bouton du livre de recettes est-il actif ? (mode survie)
+    pub book_enabled: bool,
 }
 
 impl InventoryScreen {
@@ -176,6 +182,7 @@ impl InventoryScreen {
             station,
             ui,
             size: (win_w, win_h),
+            book_enabled: false,
         };
         // Survol des cases de craft et du résultat.
         let mut extra = Vec::new();
@@ -205,7 +212,9 @@ impl InventoryScreen {
     /// Change de station (reconstruit la mise en page).
     pub fn set_station(&mut self, station: Station) {
         if self.station != station {
+            let book = self.book_enabled;
             *self = Self::for_station(self.size.0, self.size.1, station);
+            self.book_enabled = book;
         }
     }
 
@@ -218,14 +227,32 @@ impl InventoryScreen {
     /// Reconstruit la mise en page si la fenêtre a changé de taille.
     pub fn resize(&mut self, win_w: i32, win_h: i32) {
         if self.size != (win_w, win_h) {
+            let book = self.book_enabled;
             *self = Self::for_station(win_w, win_h, self.station);
+            self.book_enabled = book;
         }
     }
 
-    /// Coin haut-gauche de n'importe quelle case (`0..36`, grille, résultat).
+    /// Bouton du livre de recettes (unités 176×166 : coin haut-droit du panneau).
+    pub fn book_button(&self) -> (i32, i32, i32, i32) {
+        (
+            self.inv_x + scale(148),
+            self.inv_y + scale(6),
+            scale(20),
+            scale(20),
+        )
+    }
+
+    /// Coin haut-gauche de n'importe quelle case (`0..36`, grille, résultat, armure).
     pub fn slot_pixels_of(&self, slot: i32) -> (i32, i32) {
         if (0..SLOTS as i32).contains(&slot) {
             return self.slot_pixels(slot as usize);
+        }
+        if (ARMOR_BASE..ARMOR_BASE + 4).contains(&slot) {
+            return (
+                self.inv_x + scale(8),
+                self.inv_y + scale(8 + 18 * (slot - ARMOR_BASE)),
+            );
         }
         let (ox, oy) = if slot == OUTPUT_SLOT {
             output_origin(self.station)
@@ -268,6 +295,14 @@ impl InventoryScreen {
         if inside(x, y) {
             return OUTPUT_SLOT;
         }
+        if self.station == Station::Hand {
+            for k in 0..4 {
+                let (x, y) = self.slot_pixels_of(ARMOR_BASE + k);
+                if inside(x, y) {
+                    return ARMOR_BASE + k;
+                }
+            }
+        }
         -1
     }
 
@@ -289,6 +324,16 @@ impl InventoryScreen {
         self.resize(input.width, input.height);
         if input.inventory_pressed || input.pause_pressed {
             return Some(InventoryAction::Close);
+        }
+        let (bx, by, bw, bh) = self.book_button();
+        if input.primary_pressed
+            && self.book_enabled
+            && input.mouse_x >= f64::from(bx)
+            && input.mouse_x < f64::from(bx + bw)
+            && input.mouse_y >= f64::from(by)
+            && input.mouse_y < f64::from(by + bh)
+        {
+            return Some(InventoryAction::ToggleBook);
         }
         let button = if input.primary_pressed {
             ClickButton::Left
@@ -326,17 +371,43 @@ impl InventoryScreen {
         grid: &[Option<SlotView<'_>>],
         output: Option<SlotView<'_>>,
     ) {
+        self.draw_full(dl, input, slots, held, grid, output, None);
+    }
+
+    /// Comme [`Self::draw_craft`], avec les emplacements d'armure, le personnage et le bouton
+    /// du livre de recettes (mode survie).
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_full(
+        &self,
+        dl: &mut DrawList,
+        input: &UiInput,
+        slots: &[Option<SlotView<'_>>; SLOTS],
+        held: Option<SlotView<'_>>,
+        grid: &[Option<SlotView<'_>>],
+        output: Option<SlotView<'_>>,
+        survival: Option<&SurvivalInventory<'_>>,
+    ) {
         let (w, h) = (input.width as f32, input.height as f32);
         dl.fill(0.0, 0.0, w, h, [0.0, 0.0, 0.0, 0.6]);
         self.ui.draw(dl, input.mouse_x, input.mouse_y);
         let icon = ICON_SIZE as f32;
         let draw_slot = |dl: &mut DrawList, s: &SlotView<'_>, px: i32, py: i32| {
-            dl.block_icon(
+            dl.icon(
                 s.icon_layer,
+                s.style,
                 (px + ICON_PAD) as f32,
                 (py + ICON_PAD) as f32,
                 icon,
             );
+            if let Some(f) = s.info.durability_left() {
+                crate::survival_hud::durability_bar(
+                    dl,
+                    (px + ICON_PAD) as f32,
+                    (py + ICON_PAD) as f32,
+                    icon,
+                    f,
+                );
+            }
             if s.count > 1 {
                 count(
                     dl,
@@ -360,6 +431,9 @@ impl InventoryScreen {
             let (px, py) = self.slot_pixels_of(OUTPUT_SLOT);
             draw_slot(dl, s, px, py);
         }
+        if let Some(sv) = survival {
+            self.draw_survival_parts(dl, input, sv, &draw_slot);
+        }
         let t = title(self.station);
         if !t.is_empty() {
             dl.text(
@@ -373,7 +447,7 @@ impl InventoryScreen {
         if let Some(s) = held {
             let hx = input.mouse_x as f32 - icon / 2.0;
             let hy = input.mouse_y as f32 - icon / 2.0;
-            dl.block_icon(s.icon_layer, hx, hy, icon);
+            dl.icon(s.icon_layer, s.style, hx, hy, icon);
             if s.count > 1 {
                 count(dl, s.count, hx + icon, hy + icon);
             }
@@ -382,28 +456,172 @@ impl InventoryScreen {
             let hovered = self.slot_at(input.mouse_x, input.mouse_y);
             let view = match hovered {
                 OUTPUT_SLOT => output,
+                s if (ARMOR_BASE..ARMOR_BASE + 4).contains(&s) => {
+                    survival.and_then(|sv| sv.armor[(s - ARMOR_BASE) as usize])
+                }
                 s if s >= GRID_BASE => grid.get((s - GRID_BASE) as usize).copied().flatten(),
                 s if s >= 0 => slots[s as usize],
                 _ => None,
             };
             if let Some(v) = view {
-                tooltip(dl, input, &format_block_name(v.name));
+                let mut lines = vec![format_block_name(v.name)];
+                lines.extend(v.info.lines());
+                tooltip(dl, input, &lines);
             }
         }
     }
 }
 
-/// Fond sombre + texte blanc à côté du curseur (borné à la fenêtre).
-fn tooltip(dl: &mut DrawList, input: &UiInput, text: &str) {
+/// Fond sombre + texte à côté du curseur (borné à la fenêtre) ; première ligne = nom.
+pub fn tooltip(dl: &mut DrawList, input: &UiInput, lines: &[String]) {
     const SCALE: f32 = 2.0;
-    let w = crate::font::measure_width(text, SCALE) + 16.0;
-    let h = 10.0 * SCALE + 12.0;
+    let w = lines
+        .iter()
+        .enumerate()
+        .map(|(i, t)| crate::font::measure_width(t, if i == 0 { SCALE } else { 1.6 }))
+        .fold(0.0, f32::max)
+        + 16.0;
+    let h = 10.0 * SCALE + 12.0 + (lines.len().saturating_sub(1)) as f32 * 17.0;
     let x = (input.mouse_x as f32 + 18.0)
         .min(input.width as f32 - w)
         .max(0.0);
     let y = (input.mouse_y as f32 - h - 4.0).max(0.0);
     dl.fill(x, y, w, h, [0.06, 0.02, 0.12, 0.92]);
-    dl.text(text, x + 8.0, y + 6.0, SCALE, WHITE);
+    for (i, t) in lines.iter().enumerate() {
+        if i == 0 {
+            dl.text(t, x + 8.0, y + 6.0, SCALE, WHITE);
+        } else {
+            let col: Rgba = [0.7, 0.85, 1.0, 1.0];
+            dl.text(
+                t,
+                x + 8.0,
+                y + 10.0 * SCALE + 8.0 + (i - 1) as f32 * 17.0,
+                1.6,
+                col,
+            );
+        }
+    }
+}
+
+/// Éléments du mode survie de l'écran d'inventaire.
+#[derive(Clone, Copy, Debug)]
+pub struct SurvivalInventory<'a> {
+    /// Pièces portées : tête, torse, jambes, pieds.
+    pub armor: [Option<SlotView<'a>>; 4],
+    /// Couleur de chaque pièce sur le personnage.
+    pub doll: [Option<Rgba>; 4],
+}
+
+impl InventoryScreen {
+    fn draw_survival_parts(
+        &self,
+        dl: &mut DrawList,
+        input: &UiInput,
+        sv: &SurvivalInventory<'_>,
+        draw_slot: &dyn Fn(&mut DrawList, &SlotView<'_>, i32, i32),
+    ) {
+        if self.station == Station::Hand {
+            // Emplacements d'armure : icônes des pièces portées.
+            for (k, a) in sv.armor.iter().enumerate() {
+                if let Some(s) = a {
+                    let (px, py) = self.slot_pixels_of(ARMOR_BASE + k as i32);
+                    draw_slot(dl, s, px, py);
+                }
+            }
+            // Personnage dans le cadre sombre.
+            let (rx, ry) = (self.inv_x + scale(26), self.inv_y + scale(8));
+            let (rw, rh) = (scale(49), scale(70));
+            let (rx, ry, rw, rh) = (rx as f32, ry as f32, rw as f32, rh as f32);
+            dl.fill(rx, ry, rw, rh, [0.07, 0.08, 0.12, 1.0]);
+            dl.fill(rx, ry + rh * 0.72, rw, rh * 0.28, [0.1, 0.12, 0.17, 1.0]);
+            let u = (rh / 18.0).floor();
+            let cx = rx + rw / 2.0;
+            let top = ry + (rh - 16.0 * u) / 2.0;
+            let skin: Rgba = [0.88, 0.68, 0.5, 1.0];
+            let shirt: Rgba = [0.28, 0.38, 0.6, 1.0];
+            let pants: Rgba = [0.24, 0.26, 0.4, 1.0];
+            let boots: Rgba = [0.18, 0.14, 0.12, 1.0];
+            let [head, chest, legs, feet] = sv.doll;
+            for sx in [-2.0, 0.0] {
+                dl.fill(
+                    cx + sx * u,
+                    top + 10.0 * u,
+                    2.0 * u,
+                    6.0 * u,
+                    legs.unwrap_or(pants),
+                );
+                dl.fill(
+                    cx + sx * u,
+                    top + 14.5 * u,
+                    2.0 * u,
+                    1.5 * u,
+                    feet.unwrap_or(boots),
+                );
+            }
+            for sx in [-3.5, 2.0] {
+                dl.fill(
+                    cx + sx * u,
+                    top + 4.0 * u,
+                    1.5 * u,
+                    6.0 * u,
+                    chest.unwrap_or(shirt),
+                );
+                dl.fill(cx + sx * u, top + 8.8 * u, 1.5 * u, 1.2 * u, skin);
+            }
+            dl.fill(
+                cx - 2.0 * u,
+                top + 4.0 * u,
+                4.0 * u,
+                6.0 * u,
+                chest.unwrap_or(shirt),
+            );
+            dl.fill(cx - 2.0 * u, top, 4.0 * u, 4.0 * u, skin);
+            let eye: Rgba = [0.12, 0.1, 0.1, 1.0];
+            dl.fill(cx - 1.4 * u, top + 1.6 * u, 0.7 * u, 0.7 * u, eye);
+            dl.fill(cx + 0.7 * u, top + 1.6 * u, 0.7 * u, 0.7 * u, eye);
+            dl.fill(cx - 2.0 * u, top, 4.0 * u, 1.0 * u, [0.35, 0.22, 0.12, 1.0]);
+            if let Some(c) = head {
+                dl.fill(cx - 2.3 * u, top - 0.3 * u, 4.6 * u, 2.2 * u, c);
+                dl.fill(cx - 2.3 * u, top + 1.9 * u, 0.7 * u, 1.6 * u, c);
+                dl.fill(cx + 1.6 * u, top + 1.9 * u, 0.7 * u, 1.6 * u, c);
+            }
+        }
+        if self.book_enabled {
+            let (bx, by, bw, bh) = self.book_button();
+            let hover = input.mouse_x >= f64::from(bx)
+                && input.mouse_x < f64::from(bx + bw)
+                && input.mouse_y >= f64::from(by)
+                && input.mouse_y < f64::from(by + bh);
+            let (x, y, w, h) = (bx as f32, by as f32, bw as f32, bh as f32);
+            dl.fill(x - 2.0, y - 2.0, w + 4.0, h + 4.0, [0.05, 0.03, 0.02, 1.0]);
+            let cover: Rgba = if hover {
+                [0.72, 0.5, 0.25, 1.0]
+            } else {
+                [0.55, 0.36, 0.18, 1.0]
+            };
+            dl.fill(x, y, w, h, cover);
+            dl.fill(
+                x + w * 0.16,
+                y + h * 0.12,
+                w * 0.68,
+                h * 0.76,
+                [0.93, 0.88, 0.74, 1.0],
+            );
+            for i in 0..4 {
+                dl.fill(
+                    x + w * 0.26,
+                    y + h * (0.24 + 0.15 * i as f32),
+                    w * 0.48,
+                    2.0,
+                    [0.45, 0.35, 0.25, 1.0],
+                );
+            }
+            dl.fill(x, y, w * 0.12, h, [0.38, 0.22, 0.1, 1.0]);
+            if hover {
+                dl.text("Recipe Book", x - 60.0, y + h + 6.0, 1.7, WHITE);
+            }
+        }
+    }
 }
 
 /// `renderCount(text, rightX, bottomY)`.
@@ -474,11 +692,15 @@ mod tests {
         let mut slots = [None; SLOTS];
         slots[0] = Some(SlotView {
             icon_layer: 1,
+            style: Default::default(),
+            info: Default::default(),
             count: 1,
             name: "dirt",
         });
         slots[30] = Some(SlotView {
             icon_layer: 2,
+            style: Default::default(),
+            info: Default::default(),
             count: 12,
             name: "sand",
         });
@@ -492,6 +714,8 @@ mod tests {
         let mut dl = DrawList::new(1280, 720);
         let held = Some(SlotView {
             icon_layer: 3,
+            style: Default::default(),
+            info: Default::default(),
             count: 1,
             name: "stone",
         });
@@ -604,6 +828,8 @@ mod tests {
         };
         let view = |layer, count| SlotView {
             icon_layer: layer,
+            style: Default::default(),
+            info: Default::default(),
             count,
             name: "iron_ingot",
         };

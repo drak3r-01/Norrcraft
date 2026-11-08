@@ -33,6 +33,7 @@ pub mod player;
 pub mod schedule;
 pub mod sim;
 pub mod spawn;
+pub mod survival;
 pub mod world;
 
 pub use blocks::{BlockAccess, MemoryBlocks, WorldBlocks};
@@ -41,12 +42,13 @@ pub use components::{
     AggressiveAi, CameraState, Collider, EntityId, GameMode, Health, InventoryComp, MobType,
     NetMob, PassiveAi, Player, RemotePlayer, Transform, Velocity,
 };
-pub use crafting::{Button, CraftingGrid, GRID_BASE, OUTPUT_SLOT};
+pub use crafting::{Button, CraftingGrid, ARMOR_BASE, GRID_BASE, OUTPUT_SLOT};
 pub use input::{ActionSet, GameAction, PlayerInput};
-pub use inventory::{Inventory, InventoryCursor, ItemStack};
+pub use inventory::{armor_click, quick_equip, Inventory, InventoryCursor, ItemStack};
 pub use physics::{BlockEnv, RaycastHit};
 pub use schedule::{EcsEvent, EcsRngs, Schedule, System, TickCtx};
 pub use sim::{Simulation, TICK_DT};
+pub use survival::{CropSystem, Fishing, MiningState, Vitals, VitalsSystem};
 pub use world::EntityWorld;
 
 /// Re-export de `hecs` (requêtes génériques de [`EntityWorld`]).

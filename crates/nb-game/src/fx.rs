@@ -232,6 +232,23 @@ impl Fx {
                         self.sys.mob_hit(p.as_vec3() + Vec3::Y * 0.8);
                     }
                 }
+                // Survie : éclats de matière pendant le minage, éclaboussures de pêche.
+                EcsEvent::BlockMining { pos, block, .. } => {
+                    let c = pos.as_vec3() + Vec3::splat(0.5);
+                    let look = self.look(block);
+                    self.sys.block_break(c, look, 0.3);
+                }
+                EcsEvent::Tilled { pos } | EcsEvent::Planted { pos } => {
+                    let c = pos.as_vec3() + Vec3::splat(0.5);
+                    let look = self.look(1); // terre
+                    self.sys.block_place(c, look);
+                }
+                EcsEvent::Cast { pos } | EcsEvent::Reel { pos } => {
+                    self.sys.water_splash(pos.as_vec3(), 1.5);
+                }
+                EcsEvent::FishBite { pos } => {
+                    self.sys.water_splash(pos.as_vec3(), 3.5);
+                }
                 EcsEvent::MobDied { entity } => {
                     if let Some(p) = self.mob_pos.get(&entity) {
                         self.sys.mob_death(p.as_vec3() + Vec3::Y * 0.7);
