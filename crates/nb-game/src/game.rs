@@ -19,7 +19,8 @@ use nb_world::{FileChunkStorage, InMemoryChunkStorage, World, WorldConfig};
 use crate::chat::Chat;
 use crate::chunks::{sorted_active_positions_near, WorldChunks};
 use crate::input::{Action, InputManager};
-use crate::net::{LanBrowser, LanRole, LanView, NetMode};
+use crate::net::{Avatar, LanBrowser, LanRole, LanView, NetMode};
+use nb_ecs::player::EYE_OFFSET;
 use crate::fx::Fx;
 use crate::render::{build_view, RenderInterp, RenderView};
 use crate::session::{Registries, WorldSession};
@@ -159,6 +160,9 @@ pub struct Game {
     craft_station: Station,
     craft_grid: CraftingGrid,
     item_icons: Arc<ItemIcons>,
+    /// Vue à la 3e personne (F5) : le joueur est dessiné avec son avatar animé.
+    third_person: bool,
+    f5_down: bool,
     /// Messages de survie à l'écran (texte, secondes restantes).
     notices: Vec<(String, f32)>,
     /// Butin récent (nom, quantité, secondes restantes).
@@ -268,6 +272,8 @@ impl Game {
             craft_station: Station::Hand,
             craft_grid: CraftingGrid::new(Station::Hand),
             item_icons: Arc::new(ItemIcons::default()),
+            third_person: false,
+            f5_down: false,
             notices: Vec::new(),
             pickups: Vec::new(),
             mouse_locked: true,
@@ -513,7 +519,11 @@ impl Game {
                 let s = self.settings.sensitivity;
                 (d.y * s, d.x * s)
             });
-        build_view(
+        let mut avatars = self.avatars();
+        if self.third_person && self.state.renders_world() && self.state != GameState::MainMenu {
+            avatars.push(self.local_avatar(true));
+        }
+        let mut view = build_view(
             self.state,
             &self.session.world,
             &self.session.sim,
@@ -522,11 +532,61 @@ impl Game {
             self.fx.instances(),
             &self.sky,
             self.aspect,
-            self.avatars(),
+            avatars,
             &self.interp,
             look,
             Some(&self.anim),
-        )
+        );
+        if self.third_person && self.state.renders_world() && self.state != GameState::MainMenu {
+            self.pull_camera_back(&mut view.camera);
+        }
+        view
+    }
+
+    /// Identifiant de l'avatar du joueur local (hors des numéros de joueurs du réseau).
+    pub const LOCAL_AVATAR_ID: u16 = 200;
+
+    /// Avatar du joueur local : pieds sous la caméra (interpolée quand elle l'est).
+    fn local_avatar(&self, interpolated: bool) -> Avatar {
+        let c = self.session.camera();
+        let mut pos = c.position;
+        if interpolated && self.interp.enabled {
+            if let Some(prev) = self.interp.prev_cam_pos {
+                if (pos - prev).length_squared() < 16.0 {
+                    pos = prev.lerp(pos, self.interp.alpha.clamp(0.0, 1.0));
+                }
+            }
+        }
+        Avatar {
+            id: Self::LOCAL_AVATAR_ID,
+            name: String::new(),
+            pos: pos.as_dvec3() - nb_core::glam::DVec3::new(0.0, f64::from(EYE_OFFSET), 0.0),
+            yaw_deg: c.yaw_deg,
+            pitch_deg: c.pitch_deg,
+        }
+    }
+
+    /// Recule la caméra derrière le joueur, sans traverser un bloc plein.
+    fn pull_camera_back(&self, cam: &mut nb_gfx::Camera) {
+        let (yaw, pitch) = (cam.yaw_deg.to_radians(), cam.pitch_deg.to_radians());
+        let fwd = Vec3::new(
+            yaw.sin() * pitch.cos(),
+            -pitch.sin(),
+            -yaw.cos() * pitch.cos(),
+        );
+        let mut dist = 0.0f32;
+        while dist < 3.6 {
+            let p = cam.position - fwd * (dist + 0.25);
+            let b = self
+                .session
+                .world
+                .block(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
+            if self.regs.blocks.from_id(b).solid {
+                break;
+            }
+            dist += 0.2;
+        }
+        cam.position -= fwd * dist.max(0.0);
     }
 
     /// Fait avancer l'animation des mobs et des avatars de `dt` secondes (temps réel d'une
@@ -571,7 +631,10 @@ impl Game {
             ),
             half_diag: tan_x.hypot(tan_y).atan(),
         };
-        let avatars = self.avatars();
+        let mut avatars = self.avatars();
+        if self.third_person && self.state.renders_world() && self.state != GameState::MainMenu {
+            avatars.push(self.local_avatar(false));
+        }
         self.anim
             .update(dt, &cam, &self.regs.mobs, &samples, &avatars);
         // Particules : temps réel, indépendant du pas fixe.
@@ -844,6 +907,12 @@ impl Game {
                     self.switch_state(GameState::Inventory);
                     return;
                 }
+                // F5 : vue à la 3e personne (le joueur est dessiné avec son avatar animé).
+                let f5 = self.input.is_key_down(nb_data::keys::KEY_F1 + 4);
+                if f5 && !self.f5_down {
+                    self.third_person = !self.third_person;
+                }
+                self.f5_down = f5;
                 self.step(Step::EcsTick);
                 let first_new_event = self.events.len();
                 let pi = self.input.player_input(

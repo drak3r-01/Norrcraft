@@ -79,10 +79,29 @@ pub struct SurvivalHud<'a> {
     pub eating: Option<f32>,
     /// `Some(true)` quand un poisson mord.
     pub fishing: Option<bool>,
+    /// Animation de coup restante (s), 0 au repos.
+    pub swing: f32,
     /// Messages (texte, secondes restantes).
     pub notices: &'a [(String, f32)],
     /// Butin récent (nom, quantité, secondes restantes).
     pub pickups: &'a [(String, i32, f32)],
+}
+
+/// L'objet tenu, en grand en bas à droite de l'écran, qui balance quand on frappe ou mine.
+pub fn draw_held(
+    dl: &mut DrawList,
+    win_w: i32,
+    win_h: i32,
+    layer: u32,
+    style: crate::draw::IconStyle,
+    swing: f32,
+) {
+    let size = (win_h as f32 * 0.26).clamp(120.0, 240.0);
+    let t = (swing / 0.3).clamp(0.0, 1.0);
+    let arc = (t * std::f32::consts::PI).sin();
+    let x = win_w as f32 - size * 1.15 - arc * size * 0.35;
+    let y = win_h as f32 - size * 0.95 + arc * size * 0.12;
+    dl.icon(layer, style, x, y, size);
 }
 
 /// Barre d'usure sous une icône (fraction restante 0..1).
@@ -326,6 +345,7 @@ mod tests {
             stamina: 50.0,
             defense: 7.0,
             mining: Some(0.4),
+            swing: 0.1,
             ..Default::default()
         };
         draw(&mut dl, &l, 1280, 720, &s);

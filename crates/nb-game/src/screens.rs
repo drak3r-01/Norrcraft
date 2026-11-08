@@ -442,6 +442,7 @@ fn survival_hud<'a>(view: &UiView<'a>) -> Option<SurvivalHud<'a>> {
         mining: v.mining.map(|m| m.progress),
         eating: (v.eating > 0.05).then(|| v.eating / nb_ecs::survival::EAT_TIME),
         fishing: v.fishing.map(|f| f.bite > 0.0),
+        swing: v.swing,
         notices: view.notices,
         pickups: view.pickups,
     })

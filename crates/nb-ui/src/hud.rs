@@ -215,6 +215,9 @@ impl Hud {
             }
         }
 
+        if let (Some(sv), Some(Some(held))) = (&view.survival, view.hotbar.get(view.selected)) {
+            survival_hud::draw_held(dl, win_w, win_h, held.icon_layer, held.style, sv.swing);
+        }
         if !view.creative {
             self.draw_vitals(dl, &l, win_w, win_h, view);
         }

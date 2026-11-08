@@ -222,10 +222,11 @@ fn blocks_are_drawn_as_isometric_cubes_and_items_as_sprites() {
     inv.set_slot(27, Some(ItemStack::new(stone, 3)));
     inv.set_slot(28, Some(ItemStack::new(stick, 3)));
     let f = g.draw_ui();
-    // Cube : 3 quads (dessus + 2 côtés) pour la pierre ; sprite : 2 quads (ombre + sprite).
+    // Cube : 3 quads (dessus + 2 côtés), x2 pour la pierre tenue (barre rapide + grande icône
+    // en main) ; sprite : 2 quads (ombre + sprite).
     let stone_layer = 100 + u32::from(stone);
     let stick_layer = 500 + u32::from(stick);
-    assert_eq!(quads_of(&f, UiTextureSlot::BlockLayer(stone_layer)), 3);
+    assert_eq!(quads_of(&f, UiTextureSlot::BlockLayer(stone_layer)), 6);
     assert_eq!(quads_of(&f, UiTextureSlot::BlockLayer(stick_layer)), 2);
     g.shutdown();
 }
