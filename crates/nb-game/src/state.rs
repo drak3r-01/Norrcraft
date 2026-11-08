@@ -62,6 +62,7 @@ pub enum SettingsTab {
     #[default]
     Graphics,
     Controls,
+    Audio,
 }
 
 /// Affichage du nom de l'objet tenu : 1 s plein, puis 0,5 s de fondu.

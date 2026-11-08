@@ -86,6 +86,10 @@ impl ResourcePackScreen {
                 return Some(PackAction::SwitchTo(GameState::Settings));
             }
             Some(3) => return Some(PackAction::SwitchTo(GameState::MobSettings)),
+            Some(4) => {
+                ctx.pending_audio_tab = true;
+                return Some(PackAction::SwitchTo(GameState::Settings));
+            }
             _ => {}
         }
         if hit_test(
@@ -238,7 +242,7 @@ mod tests {
             Some(PackAction::SwitchTo(GameState::Settings))
         );
         assert_eq!(
-            press(&mut s, 348.0 + 150.0, 80.0, &mut ctx),
+            press(&mut s, 274.0 + 150.0, 80.0, &mut ctx),
             Some(PackAction::SwitchTo(GameState::Settings))
         );
         assert!(ctx.pending_controls_tab);

@@ -85,6 +85,10 @@ pub struct GameOptions {
     pub lan_port: u16,
     /// Port UDP de la découverte des parties (`None` = port par défaut ; tests).
     pub lan_discovery_port: Option<u16>,
+    /// Ouvrir le périphérique audio (faux pour les tests et le mode sans tête).
+    pub audio: bool,
+    /// Dossier de fichiers `.wav` remplaçant les sons procéduraux.
+    pub sounds_dir: Option<PathBuf>,
 }
 
 impl GameOptions {
@@ -99,6 +103,8 @@ impl GameOptions {
             mesh_threads: None,
             lan_port: nb_net::DEFAULT_GAME_PORT,
             lan_discovery_port: None,
+            audio: false,
+            sounds_dir: None,
         }
     }
 }
@@ -184,6 +190,8 @@ pub struct Game {
     interp: RenderInterp,
     /// Animation des mobs et des avatars (voir [`Game::animate`]).
     anim: crate::anim::MobAnimSystem,
+    /// Sons (voir [`crate::audio`]).
+    audio: crate::audio::AudioDirector,
 }
 
 impl std::fmt::Debug for Game {
@@ -230,6 +238,13 @@ impl Game {
             rngs,
         );
         let fx = Fx::new(&regs.blocks);
+        let audio_engine = if opts.audio {
+            nb_audio::AudioEngine::start(&nb_audio::AudioOptions {
+                sounds_dir: opts.sounds_dir.clone(),
+            })
+        } else {
+            nb_audio::AudioEngine::disabled()
+        };
         let threads = opts.mesh_threads.unwrap_or_else(nb_mesh::default_threads);
         let (w, h) = opts.window_size;
         let mut g = Self {
@@ -275,9 +290,11 @@ impl Game {
             lan_message: None,
             interp: RenderInterp::default(),
             anim: crate::anim::MobAnimSystem::new(),
+            audio: crate::audio::AudioDirector::new(audio_engine),
             opts,
         };
         g.apply_initial_settings();
+        g.audio.apply_settings(&g.settings);
         g.enter_state(GameState::MainMenu);
         let pos = g.session.camera().position;
         g.session.world.update(pos);
@@ -512,6 +529,7 @@ impl Game {
     /// Figée en pause.
     pub fn animate(&mut self, dt: f32) {
         use crate::anim::{AnimCamera, MobSample};
+        self.audio_frame(dt);
         if self.state == GameState::Paused {
             return;
         }
@@ -571,6 +589,50 @@ impl Game {
             local_light,
             in_water,
         );
+    }
+
+    fn audio_frame(&mut self, dt: f32) {
+        if !self.audio.enabled() {
+            return;
+        }
+        let ctx = crate::audio::AudioCtx {
+            session: &self.session,
+            regs: &self.regs,
+            sky: &self.sky,
+            state: self.state,
+        };
+        self.audio.on_frame(&ctx, dt);
+    }
+
+    fn audio_tick(&mut self, dt: f64, ev_start: usize) {
+        if !self.audio.enabled() {
+            return;
+        }
+        let avatars = if self.lan_active() {
+            self.avatars()
+        } else {
+            Vec::new()
+        };
+        let start = ev_start.min(self.events.len());
+        let ctx = crate::audio::AudioCtx {
+            session: &self.session,
+            regs: &self.regs,
+            sky: &self.sky,
+            state: self.state,
+        };
+        self.audio
+            .on_tick(&ctx, &self.events[start..], &avatars, dt as f32);
+    }
+
+    /// Le directeur audio (tests : moteur d'enregistrement, thème courant).
+    pub fn audio(&self) -> &crate::audio::AudioDirector {
+        &self.audio
+    }
+
+    /// Remplace le moteur audio (tests).
+    pub fn set_audio_engine(&mut self, e: nb_audio::AudioEngine) {
+        self.audio.set_engine(e);
+        self.audio.apply_settings(&self.settings);
     }
 
     /// Système d'animation des mobs (statistiques, tests).
@@ -693,6 +755,7 @@ impl Game {
         let ev_start = self.events.len();
         self.update_state(dt);
         self.fx.on_events(self.events.get(ev_start..).unwrap_or(&[]));
+        self.audio_tick(dt, ev_start);
         self.net_post_tick(dt, ev_start);
         self.refresh_lan_view();
         self.ticks += 1;
@@ -840,6 +903,7 @@ impl Game {
     /// `StateManager.switchState` : `exit` de l'ancien état puis `enter` du nouveau.
     pub fn switch_state(&mut self, s: GameState) {
         let old = self.state;
+        self.audio.state_changed(old, s);
         self.exit_state(old);
         self.ui.exit(old, &mut self.input);
         self.state = s;
@@ -941,6 +1005,7 @@ impl Game {
 
     /// Exécute une commande de l'interface (aussi utilisable directement : tests, outils).
     pub fn command(&mut self, c: UiCommand) {
+        self.audio_ui_command(&c);
         match c {
             UiCommand::SwitchState(s) => self.switch_state(s),
             UiCommand::OpenSettings => {
@@ -948,7 +1013,7 @@ impl Game {
                 self.switch_state(GameState::Settings);
             }
             UiCommand::OpenSettingsTab(tab) => {
-                if tab == SettingsTab::Controls {
+                if tab != SettingsTab::Graphics {
                     self.pending_settings_tab = Some(tab);
                 }
                 self.switch_state(GameState::Settings);
@@ -1126,6 +1191,7 @@ impl Game {
             .extend(w.key_bindings.iter().map(|(a, k)| (*a, *k)));
         s.window_width = w.window_width;
         s.window_height = w.window_height;
+        s.set_volumes(w.volumes());
         let s = self.settings.clone();
         if !s.fullscreen {
             self.requests.push(PlatformRequest::SetWindowSize(
@@ -1143,7 +1209,23 @@ impl Game {
         self.requests
             .push(PlatformRequest::SetFullscreen(s.fullscreen));
         self.input.apply_key_bindings(&s.key_bindings);
+        self.audio.apply_settings(&s);
         self.save_settings();
+    }
+
+    /// Sons de l'interface : un clic par commande, un tic pour les cases d'inventaire, le bruit
+    /// de l'établi quand on prend un objet fabriqué.
+    fn audio_ui_command(&self, c: &UiCommand) {
+        use UiCommand::*;
+        if !self.audio.enabled() {
+            return;
+        }
+        match c {
+            SlotClick { slot, .. } if *slot == nb_ecs::OUTPUT_SLOT => self.audio.ui_craft(),
+            SlotClick { .. } | InventoryClick(_) => self.audio.ui_tick(),
+            RefreshWorlds | RefreshLan | ReloadMobModel(_) | SetMobRegistry(_) | Quit => {}
+            _ => self.audio.ui_click(),
+        }
     }
 
     fn save_settings(&mut self) {

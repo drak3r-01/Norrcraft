@@ -21,6 +21,7 @@
 //!    sous un nom périmé (dossier d'un monde renommé ou supprimé recréé).
 
 pub mod anim;
+pub mod audio;
 pub mod chat;
 pub mod chunks;
 pub mod fixed_step;

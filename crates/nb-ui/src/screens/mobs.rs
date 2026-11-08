@@ -420,6 +420,10 @@ impl MobSettingsScreen {
                 return Some(MobAction::SwitchTo(GameState::Settings));
             }
             Some(2) => return Some(MobAction::SwitchTo(GameState::ResourcePacks)),
+            Some(4) => {
+                ctx.pending_audio_tab = true;
+                return Some(MobAction::SwitchTo(GameState::Settings));
+            }
             _ => {}
         }
         let cx = (w - CONTENT_W) / 2;
