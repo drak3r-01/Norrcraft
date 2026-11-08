@@ -1,0 +1,15 @@
+[package]
+name = "nb-anim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+bytemuck.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
