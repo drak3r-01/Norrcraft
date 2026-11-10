@@ -5,7 +5,6 @@
 **A Nordic voxel survival game written in Rust, rendered with Vulkan 1.3.**
 
 [![Build](https://github.com/drak3r-01/Norrcraft/actions/workflows/build.yml/badge.svg)](https://github.com/drak3r-01/Norrcraft/actions/workflows/build.yml)
-[![CI](https://github.com/drak3r-01/Norrcraft/actions/workflows/ci.yml/badge.svg)](https://github.com/drak3r-01/Norrcraft/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/drak3r-01/Norrcraft?include_prereleases&label=release)](https://github.com/drak3r-01/Norrcraft/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/drak3r-01/Norrcraft/total?label=downloads)](https://github.com/drak3r-01/Norrcraft/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -100,15 +99,13 @@ Prerequisites per system:
 - **Linux**: a C toolchain (`build-essential`), plus the Vulkan loader and a driver to run.
 - **macOS**: Xcode command line tools (`xcode-select --install`) and `brew install molten-vk`.
 
-### Releases and CI
+### Releases
 
-Every push and pull request builds all six targets (Windows, Linux and macOS, x86-64 and ARM64) via [`build.yml`](.github/workflows/build.yml) and uploads them as workflow artifacts. Pushing a version tag publishes an official GitHub release with all packages and checksums:
+Pushing a version tag (`v*`) builds all six targets (Windows, Linux and macOS, x86-64 and ARM64) via [`build.yml`](.github/workflows/build.yml) and publishes an official GitHub release with all packages and checksums:
 
 ```bash
 git tag v0.2.0 && git push origin v0.2.0
 ```
-
-[`ci.yml`](.github/workflows/ci.yml) runs `rustfmt`, `clippy` and the full test suite on Linux and Windows.
 
 ## 🎮 Controls
 

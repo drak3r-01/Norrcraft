@@ -1,12 +1,11 @@
 name: Build
 
-# Pipeline de build : Windows, Linux et macOS (x86_64 + arm64). Une release GitHub est créée
-# pour chaque version :   git tag v0.2.0 && git push origin v0.2.0
+# Pipeline de build : Windows, Linux et macOS (x86_64 + arm64). Déclenchée UNIQUEMENT par un tag
+# de version (ou manuellement) ; une release GitHub est créée pour chaque tag :
+#   git tag v0.2.0 && git push origin v0.2.0
 on:
   push:
-    branches: [main]
     tags: ["v*"]
-  pull_request:
   workflow_dispatch:
 
 permissions:
