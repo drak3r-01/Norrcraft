@@ -1,289 +1,164 @@
-# Norrblock (Rust)
+<div align="center">
 
-Réécriture à l'identique, sans aucune nouveauté, du jeu voxel Java *Norrblock* en Rust + Vulkan
-(`ash`, `winit`, `glam`, `hecs`, `serde`) : monde procédural infini (8 biomes, 4 types de
-monde), blocs à casser et poser, lumière, cycle jour/nuit, ombres, eau et lave, bloom, nuages,
-mobs (renne, poisson, orque) configurables, modes survie et créatif, commandes, inventaire,
-sauvegardes, packs de ressources.
+# ❄️ Norrblock
 
-- Jeu Java de référence : `drak3r-01/UnrealEngine6ProMax` (branche principale).
-- Fidélité : mêmes constantes, mêmes seuils, même ordre de mise à jour ; la génération du
-  monde est identique au Java pour une même graine (port exact de `java.util.Random`).
-- Parité fonctionnelle : [`docs/PARITE.md`](docs/PARITE.md). Différences volontaires (bogues
-  corrigés, bogues conservés) : [`docs/DIFFERENCES.md`](docs/DIFFERENCES.md). Architecture :
-  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Spécifications par crate : `docs/spec/`.
-- Sauvegardes : nouveau format versionné (aucune compatibilité avec les mondes Java).
+**A Nordic voxel survival game written in Rust, rendered with Vulkan 1.3.**
 
-## Architecture des crates
+[![Build](https://github.com/drak3r-01/Norrcraft/actions/workflows/build.yml/badge.svg)](https://github.com/drak3r-01/Norrcraft/actions/workflows/build.yml)
+[![CI](https://github.com/drak3r-01/Norrcraft/actions/workflows/ci.yml/badge.svg)](https://github.com/drak3r-01/Norrcraft/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/drak3r-01/Norrcraft?include_prereleases&label=release)](https://github.com/drak3r-01/Norrcraft/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/drak3r-01/Norrcraft/total?label=downloads)](https://github.com/drak3r-01/Norrcraft/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)
+![Vulkan](https://img.shields.io/badge/Vulkan-1.3-red?logo=vulkan)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 
-| Crate      | Rôle                                                                     |
-|------------|--------------------------------------------------------------------------|
-| `nb-core`  | `java.util.Random` exact, maths, `ChunkPos`, erreurs                      |
-| `nb-data`  | Blocs, mobs, particules, réglages, packs (formats JSON du Java)           |
-| `nb-world` | Bruit, biomes, génération, chunks, lumière, chargement asynchrone, sauvegardes |
-| `nb-mesh`  | Greedy meshing, lumière locale, AO, ordonnanceur multi-thread, quadtree/frustum (sans GPU) |
-| `nb-ecs`   | Entités, systèmes (joueur, physique, IA, apparition, santé), inventaire, commandes |
-| `nb-net`   | Réseau local : protocole TCP, transport, découverte UDP (sans dépendance de jeu) |
-| `nb-gfx`   | Rendu Vulkan 1.3 : ombres, scène, fluides, mobs, particules, bloom, post-traitement, interface |
-| `nb-ui`    | Widgets, police `stb_easy_font`, HUD, inventaire, chat, écrans (pur CPU)  |
-| `nb-game`  | États, boucle fixe 60 Hz, entrées, chat, pont monde → maillage → rendu    |
-| `nb-app`   | Binaire `norrblock` : fenêtre winit, pilote du renderer, mode hors écran  |
+![Norrblock biomes](apercu-biomes.png)
 
-Sens des dépendances : `nb-core` ← `nb-data` ← `nb-world` ← `nb-ecs` ← `nb-game` ← `nb-app` ;
-`nb-mesh`, `nb-ui` et `nb-gfx` ne dépendent que de `nb-core`/`nb-data` (et `nb-gfx` de
-`nb-mesh`). Détails, threads et flux de données : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+[Download](#-download) · [Build from source](#-build-from-source) · [Controls](#-controls) · [Documentation](#-documentation)
 
-## Prérequis pour jouer
+</div>
 
-- Windows 10/11 64 bits (ou Linux) ;
-- une carte graphique et un **pilote à jour compatibles Vulkan 1.3** (NVIDIA, AMD, Intel
-  récents). `vulkan-1.dll` est installée par le pilote ; le Vulkan SDK n'est pas nécessaire
-  pour jouer. Message « aucun GPU compatible » au démarrage → mettre à jour le pilote.
+## ✨ Features
 
-## Obtenir l'exécutable Windows
+- **Infinite procedural world**: 8 biomes, 4 world types, 19 structures, caves, water and lava.
+- **Nordic survival**: hunger, cold, stamina, progressive mining with 5 tool tiers, armour, fishing, farming, cooking, 82 items and 70 recipes with an in-game recipe book. Creative mode is also available.
+- **Wildlife**: 45+ configurable animals and mobs with animated skeletal rigs.
+- **Modern renderer**: Vulkan 1.3 with dynamic rendering, shadows, fluids, bloom, clouds, a day/night cycle, particles and auroras.
+- **LAN multiplayer**: up to 8 players, no dedicated server needed (Esc → *Open to LAN*).
+- **Moddable**: JSON data files, resource packs, in-game commands.
+- **Fast and parallel**: multi-threaded chunk generation, greedy meshing, frustum culling.
 
-Le résultat est toujours le dossier autonome **`dist\Norrblock\`** (à copier où l'on veut,
-par exemple zippé) :
+## 📦 Download
 
-```
-dist\Norrblock\
-  norrblock.exe            exécutable (shaders, blocs, textures de l'interface intégrés)
-  resource_packs\Default\  pack de textures par défaut
-  assets\                  données de référence (blocs, mobs, particules, icône)
-  saves\settings.json      réglages par défaut
-  saves\mobs_defaults.json valeurs de référence des mobs (ne pas modifier)
-  LICENSE, LISEZMOI.txt
-```
+Grab the archive for your system from the [**latest release**](https://github.com/drak3r-01/Norrcraft/releases/latest), extract it anywhere and run the game from inside its folder.
 
-### A. Sans installer Rust : cross-compilation dans Docker
+| Platform | Architecture | Archive | Launch |
+|----------|--------------|---------|--------|
+| Windows 10/11 | x86-64 | `Norrblock-windows-x64-*.zip` | `norrblock.exe` |
+| Windows 11 | ARM64 | `Norrblock-windows-arm64-*.zip` | `norrblock.exe` |
+| Linux | x86-64 | `Norrblock-linux-x64-*.tar.gz` | `./norrblock` |
+| Linux | ARM64 | `Norrblock-linux-arm64-*.tar.gz` | `./norrblock` |
+| macOS (Apple Silicon M1–M4) | ARM64 | `Norrblock-macos-arm64-*.tar.gz` | `./Norrblock.command` |
+| macOS (Intel) | x86-64 | `Norrblock-macos-x64-*.tar.gz` | `./Norrblock.command` |
 
-Prérequis : Docker Desktop et Git pour Windows (Git Bash). Depuis Git Bash, à la racine du
-dépôt :
+Checksums are published in `SHA256SUMS.txt` next to the archives.
 
-```bash
-scripts/build-windows.sh
-```
+### Requirements
 
-ou depuis PowerShell : `powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1`
-(utilise Docker automatiquement si `cargo` est absent).
+A GPU and an up-to-date driver supporting **Vulkan 1.3** (NVIDIA, AMD, Intel Arc/Xe and recent iGPUs, Apple Silicon through MoltenVK). The Vulkan SDK is *not* needed to play.
 
-Le script construit une fois l'image `nb-rust-win` (Rust stable, cible
-`x86_64-pc-windows-gnu`, MinGW-w64, Wine), compile `norrblock.exe` en release (CRT liée
-statiquement : aucune DLL à fournir), vérifie que seules des DLL système Windows sont
-importées, lance `norrblock.exe --help` sous Wine, puis assemble `dist\Norrblock\`
-(`scripts/package.sh`). Première exécution : une dizaine de minutes ; ensuite quelques
-secondes à quelques minutes.
+### Platform notes
 
-Vérification optionnelle du paquet (vrai `norrblock.exe` sous Wine, Vulkan logiciel lavapipe,
-scénario complet hors écran puis fenêtré) :
+<details>
+<summary><b>Windows</b></summary>
+
+Extract the zip and double-click `norrblock.exe`. If SmartScreen warns about an unknown publisher, choose *More info → Run anyway* (the binaries are not code-signed). A "no compatible GPU" message means your graphics driver is too old.
+</details>
+
+<details>
+<summary><b>Linux</b></summary>
 
 ```bash
-scripts/test-dist-windows-wine.sh        # captures dans dist/.wine-e2e/
+tar xzf Norrblock-linux-x64-*.tar.gz && cd Norrblock && ./norrblock
 ```
 
-### B. Avec Rust installé directement sous Windows (cible MSVC)
+You need the Vulkan loader and a driver: `sudo apt install libvulkan1 mesa-vulkan-drivers` (Debian/Ubuntu), `sudo dnf install vulkan-loader mesa-vulkan-drivers` (Fedora), or `sudo pacman -S vulkan-icd-loader` plus your GPU driver (Arch). Works on X11 and Wayland.
+</details>
 
-1. **Visual Studio Build Tools 2022** : <https://visualstudio.microsoft.com/fr/downloads/>
-   → « Outils de génération pour Visual Studio 2022 » → charge de travail
-   **« Développement Desktop en C++ »** (cocher MSVC v143 et le SDK Windows 10/11).
-2. **Rust** : télécharger et lancer `rustup-init.exe` depuis <https://rustup.rs>, choix par
-   défaut (`stable-x86_64-pc-windows-msvc`). Ouvrir un nouveau terminal et vérifier
-   `cargo --version`. Le fichier `rust-toolchain.toml` du dépôt installe au besoin la bonne
-   chaîne et `rustfmt`/`clippy`.
-3. **Vulkan** : le pilote graphique suffit pour compiler et jouer (le chargeur Vulkan est
-   ouvert dynamiquement à l'exécution, rien n'est lié à la compilation). Optionnel, pour le
-   développement : le **Vulkan SDK** (<https://vulkan.lunarg.com/sdk/home#windows>) apporte
-   les couches de validation, activées par défaut en debug ou avec `NB_GFX_VALIDATION=1`, et
-   `glslangValidator` (seulement pour modifier les shaders : les SPIR-V sont précompilés).
-4. Compiler et assembler le paquet, dans PowerShell à la racine du dépôt :
+<details>
+<summary><b>macOS (Apple Silicon and Intel)</b></summary>
 
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
-   ```
-
-   (équivaut à `cargo build --release -p nb-app` puis à la copie dans `dist\Norrblock\`).
-   Pendant le développement : `cargo run --release -p nb-app` depuis la racine du dépôt.
-
-## Lancer le jeu
-
-Double-cliquer sur `dist\Norrblock\norrblock.exe`, ou :
-
-```powershell
-cd dist\Norrblock
-.\norrblock.exe
-```
-
-Le jeu lit et écrit `saves\` **dans le dossier courant** (comme le Java) : le lancer depuis son
-dossier (c'est le cas avec un double-clic ; un raccourci doit avoir « Démarrer dans » = ce
-dossier). `resource_packs\` est cherché dans le dossier courant, son parent, puis à côté de
-l'exécutable. Une console accompagne la fenêtre : elle affiche le GPU utilisé, le dossier de
-packs trouvé et les erreurs éventuelles.
-
-Options de la ligne de commande :
-
-| Option | Effet |
-|---|---|
-| `--saves <dossier>` | dossier des sauvegardes et réglages (défaut `saves`) |
-| `--world <nom>` | charge (ou crée, en survie avec triche) ce monde et démarre directement en jeu |
-| `--frames <n>` | quitte après n frames (test) |
-| `--script <fichier>` | entrées simulées, un tick par frame (outil de test, voir `crates/nb-app/scripts/scenario.txt`) |
-| `--headless` | rendu hors écran sans fenêtre ; `--capture-dir <dossier>` pour les captures PNG du script ; `--size LxH` |
-
-Variable d'environnement : `NB_GFX_VALIDATION=1` active les couches de validation Vulkan si
-elles sont installées (Vulkan SDK).
-
-## Contrôles par défaut
-
-Relevés de `saves/settings.json` par défaut (`nb_data::settings`) et des touches fixes de
-l'`InputManager`. Les touches sont des **positions physiques QWERTY** comme dans le Java
-(sur AZERTY : W = Z, A = Q, Q = A). Toutes les actions configurables se changent dans
-**Settings → Controls**.
-
-| Action | Touche | Configurable |
-|---|---|---|
-| Avancer / reculer / gauche / droite | W / S / A / D | oui |
-| Sauter (double appui en créatif : vol on/off ; en vol : monter) | Espace | oui |
-| Sprint | Ctrl gauche | oui |
-| Descendre (en vol) | Maj gauche | oui |
-| Inventaire | E | oui |
-| Jeter (détruit un objet de la case choisie) | Q | oui |
-| Pause | Échap (Échap met toujours en pause, même si Pause est réaffectée) | oui |
-| Casser un bloc / frapper un mob | clic gauche | non |
-| Poser un bloc | clic droit | non |
-| Case de la barre | 1 à 9, molette | non |
-| Ouvrir le chat / une commande | T ou `/` (y compris `/` du pavé) | non |
-| Liste des joueurs (partie LAN) | Tab (maintenu) | non |
-| Valider / annuler le chat | Entrée (ou Entrée du pavé) / Échap | non |
-
-Commandes (monde créé avec « Allow Cheats ») : `/help`, `/time set <day|noon|sunset|night|
-midnight|sunrise|n>`, `/time speed <s>`, `/gamemode <creative|survival>`, `/physics gravity
-<mult>`, `/physics falldamage <on|off>`, `/player health|damage|walkspeed|sprintspeed|flyspeed|
-jumpforce <v>`, `/default`, `/kill`, `/setworldspawn`.
-
-## Configuration
-
-### `saves/settings.json`
-
-Écrit par **Settings → Apply** ; tout champ absent ou mal typé garde sa valeur par défaut
-(supprimer le fichier rétablit tout).
-
-| Champ | Défaut | Valeurs |
-|---|---|---|
-| `renderDistance` | 12 | chunks, 4..24 dans l'écran des réglages |
-| `fov` | 90.0 | degrés, 60..110 |
-| `sensitivity` | 0.1 | 0.02..0.50 |
-| `shadowQuality` | `"LOW"` | `"OFF"`, `"LOW"`, `"HIGH"` |
-| `bloomEnabled` | true | |
-| `vsyncEnabled` | false | |
-| `fullscreen` | false | plein écran exclusif sur le moniteur principal |
-| `resourcePack` | `"Default"` | nom d'un dossier de `resource_packs/` |
-| `windowWidth`, `windowHeight` | 1280, 720 | 1280×720, 1600×900, 1920×1080 dans l'écran |
-| `key_FORWARD`, `key_BACKWARD`, `key_LEFT`, `key_RIGHT`, `key_JUMP`, `key_SPRINT`, `key_CROUCH`, `key_PAUSE`, `key_INVENTORY`, `key_DROP` | 87, 83, 65, 68, 32, 341, 340, 256, 69, 81 | codes de touche **GLFW** (lettres et chiffres = code ASCII majuscule, Espace 32, Échap 256, Entrée 257, Tab 258, flèches 262..265, F1..F12 290..301, Maj g. 340, Ctrl g. 341, Alt g. 342) |
-
-### `saves/mobs.json`
-
-Écrit par **Settings → Mobs** (n'existe pas tant qu'on n'y a rien modifié). Format
-`{ "mobs": [ { "id": …, … }, … ] }` ; pour chaque objet, les champs présents remplacent les
-valeurs du mob de même `id` ; un `id` inconnu crée un mob personnalisé à partir du renne.
-Champs (voir `saves/mobs_defaults.json` pour les valeurs d'origine) : `displayName`,
-`widthX`, `widthZ`, `height`, `maxHealth`, `medium` (`LAND`/`WATER`), `spawnMinWaterDepth`,
-`spawnBiomes`, `spawnSurfaces`, `spawnMinY`, `spawnMaxY`, `spawnMaxWaterDepth` (habitat,
-optionnels, voir `docs/FAUNE.md`), `maxCount`, `groupSizeMin`, `groupSizeMax`, `spawnScatterRadius`, `behaviorType`
-(`PASSIVE`/`AGGRESSIVE`), `moveSpeedMin/Max`, `moveDurationMin/Max`, `pauseDurationMin/Max`,
-`herding`, `herdRadius`, `herdBias`, `aggressorDetectRange`, `aggressorFleeSpeed`,
-`playerFleeSpeed`, `playerFleeDurationMin/Max`, `aggroPlayerRange`, `chaseSpeed`,
-`attackRange`, `attackDamage`, `attackCooldown`, `knockbackForce`. Un fichier JSON invalide
-est ignoré (message `Could not load mobs.json` dans la console).
-
-## Packs de ressources
-
-Un pack est un dossier de `resource_packs/`, choisi dans **Settings → Resource Packs** :
-
-```
-resource_packs/MonPack/
-  pack.mcmeta                                   { "pack": { "pack_format": 15, "description": "…" } }
-  assets/minecraft/textures/block/*.png         textures de blocs (noms de assets/blocks.json)
-  assets/minecraft/textures/entity/<id>/<id>.png  textures des mobs (optionnel)
-  assets/minecraft/optifine/cem/<id>.jem        modèles de mobs OptiFine CEM (optionnel)
-```
-
-Une texture de bloc absente d'un pack apparaît en damier magenta (pas de repli vers Default,
-comme en Java) ; les mobs se replient sur Default. Les textures animées (bandes verticales)
-utilisent leur dernière image.
-
-### Textures par défaut
-
-Le pack `Default` contient les textures d'origine et, pour les blocs ajoutés par le générateur
-de monde (voir `docs/WORLDGEN.md`), des textures procédurales (`scripts/gen_textures.py`).
-`python3 scripts/import_faithful.py Faithful-32x.zip` remplace celles que le pack
-[Faithful 32x](https://faithfulpack.net) fournit aussi et écrit `CREDITS-Faithful.txt` : leur
-licence impose de les créditer clairement avec un lien vers leur site.
-
-## Sauvegardes
-
-`saves/<nom du monde>/world.json` (graine, mode, triche, configuration du monde, joueur,
-inventaire, heure ; champ `"formatVersion": 1`) et `saves/<nom>/chunks/c_<cx>_<cz>.nbc`
-(chunks modifiés ou visités). Le monde est sauvegardé en revenant au menu principal et à la
-fermeture du jeu. Les mondes du jeu Java ne sont pas lisibles (nouveau format, sans
-compatibilité). Pour sauvegarder ou déplacer un monde, copier son dossier.
-
-## Développement
-
-Aucune toolchain n'est requise sur la machine : tout passe par Docker.
+Vulkan runs on top of Metal through [MoltenVK](https://github.com/KhronosGroup/MoltenVK), which is bundled as `libMoltenVK.dylib`.
 
 ```bash
-scripts/cargo-docker.sh fmt --all -- --check
-scripts/cargo-docker.sh clippy --workspace --all-targets -- -D warnings
-scripts/cargo-docker.sh test --workspace
+tar xzf Norrblock-macos-arm64-*.tar.gz && cd Norrblock && ./Norrblock.command
 ```
 
-(`NB_TARGET_VOL=<volume>` choisit le volume Docker du dossier `target`.) Avec Rust installé :
-les mêmes commandes avec `cargo` directement.
+The launcher clears the download quarantine flag and points the loader at the bundled MoltenVK. macOS support is **experimental**: it is compiled in CI but has had little testing on real hardware, so please [open an issue](https://github.com/drak3r-01/Norrcraft/issues) if something breaks.
+</details>
 
-Tests GPU et de bout en bout (Docker, Vulkan logiciel lavapipe + couches de validation + Xvfb) :
+## 🛠 Build from source
+
+You need [Rust](https://rustup.rs) (stable; `rust-toolchain.toml` pins the channel). Shaders are precompiled to SPIR-V and committed, so no Vulkan SDK or `glslc` is required.
 
 ```bash
-NB_GFX_REQUIRE_GPU=1 crates/nb-gfx/scripts/vk-docker.sh test --workspace
-NB_E2E_OUT=/chemin/captures crates/nb-app/scripts/e2e.sh   # scénario hors écran (PNG) puis fenêtré
-scripts/test-dist-linux.sh                                  # même scénario depuis un paquet Linux
-crates/nb-gfx/scripts/smoke-window.sh                       # visionneuse nb-gfx sous Xvfb
+git clone https://github.com/drak3r-01/Norrcraft.git
+cd Norrcraft
 ```
 
-Les shaders sont précompilés en SPIR-V (`crates/nb-gfx/shaders/spv`, `ui/`) ; après une
-modification des sources GLSL : `crates/nb-gfx/scripts/compile-shaders.sh` (un test vérifie
-que les SPIR-V sont à jour).
+| System | Command | Result |
+|--------|---------|--------|
+| Linux / macOS (any architecture) | `scripts/build-unix.sh` | `dist/Norrblock/` |
+| Windows (MSVC, PowerShell) | `powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1` | `dist\Norrblock\` |
+| Windows without Rust (Docker cross-compile) | `scripts/build-windows.sh` | `dist/Norrblock/` |
+| Quick dev run (any OS) | `cargo run --release -p nb-app` | – |
 
-## Licence
+Prerequisites per system:
 
-MIT, voir [`LICENSE`](LICENSE).
+- **Windows**: Visual Studio Build Tools 2022 with the *Desktop development with C++* workload.
+- **Linux**: a C toolchain (`build-essential`), plus the Vulkan loader and a driver to run.
+- **macOS**: Xcode command line tools (`xcode-select --install`) and `brew install molten-vk`.
 
-## Phase 9 : structures, faune, flore
+### Releases and CI
 
-19 structures (`docs/STRUCTURES.md`, curseur « Structure Density » à la création du monde), 42 animaux
-supplémentaires (`docs/FAUNE.md`, `scripts/gen_mobs.py`) et une flore étendue (`docs/FLORE.md`,
-`scripts/gen_textures_nature.py` pour les textures provisoires).
+Every push and pull request builds all six targets (Windows, Linux and macOS, x86-64 and ARM64) via [`build.yml`](.github/workflows/build.yml) and uploads them as workflow artifacts. Pushing a version tag publishes an official GitHub release with all packages and checksums:
 
-## Phase 10 : inventaire et craft
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
 
-Grille de craft 2×2 dans l'inventaire (E), établi 3×3 et fonderie (clic droit sur les blocs
-`workbench` et `forge`), clic droit / Maj dans les cases, 8 objets, 9 blocs exclusifs et 46
-recettes. Tout est décrit et modifiable dans `docs/CRAFT.md` (données : `assets/items.json`,
-`assets/recipes.json`, `assets/blocks_craft.json` ; textures provisoires :
-`scripts/gen_craft_textures.py`, `scripts/gen_craft_hud.py`).
+[`ci.yml`](.github/workflows/ci.yml) runs `rustfmt`, `clippy` and the full test suite on Linux and Windows.
 
-## Phase 11 : jeu en réseau local
+## 🎮 Controls
 
-Multijoueur LAN **optionnel**, sans serveur dédié : un joueur héberge depuis le menu pause
-(**Échap → OPEN TO LAN**), les autres le rejoignent depuis **MULTIPLAYER** (liste automatique des
-parties du réseau, ou adresse saisie). Jusqu'à 8 joueurs, monde, blocs, mobs et chat partagés.
-Guide, ports, fonctionnement et limites : [`docs/LAN.md`](docs/LAN.md).
+Keys are physical QWERTY positions (on AZERTY keyboards, W = Z and A = Q). All bindings can be changed in *Settings → Controls*.
 
-## Phase 12 : survie nordique
+| Action | Key |
+|--------|-----|
+| Move | `W` `A` `S` `D` |
+| Jump (double-tap to fly in creative) | `Space` |
+| Sprint / descend while flying | `Left Ctrl` / `Left Shift` |
+| Break / place | Left / right click |
+| Hotbar | `1`–`9` or mouse wheel |
+| Inventory and crafting | `E` |
+| Chat / commands | `T` or `/` |
+| Third-person view | `F5` |
+| Pause, LAN hosting | `Esc` |
 
-Faim, froid (chaleur corporelle), endurance, minage progressif avec **5 paliers d'outils**
-(bois → aurore), armures de fourrure / fer / diamant / aurore, chasse (butin des 45 mobs), pêche,
-labour et cultures (blé, pomme de terre, carotte), cuisine, 82 nouveaux objets et 70 recettes,
-**livre de recettes** (bouton dans l'inventaire), icônes d'inventaire en **cubes isométriques**,
-vue à la 3ᵉ personne (**F5**) avec avatar animé et protocole LAN v2. Le mode créatif reste
-inchangé. Guide complet : [`docs/SURVIE.md`](docs/SURVIE.md) (données générées par
-`scripts/gen_survival.py`).
+Cheat commands (worlds created with *Allow Cheats*): `/help`.
+
+## 🧱 Architecture
+
+A Cargo workspace of focused crates, with no GPU dependency outside `nb-gfx`:
+
+| Crate | Role |
+|-------|------|
+| `nb-core` | exact `java.util.Random`, math, chunk positions, errors |
+| `nb-data` | blocks, mobs, items, settings, resource packs (JSON formats) |
+| `nb-world` | noise, biomes, generation, chunks, lighting, async loading, saves |
+| `nb-mesh` | greedy meshing, ambient occlusion, multi-threaded scheduler, culling |
+| `nb-ecs` | entities, player, physics, AI, survival, inventory, crafting, commands |
+| `nb-anim`, `nb-particles`, `nb-audio` | skeletal animation, particles, sound |
+| `nb-net` | LAN protocol over TCP, UDP discovery |
+| `nb-gfx` | Vulkan 1.3 renderer |
+| `nb-ui` | widgets, HUD, inventory, chat, screens |
+| `nb-game` | game states, fixed 60 Hz loop, input |
+| `nb-app` | the `norrblock` binary: window, renderer driver, headless mode |
+
+## 📚 Documentation
+
+Most design documents are written in French:
+[Architecture](docs/ARCHITECTURE.md) · [Survival guide](docs/SURVIE.md) · [Crafting](docs/CRAFT.md) · [World generation](docs/WORLDGEN.md) · [Structures](docs/STRUCTURES.md) · [Fauna](docs/FAUNE.md) · [LAN multiplayer](docs/LAN.md) · [Animation](docs/ANIMATION.md) · [Particles](docs/particles.md) · [Audio](docs/AUDIO.md) · [Performance](docs/PERF.md) · [Detailed French README](docs/README.fr.md)
+
+## 🤝 Contributing
+
+Issues and pull requests are welcome. Before submitting, run:
+
+```bash
+cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace
+```
+
+## 📄 License
+
+[MIT](LICENSE) © 2026 drak3r-01

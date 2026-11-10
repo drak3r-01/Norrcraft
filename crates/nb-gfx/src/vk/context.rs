@@ -109,6 +109,9 @@ impl GpuContext {
         if validation {
             exts.push(ash::ext::debug_utils::NAME.as_ptr());
         }
+        // macOS : MoltenVK n'est exposé que comme implémentation « portabilité ».
+        #[cfg(target_os = "macos")]
+        exts.push(ash::khr::portability_enumeration::NAME.as_ptr());
         let layer_ptrs: Vec<*const c_char> = if validation {
             vec![VALIDATION_LAYER.as_ptr()]
         } else {
@@ -118,7 +121,12 @@ impl GpuContext {
             .application_name(c"Norrblock")
             .engine_name(c"nb-gfx")
             .api_version(vk::API_VERSION_1_3);
+        #[cfg(target_os = "macos")]
+        let ci_flags = vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR;
+        #[cfg(not(target_os = "macos"))]
+        let ci_flags = vk::InstanceCreateFlags::empty();
         let ci = vk::InstanceCreateInfo::default()
+            .flags(ci_flags)
             .application_info(&app)
             .enabled_extension_names(&exts)
             .enabled_layer_names(&layer_ptrs);
@@ -234,6 +242,8 @@ impl GpuContext {
         if surface.is_some() {
             dev_exts.push(ash::khr::swapchain::NAME.as_ptr());
         }
+        #[cfg(target_os = "macos")]
+        dev_exts.push(c"VK_KHR_portability_subset".as_ptr());
         let dci = vk::DeviceCreateInfo::default()
             .queue_create_infos(&qci)
             .enabled_extension_names(&dev_exts)

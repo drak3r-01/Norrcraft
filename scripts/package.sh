@@ -36,6 +36,22 @@ cp "$ROOT/LICENSE" "$DEST/LICENSE"
 cp "$ROOT/docs/AUDIO.md" "$DEST/sounds/LISEZMOI-SONS.md"
 cp "$ROOT/scripts/LISEZMOI.txt" "$DEST/LISEZMOI.txt"
 
+
+# macOS : le chargeur Vulkan est MoltenVK (Vulkan -> Metal). NB_MOLTENVK = chemin de
+# libMoltenVK.dylib ; il est embarqué à côté de l'exécutable et un lanceur double-cliquable
+# (Norrblock.command) le rend visible au chargeur dynamique.
+if [ -n "${NB_MOLTENVK:-}" ]; then
+  cp "$NB_MOLTENVK" "$DEST/libMoltenVK.dylib"
+  cat > "$DEST/Norrblock.command" <<'LAUNCH'
+#!/bin/sh
+cd "$(dirname "$0")"
+xattr -dr com.apple.quarantine . 2>/dev/null || true
+export DYLD_FALLBACK_LIBRARY_PATH="$PWD:$DYLD_FALLBACK_LIBRARY_PATH"
+exec ./norrblock "$@"
+LAUNCH
+  chmod +x "$DEST/Norrblock.command"
+fi
+
 # Contrôle : tout ce que le jeu lit à l'exécution est présent.
 for f in "$NAME" resource_packs/Default/pack.mcmeta \
          resource_packs/Default/assets/minecraft/textures/block saves/settings.json; do

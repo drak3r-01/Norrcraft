@@ -1,7 +1,7 @@
 name: Build
 
-# Pipeline de build Windows + Linux. Une release GitHub est créée pour chaque version :
-#   git tag v0.2.0 && git push origin v0.2.0
+# Pipeline de build : Windows, Linux et macOS (x86_64 + arm64). Une release GitHub est créée
+# pour chaque version :   git tag v0.2.0 && git push origin v0.2.0
 on:
   push:
     branches: [main]
@@ -21,19 +21,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            exe: norrblock.exe
-            name: Norrblock-windows
-          - os: ubuntu-latest
-            exe: norrblock
-            name: Norrblock-linux
+          - { os: windows-latest,   name: Norrblock-windows-x64,   exe: norrblock.exe, ext: zip }
+          - { os: windows-11-arm,   name: Norrblock-windows-arm64, exe: norrblock.exe, ext: zip }
+          - { os: ubuntu-latest,    name: Norrblock-linux-x64,     exe: norrblock,     ext: tar.gz }
+          - { os: ubuntu-24.04-arm, name: Norrblock-linux-arm64,   exe: norrblock,     ext: tar.gz }
+          - { os: macos-latest,     name: Norrblock-macos-arm64,   exe: norrblock,     ext: tar.gz }
+          - { os: macos-15-intel,   name: Norrblock-macos-x64,     exe: norrblock,     ext: tar.gz }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: MoltenVK (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install molten-vk
+          echo "NB_MOLTENVK=$(brew --prefix molten-vk)/lib/libMoltenVK.dylib" >> "$GITHUB_ENV"
       # Les shaders SPIR-V sont versionnés (crates/nb-gfx/shaders/spv) : pas besoin de glslc.
       - name: Build release
+        env:
+          RUSTFLAGS: ${{ runner.os == 'Windows' && '-C target-feature=+crt-static' || '' }}
         run: cargo build --locked --release -p nb-app
       - name: Package
         shell: bash
@@ -48,19 +55,14 @@ jobs:
         shell: bash
         run: |
           cd dist
-          if [ "${{ runner.os }}" = Windows ]; then
-            7z a -tzip ../${{ matrix.name }}-${{ github.ref_name }}.zip Norrblock
-          else
-            tar czf ../${{ matrix.name }}-${{ github.ref_name }}.tar.gz Norrblock
-          fi
+          A="../${{ matrix.name }}-${{ github.ref_name }}.${{ matrix.ext }}"
+          if [ "${{ matrix.ext }}" = zip ]; then 7z a -tzip "$A" Norrblock; else tar czf "$A" Norrblock; fi
       - name: Upload archive
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.name }}
-          path: |
-            ${{ matrix.name }}-*.zip
-            ${{ matrix.name }}-*.tar.gz
+          path: ${{ matrix.name }}-*.${{ matrix.ext }}
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -73,9 +75,12 @@ jobs:
         with:
           pattern: release-*
           merge-multiple: true
+      - name: Checksums
+        run: sha256sum *.zip *.tar.gz > SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
             *.zip
             *.tar.gz
+            SHA256SUMS.txt
