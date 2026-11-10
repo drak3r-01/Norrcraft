@@ -89,7 +89,7 @@ impl GpuContext {
         surface_factory: Option<SurfaceFactory<'_>>,
     ) -> Result<(Self, Option<vk::SurfaceKHR>)> {
         // SAFETY : chargement dynamique de la bibliothèque Vulkan système.
-        let entry = unsafe { ash::Entry::load()? };
+        let entry = unsafe { load_entry()? };
         // SAFETY : appels Vulkan sur un `Entry` valide.
         let version =
             unsafe { entry.try_enumerate_instance_version()? }.unwrap_or(vk::API_VERSION_1_0);
@@ -377,5 +377,40 @@ impl Drop for GpuContext {
             }
             self.instance.destroy_instance(None);
         }
+    }
+}
+
+/// Charge la bibliothèque Vulkan. Sous macOS, `libvulkan.dylib` est rarement installée : on
+/// essaie ensuite `libMoltenVK.dylib` à côté de l'exécutable, puis dans les dossiers usuels
+/// de Homebrew et du SDK Vulkan.
+///
+/// # Safety
+/// Même contrat que [`ash::Entry::load`].
+unsafe fn load_entry() -> std::result::Result<ash::Entry, ash::LoadingError> {
+    // SAFETY : chargement dynamique de la bibliothèque Vulkan système.
+    let first = unsafe { ash::Entry::load() };
+    #[cfg(not(target_os = "macos"))]
+    {
+        first
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let Err(err) = first else { return first };
+        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                candidates.push(dir.join("libMoltenVK.dylib"));
+            }
+        }
+        candidates.push("libMoltenVK.dylib".into());
+        candidates.push("/opt/homebrew/lib/libMoltenVK.dylib".into());
+        candidates.push("/usr/local/lib/libMoltenVK.dylib".into());
+        for c in candidates {
+            // SAFETY : idem.
+            if let Ok(e) = unsafe { ash::Entry::load_from(&c) } {
+                return Ok(e);
+            }
+        }
+        Err(err)
     }
 }
