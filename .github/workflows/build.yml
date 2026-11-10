@@ -1,0 +1,81 @@
+name: Build
+
+# Pipeline de build Windows + Linux. Une release GitHub est créée pour chaque version :
+#   git tag v0.2.0 && git push origin v0.2.0
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            exe: norrblock.exe
+            name: Norrblock-windows
+          - os: ubuntu-latest
+            exe: norrblock
+            name: Norrblock-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Les shaders SPIR-V sont versionnés (crates/nb-gfx/shaders/spv) : pas besoin de glslc.
+      - name: Build release
+        run: cargo build --locked --release -p nb-app
+      - name: Package
+        shell: bash
+        run: sh scripts/package.sh target/release/${{ matrix.exe }} dist/Norrblock
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/Norrblock
+          if-no-files-found: error
+      - name: Archive (tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ runner.os }}" = Windows ]; then
+            7z a -tzip ../${{ matrix.name }}-${{ github.ref_name }}.zip Norrblock
+          else
+            tar czf ../${{ matrix.name }}-${{ github.ref_name }}.tar.gz Norrblock
+          fi
+      - name: Upload archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: |
+            ${{ matrix.name }}-*.zip
+            ${{ matrix.name }}-*.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            *.zip
+            *.tar.gz
