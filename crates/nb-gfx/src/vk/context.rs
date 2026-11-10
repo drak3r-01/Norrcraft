@@ -110,8 +110,20 @@ impl GpuContext {
             exts.push(ash::ext::debug_utils::NAME.as_ptr());
         }
         // macOS : MoltenVK n'est exposé que comme implémentation « portabilité ».
+        // L'extension n'existe que si un chargeur Vulkan est présent (pas en chargeant
+        // libMoltenVK directement) : on ne l'active que si elle est annoncée.
         #[cfg(target_os = "macos")]
-        exts.push(ash::khr::portability_enumeration::NAME.as_ptr());
+        let portability = {
+            // SAFETY : énumération sur un `Entry` valide.
+            let avail = unsafe { entry.enumerate_instance_extension_properties(None)? };
+            avail.iter().any(|e| {
+                e.extension_name_as_c_str().ok() == Some(ash::khr::portability_enumeration::NAME)
+            })
+        };
+        #[cfg(target_os = "macos")]
+        if portability {
+            exts.push(ash::khr::portability_enumeration::NAME.as_ptr());
+        }
         let layer_ptrs: Vec<*const c_char> = if validation {
             vec![VALIDATION_LAYER.as_ptr()]
         } else {
@@ -122,7 +134,11 @@ impl GpuContext {
             .engine_name(c"nb-gfx")
             .api_version(vk::API_VERSION_1_3);
         #[cfg(target_os = "macos")]
-        let ci_flags = vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR;
+        let ci_flags = if portability {
+            vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
+        } else {
+            vk::InstanceCreateFlags::empty()
+        };
         #[cfg(not(target_os = "macos"))]
         let ci_flags = vk::InstanceCreateFlags::empty();
         let ci = vk::InstanceCreateInfo::default()
@@ -243,7 +259,16 @@ impl GpuContext {
             dev_exts.push(ash::khr::swapchain::NAME.as_ptr());
         }
         #[cfg(target_os = "macos")]
-        dev_exts.push(c"VK_KHR_portability_subset".as_ptr());
+        {
+            // SAFETY : `physical` appartient à l'instance.
+            let avail = unsafe { instance.enumerate_device_extension_properties(physical)? };
+            if avail
+                .iter()
+                .any(|e| e.extension_name_as_c_str().ok() == Some(c"VK_KHR_portability_subset"))
+            {
+                dev_exts.push(c"VK_KHR_portability_subset".as_ptr());
+            }
+        }
         let dci = vk::DeviceCreateInfo::default()
             .queue_create_infos(&qci)
             .enabled_extension_names(&dev_exts)
