@@ -1,14 +1,14 @@
 //! Carte Norrcraft : relief ombré (session 1.2), champs macroscopiques (session 1.1), zones
-//! climatiques, provinces, sens des glaces. Sortie PNG et statistiques de répartition.
+//! climatiques, provinces, sens des glaces, hydrographie (session 1.4). Sortie PNG et statistiques de répartition.
 
 use nb_world::norrcraft::{
-    ClimateZone, HeightFields, MacroSample, NorrConfig, NorrPreset, Province, COAST_C,
+    ClimateZone, Hydrography, MacroSample, NorrConfig, NorrPreset, Province, WaterKind, COAST_C,
 };
 
 use crate::image_out::write_image;
 
 pub const MODES: &str =
-    "relief | h | fjord | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
+    "relief | hydro | w | h | fjord | overview| h | fjord | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
 
 type Rgb = [f64; 3];
 
@@ -65,6 +65,40 @@ fn water_tint(depth: f64) -> Rgb {
         [8.0, 22.0, 70.0],
         (depth / 32.0).sqrt(),
     )
+}
+
+/// Couleur d'un pixel des modes d'eau (session 1.4). `hydro` : relief ombré, mer par profondeur,
+/// lacs en turquoise, rivières en bleu vif (élargies aux grands pas pour rester visibles).
+/// `w` : terres teintées par marche du niveau en escalier
+/// W (une teinte toutes les 6 marches, alternance claire / foncée d'une marche à l'autre).
+fn water_color(mode: &str, p: &Px, shade: f64, step: i32, sea: f64) -> Rgb {
+    let wet = p.level > p.top;
+    let s = |c: Rgb, k: f64| {
+        let f = 1.0 + (shade - 1.0) * k;
+        [c[0] * f, c[1] * f, c[2] * f]
+    };
+    if p.kind == WaterKind::River
+        || (!wet && p.channel < p.river_width.max(f64::from(step) * 0.5) && step > 2)
+    {
+        return [30.0, 90.0, 235.0];
+    }
+    if wet {
+        return match p.kind {
+            WaterKind::Lake => s([60.0, 170.0, 200.0], 0.2),
+            _ => s(water_tint(p.level - p.top), 0.35),
+        };
+    }
+    if mode == "w" {
+        let k = (p.stair - sea as i32) / 6;
+        let base = ramp(0.35 + 0.65 * f64::from(k) / 14.0);
+        let base = if k % 2 == 0 {
+            base
+        } else {
+            mix(base, [0.0; 3], 0.25)
+        };
+        return s(base, 0.6);
+    }
+    s(land_tint(p.top - sea), 1.0)
 }
 
 fn zone_color(z: ClimateZone) -> Rgb {
@@ -148,6 +182,13 @@ fn print_quantiles(name: &str, v: Vec<f64>) {
 #[derive(Clone, Copy)]
 struct Px {
     h: f64,
+    /// Fond après l'hydrographie (bloc), niveau de l'eau, nature, niveau en escalier W.
+    top: f64,
+    level: f64,
+    kind: WaterKind,
+    stair: i32,
+    channel: f64,
+    river_width: f64,
     fjord: bool,
     valley: f64,
     plateau: f64,
@@ -171,12 +212,21 @@ pub fn run(a: &[String]) {
     }
 
     let cfg = NorrConfig::with_preset(preset);
-    let hf = HeightFields::new(seed, cfg);
+    let hy = Hydrography::new(seed, cfg);
+    let hf = hy.heights();
     let f = hf.macro_fields();
+    let with_water = matches!(mode, "hydro" | "w");
     let sea = f64::from(cfg.sea_level);
     let n = (size * size) as usize;
     let x0 = cx - size * step / 2;
     let z0 = cz - size * step / 2;
+    // Lacs de toute la carte (calculés une fois), seulement pour les modes d'eau.
+    let lakes = if with_water {
+        Some(hy.lakes(x0, z0, x0 + size * step, z0 + size * step))
+    } else {
+        None
+    };
+    let mut water_count = [0u64; 4];
 
     let mut px = vec![0u8; n * 3];
     let mut cells = Vec::with_capacity(n);
@@ -192,6 +242,18 @@ pub fn run(a: &[String]) {
             let (wx, wz) = (f64::from(x0 + i * step), f64::from(z0 + j * step));
             let s = f.sample(wx, wz);
             let r = hf.relief(wx, wz, &s);
+            let wc = lakes
+                .as_ref()
+                .map(|l| hy.hydrology().column(wx, wz, &r, &s, l));
+            if let Some(c) = wc {
+                let k = match c.kind {
+                    WaterKind::None => 0,
+                    WaterKind::Sea => 1,
+                    WaterKind::Lake => 2,
+                    WaterKind::River => 3,
+                };
+                water_count[k] += 1;
+            }
             let p = f.province(wx, wz);
             let zone = ClimateZone::from_t0(s.t0);
             let zi = ClimateZone::ALL.iter().position(|&z| z == zone).unwrap();
@@ -216,13 +278,19 @@ pub fn run(a: &[String]) {
             }
             cells.push(Px {
                 h: r.h,
+                top: wc.map_or(r.h, |c| f64::from(c.top) + 0.5),
+                level: wc.map_or(sea, |c| f64::from(c.level)),
+                kind: wc.map_or(WaterKind::None, |c| c.kind),
+                stair: wc.map_or(cfg.sea_level, |c| c.stair),
+                channel: wc.map_or(f64::INFINITY, |c| c.channel_distance),
+                river_width: wc.map_or(0.0, |c| c.river_width),
                 fjord: r.fjord,
                 valley: r.valley,
                 plateau: r.plateau,
             });
 
             let mut c: Rgb = match mode {
-                "relief" | "h" | "fjord" => [0.0; 3],
+                "relief" | "hydro" | "w" | "h" | "fjord" => [0.0; 3],
                 "overview" => overview_color(&s),
                 "zones" => {
                     let base = zone_color(zone);
@@ -259,15 +327,16 @@ pub fn run(a: &[String]) {
     }
 
     // Seconde passe : relief ombré (lumière du nord-ouest), à partir des hauteurs voisines.
-    if matches!(mode, "relief" | "h" | "fjord") {
+    if matches!(mode, "relief" | "hydro" | "w" | "h" | "fjord") {
         let at =
             |i: i32, j: i32| cells[(j.clamp(0, size - 1) * size + i.clamp(0, size - 1)) as usize];
         for j in 0..size {
             for i in 0..size {
                 let p = at(i, j);
+                let hh = |q: Px| if with_water { q.top.max(q.level) } else { q.h };
                 let (dx, dz) = (
-                    (at(i + 1, j).h - at(i - 1, j).h) / f64::from(2 * step),
-                    (at(i, j + 1).h - at(i, j - 1).h) / f64::from(2 * step),
+                    (hh(at(i + 1, j)) - hh(at(i - 1, j))) / f64::from(2 * step),
+                    (hh(at(i, j + 1)) - hh(at(i, j - 1))) / f64::from(2 * step),
                 );
                 // Éclairage de type Lambert sans trigonométrie : normale (−dx, 1, −dz) normalisée.
                 let k = 3.0;
@@ -276,6 +345,7 @@ pub fn run(a: &[String]) {
                 let light = (-0.6 * nx - 0.6 * nz + 0.55) / norm;
                 let shade = (0.55 + 0.75 * light).clamp(0.25, 1.35);
                 let c: Rgb = match mode {
+                    "hydro" | "w" => water_color(mode, &p, shade, step, sea),
                     "h" => {
                         let v = ramp((p.h - 8.0) / 116.0);
                         if p.h < sea {
@@ -329,6 +399,15 @@ pub fn run(a: &[String]) {
         pct(high),
         pct(lava)
     );
+    if with_water {
+        let lake_n = lakes.as_ref().map_or(0, |l| l.lakes().count());
+        println!(
+            "eau : mer {:.1} %   lacs {:.2} %   rivières {:.2} %   ({lake_n} lacs du Worley sur la carte)",
+            pct(water_count[1]),
+            pct(water_count[2]),
+            pct(water_count[3]),
+        );
+    }
     println!("-- quantiles (min 5% 25% 50% 75% 95% max)");
     print_quantiles("h", heights);
     for (name, v) in ["c", "o", "t0", "hm", "u", "e", "lk", "gt", "vr"]

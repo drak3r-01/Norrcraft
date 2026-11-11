@@ -8,11 +8,15 @@
 //!
 //! Session 1.2 : fonction de hauteur ([`height`] : socle, collines, chaîne, plateaux, vallées en U,
 //! fjords) et vrai générateur ([`terrain`]), qui remplace le monde plat de granit dans les mondes.
+//!
+//! Session 1.4 : hydrographie ([`hydro`] : niveau d'eau en escalier, lacs à margelle, rivières et
+//! rapides, mer ; scellement qui rend toute nappe étanche).
 
 pub mod climate;
 pub mod config;
 pub mod fields;
 pub mod height;
+pub mod hydro;
 pub mod math;
 pub mod terrain;
 
@@ -20,6 +24,7 @@ pub use climate::{altitudes, temperature_at, Altitudes, ClimateZone};
 pub use config::{NorrConfig, NorrPreset, DEFAULT_SEA_LEVEL, DEFAULT_WORLD_HEIGHT};
 pub use fields::{ChunkFields, FieldGrid, MacroFields, MacroSample, Province, COAST_C};
 pub use height::{HeightFields, Relief};
+pub use hydro::{Hydrography, Hydrology, Lake, LakeSet, SeaFacade, WaterColumn, WaterKind};
 pub use terrain::{NorrBlocks, NorrcraftTerrain};
 
 use std::sync::Arc;
@@ -167,6 +172,7 @@ mod tests {
         let p = WorldProfile::norrcraft(12345, NorrConfig::default(), &reg);
         let gen = p.new_generator();
         let (water, bedrock) = (reg.get("water").id, reg.get("bedrock").id);
+        let hydro = Hydrography::new(12345, NorrConfig::default());
         for (cx, cz) in [(0, 0), (-3, 5), (40, -17), (-250, 90)] {
             let mut chunk = Chunk::new(nb_core::ChunkPos::new(cx, cz));
             gen.generate_chunk(&mut chunk);
@@ -180,10 +186,13 @@ mod tests {
                         "colonne pleine sous la surface"
                     );
                     assert_ne!(chunk.block(x, h - 1, z), water);
+                    let c = hydro.column(cx * 16 + x, cz * 16 + z);
+                    assert_eq!(c.top, h);
                     let above = chunk.block(x, h, z);
-                    if h < DEFAULT_SEA_LEVEL {
+                    if c.is_wet() {
                         assert_eq!(above, water);
-                        assert_eq!(chunk.block(x, DEFAULT_SEA_LEVEL, z), 0);
+                        assert_eq!(chunk.block(x, c.level - 1, z), water);
+                        assert_eq!(chunk.block(x, c.level, z), 0);
                     } else {
                         assert_eq!(above, 0);
                     }
@@ -193,5 +202,6 @@ mod tests {
         let spawn = p.generator().find_spawn(34);
         let (sx, sz) = (spawn[0].floor() as i32, spawn[2].floor() as i32);
         assert!(p.generator().surface_height(sx, sz) >= DEFAULT_SEA_LEVEL);
+        assert!(!hydro.column(sx, sz).is_wet(), "départ au sec");
     }
 }

@@ -1,9 +1,9 @@
-# Worldgen Norrcraft : champs macroscopiques (1.1) et relief (1.2)
+# Worldgen Norrcraft : champs (1.1), relief (1.2) et hydrographie (1.4)
 
-Le vrai relief Norrcraft (GDD doc 02 §3 à §5.4 et §12 ; plan 06, sessions 1.1 et 1.2). La 1.1 a
-posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de hauteur
-et remplace le monde plat de granit de la phase 0 par un vrai terrain. Tout vit dans
-`crates/nb-world/src/norrcraft/`.
+Le vrai relief Norrcraft (GDD doc 02 §3 à §5.4, §6 et §12 ; plan 06, sessions 1.1, 1.2 et 1.4). La
+1.1 a posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de
+hauteur et remplace le monde plat de granit de la phase 0 par un vrai terrain ; la 1.4 y met l'eau
+(mer, lacs, rivières), étanche par construction. Tout vit dans `crates/nb-world/src/norrcraft/`.
 
 ## Modules
 
@@ -14,7 +14,8 @@ et remplace le monde plat de granit de la phase 0 par un vrai terrain. Tout vit 
 | `fields.rs` | `MacroFields::sample(x, z)` → `MacroSample { c, o, t0, hm, u, e, lk, gt, vr, theta }` ; `province(x, z)` ; `ChunkFields` (treillis 4 × 4) |
 | `climate.rs` | `ClimateZone` (arctique … némorale), `altitudes` (limites des arbres, de la roche nue, des neiges), `temperature_at` |
 | `height.rs` (1.2) | `HeightFields` : `column(wx, wz)` (treillis, identique aux chunks), `relief_exact(x, z)` (cartes), `relief(x, z, &MacroSample)` → `Relief { h, socle, land, chain, before_valleys, plateau, plateau_level, valley, valley_floor, hanging, fjord }` ; `socle(C)`, `soft_floor` |
-| `terrain.rs` (1.2) | `NorrcraftTerrain` (`TerrainGenerator`) et `NorrBlocks` ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)`, utilisé par `World::for_kind` |
+| `terrain.rs` (1.2, 1.4) | `NorrcraftTerrain` (`TerrainGenerator`) et `NorrBlocks` ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)`, utilisé par `World::for_kind` |
+| `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
 Règles communes (doc 02 §2) : fonctions pures de (graine, config, x, z), **aucune fonction
 transcendante** (un test refuse `sin`, `exp`, `ln`, `powf`, `powi`, `mul_add`… dans tout le dossier),
@@ -121,6 +122,73 @@ fjords (sous la mer) 2,1 / 1,7 / 1,6 % de la carte (cible doc §7.5 : 2 %) ; 3 �
 de S + 44. Points d'intérêt de la graine 12345 : côte à fjords vers (−5600, 300), chaîne vers
 (−1800, 5900).
 
+## Hydrographie (session 1.4, doc 02 §6)
+
+L'eau du moteur est statique : chaque nappe est horizontale et étanche par construction. Pour
+chaque colonne, `Hydrology::column` part du relief de la 1.2 et rend une `WaterColumn` : `top`
+(premier `y` non solide), `level` (premier `y` d'air au-dessus de l'eau ; l'eau occupe
+`top..level`), la nature de l'eau et le niveau en escalier. Dans l'ordre :
+
+1. **Escalier W** (§6.1) : `W = S + 6 · plancher(max(0, Hl − S − 2) / 6)`, avec `Hl` le relief
+   filtré (`filtered_height` : socle, chaîne, plateaux, plafond doux et vallées, sans collines ni
+   détail, recomposés à partir des termes de `Relief`). **Tout creux sous W se remplit à W** (la
+   nappe) : la mer sur la côte (W = S tant que Hl < S + 8), des étangs et des lacs de creux dans
+   les terres. Juste au-dessus d'une marche (15 % de la marche), les creux sont comblés jusqu'à W
+   (barre rocheuse, granit nu) : deux nappes de niveaux différents ne se touchent pas en plein champ.
+2. **Lacs de vallée** (fingersjöar, §6.3) : dans une auge intérieure (g > 0,3, fond f ≥ S + 2),
+   près de l'axe, là où `q(F(p/600; 2)) > 0,6`, le fond descend jusqu'à W − 8 ; le fond plat de
+   l'auge (W + 2) les barre de part et d'autre.
+3. **Lacs** (§6.3) : Worley de pas 180, probabilité `0,15 + 0,6 · Lk` si le centre est sur la
+   terre (C ≥ 0,52), hors chaîne (U < 0,25), hors auges, plateaux et parois. Niveau constant
+   `ℓ = max(plancher(min(h, Hl)) − 1, W)` au centre (> S). Rayon de base 14 à 60 (`14 + 46 · a³` :
+   beaucoup de petits lacs), contour `r · (0,6 + 0,8 · q(F(p/70; 3)))` (îles), distance
+   **allongée de 1,6 le long de θ** (lacs de surcreusement), cuvette de 3 à 14 blocs, berges
+   talutées (pente 0,6, effacées au-delà de 20 blocs), **margelle** au niveau ℓ sur 4 blocs puis
+   digue à pente 1 là où le sol est plus bas.
+4. **Rivières** (§6.2) : `Rv = Z(warp(p; 110, 300) / 850)` comme au doc, mais la largeur est en
+   **blocs** : distance à l'axe estimée par `Rv / |∇Rv|` (différences finies sur les coordonnées
+   déformées), demi-largeur `2,5 + 4,5 · sm(0,70 ; 0,47 ; C)` (3 à 7 blocs, plus larges vers la
+   mer), lit en V de W − 2 à W − 5, berges à pente 0,8. Au-dessus d'une marche, le lit remonte à
+   W − 1 (barre, rapide) ; sous la marche suivante, il est surcreusé de 3 blocs (bassin de chute).
+   Le réseau s'éteint dans la chaîne (`1 − sm(0,20 ; 0,45 ; U)`) : là, la rivière suit l'axe des
+   auges glaciaires (§5.4, pas de second réseau).
+5. **Scellement** (`seal`) : une colonne voisine d'une eau plus haute que ce qu'elle remplit est
+   montée jusqu'à ce niveau (barrage d'un bloc, lèvre de chute). Une seule passe sur les colonnes
+   brutes suffit : aucun bloc d'eau n'a d'air pour voisin latéral, quel que soit le relief. Un chunk
+   calcule 20 × 20 colonnes brutes (deux bordures), une colonne isolée ses 4 voisines : les deux
+   coïncident bit à bit (`Hydrography::column` = chunk généré).
+
+Nature de l'eau (`WaterKind`) : **lac** (Worley, vallée, creux, anciennes « mers intérieures »),
+**mer** au niveau S reliée au large (C < 0,47, fjord ou Hl < S − 2 ; jusqu'à C < 0,5 hors rivière),
+**rivière** dans un lit actif. Toute eau au-dessus de S est un lac ou une rivière. `SeaFacade`
+(§6.4) : atlantique (O > 0,5), baltique, arctique (T₀ < 0,12) ; même bloc d'eau partout.
+
+Le générateur remplit l'eau de `top` à `level` ; gravier sous l'eau et sur les rives (fond ≤
+niveau + 1), granit nu sur les barrages et barres. `surface_height` rend le fond ; le départ du
+joueur évite les colonnes mouillées. Coût mesuré : **0,31 ms par chunk** en `--release` (0,18 en
+1.2 ; budget du doc : 2,5 ms).
+
+Écarts et précisions par rapport au doc :
+
+* **Les « mers intérieures » de la 1.2 deviennent des lacs** : un creux des terres sous le niveau
+  de la mer n'est plus rempli à S mais à son W (≥ S + 6 dès que Hl ≥ S + 8) ; ceux qui restent à S
+  près des côtes sont étiquetés lac s'ils ne sont pas reliés au large selon C.
+* **Pas de chute d'eau verticale** : un bloc d'eau ne peut pas avoir d'air à côté. Aux marches de
+  W, la rivière passe par une barre (eau sur 1 bloc), puis un barrage d'un bloc et un bassin en aval.
+  Le décor « cascade » (§10) reste à faire.
+* **Niveau des lacs** : le doc donne `plancher(Hl(c)) − 1` ; on prend le plus bas du relief réel et
+  du relief filtré au centre, jamais sous W : moins de terrassements quand le centre tombe dans un
+  creux des collines.
+* **Lacs allongés le long de θ** et contour étalé par q : sans cela, des disques presque parfaits.
+* **Deltas** (bancs de sable vers C ≈ 0,47) : non faits, avec les côtes (1.3) et les blocs de sable
+  (2.1). **Banquise** arctique : pas de bloc de glace dans la palette, seule `SeaFacade::Arctic`
+  existe. Eau saumâtre : drapeau de biome (2.1).
+* Le **myr** de la 1.3 (`h ← lerp(h, W + 1, My)`) peut appeler `stair_level(filtered_height(..))`.
+
+Repères mesurés (graine 12345, Norrland, 16 × 16 km) : mer 30,9 %, lacs 3,1 %, rivières 1,8 % ;
+1539 lacs du Worley ; à moins de 5 km de l'origine, lacs 3,7 à 4,0 % et rivières 2,1 à 2,5 %
+selon la graine, plus de 100 lacs de plus de 80 blocs ; niveaux d'eau de S à S + 30 sur 4 km.
+
 ## Outil `worldmap`
 
 ```
@@ -129,7 +197,9 @@ cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <c
 
 `préréglage` : `norrland` | `skargard` | `hogfjall` ; `taille` en pixels, `pas` en blocs par pixel ;
 `mode` : `relief` (défaut depuis la 1.2 : relief ombré, teintes hypsométriques, mer par
-profondeur) | `h` (altitude en fausses couleurs) | `fjord` (relief ombré ; fjords en magenta, fonds
+profondeur) | `hydro` (1.4 : relief ombré après l'hydrographie, mer par profondeur, lacs en
+turquoise, rivières en bleu vif, élargies aux grands pas pour rester visibles) | `w` (1.4 : terres
+teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `fjord` (relief ombré ; fjords en magenta, fonds
 de vallée principale en jaune, plateaux en cyan) | `overview` (vue des champs de la 1.1 : terre par
 zone climatique, gris de la surrection, rouge = lave) | `c` | `o` | `t0` | `hm` | `u` | `e` | `lk` |
 `gt` | `vr` | `zones` | `pv` | `theta`. Le trait de côte dessiné est désormais le vrai (h = S).
@@ -161,7 +231,15 @@ zone hémiboréale (T₀ = 0,60).
   (25 blocs) à moins de 8 km, parois de fjord hautes, plateaux et hautes terres de Högfjäll,
   **continuité** `|Δh| ≤ 3` le long d'un transect de 24 km hors parois d'auge déclarées (doc
   §13), **étanchéité** de la mer d'un chunk à l'autre sur une côte, hauteur isolée = chunk généré ;
-  mesure de temps ignorée par défaut (`-- --ignored`).
+  mesure de temps ignorée par défaut (`-- --ignored`). En 1.4, ses empreintes de blocs ont changé
+  (l'eau des lacs et rivières) et la hauteur isolée admet de l'eau au-dessus du fond.
+* `nb-world/tests/norrcraft_hydro.rs` (1.4) : **étanchéité** (aucune eau avec de l'air à côté ni
+  dessous) sur 6 × 6 chunks autour de points choisis par relevé pour 3 graines (marche de rivière,
+  grand lac, étang au-dessus de la mer) et sur une côte à fjords, un monde Skärgård ; lacs (dont un
+  de plus de 80 blocs) et rivières à moins de 5 km ; mer toujours à S, eau au-dessus de S toujours
+  lac ou rivière ; nappes calées sur l'escalier W ; **continuité de la surface visible** (sol ou
+  eau) sur 6 km hors marches déclarées (barrages, barres, parois d'auge) ; colonne isolée = chunk
+  généré, eau comprise.
 * Toute modification d'une formule ou d'une constante de champ change les empreintes : les mettre
   à jour consciemment (et le dire dans le compte rendu). En 1.2, le réglage du biais de C a changé
   les empreintes des champs (`FINGERPRINTS`, `REF0`, `REF1` : seul C bouge). Les empreintes vanilla
