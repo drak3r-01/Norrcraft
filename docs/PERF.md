@@ -49,7 +49,7 @@ grandeur à retenir.
 
 ## Optimisations retenues
 
-1. **Générateur, réutilisation des colonnes** (`nb-world/src/generator.rs`). La passe colonnes
+1. **Générateur, réutilisation des colonnes** (`nb-world/src/vanilla/generator.rs`). La passe colonnes
    calcule déjà le biome et les facteurs rivière/océan. Les passes arbres et végétation
    recalculaient le biome (10 évaluations de bruit 2D par colonne), et les candidats arbres
    recalculaient aussi les deux facteurs. Ce sont les mêmes fonctions pures appelées avec les

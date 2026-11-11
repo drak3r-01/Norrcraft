@@ -4,7 +4,7 @@ Depuis la phase 8, le monde est produit par un nouveau générateur (`GeneratorK
 défaut des nouveaux mondes). Le générateur Java d'origine reste disponible (`Classic`, type de
 monde « Classic » dans l'interface) : c'est lui que valident les vecteurs de référence.
 
-Code : `crates/nb-world/src/terrain.rs` (relief + biome), `generator_nb.rs` (blocs, strates,
+Code : `crates/nb-world/src/vanilla/terrain.rs` (relief + biome), `vanilla/generator_nb.rs` (blocs, strates,
 grottes, minerais, arbres, décors, végétation), `biome.rs` (30 biomes, teintes, mélanges d'arbres).
 
 ## Principes

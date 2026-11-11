@@ -25,20 +25,18 @@
 //! Les autres corrections retenues (shadow map, accumulateur 60 Hz, tri du quadtree) relèvent
 //! d'autres crates.
 
-pub mod biome;
 pub mod chunk;
-pub mod config;
-mod flora;
-pub mod generator;
-mod generator_nb;
 pub mod light;
 pub mod manager;
 pub mod noise;
 pub mod save;
 pub mod storage;
-pub mod structures;
-pub mod terrain;
+pub mod vanilla;
 pub mod world;
+
+// Chemins historiques conservés : les modules vanilla restent accessibles à la racine.
+pub use vanilla::{biome, config, generator, structures, terrain};
+pub(crate) use vanilla::generator_nb;
 
 pub use biome::{
     Biome, BiomeConfig, BiomeSystem, FloraEntry, TreeType, VegetationEntry, BIOME_COUNT,

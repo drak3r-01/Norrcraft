@@ -1,7 +1,7 @@
 # Structures du monde
 
 Depuis la phase 9, le générateur « Norrblock » parsème le monde de **19 types de structures**
-(`crates/nb-world/src/structures.rs`) : hameaux, cabanes, moulins, tours, temples, ruines, épaves,
+(`crates/nb-world/src/vanilla/structures.rs`) : hameaux, cabanes, moulins, tours, temples, ruines, épaves,
 phares, cercles de pierres, fossiles… En moyenne **70 structures par km²** (une tous les
 120 × 120 blocs environ, océans compris ; mesuré sur 16 km² avec la graine 12345).
 
