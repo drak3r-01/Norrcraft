@@ -210,6 +210,49 @@ impl GradField {
     }
 }
 
+/// Une instance de bruit de gradient **3D** : `N₃(P)` dans [0, 1] (doc 02 §3, filons et cavités).
+///
+/// Comme [`GradField`], les coordonnées sont des coordonnées de bruit (l'appelant divise déjà par
+/// la longueur d'onde : `N₃(P / 40)` s'écrit `f.n(x / 40.0, y / 40.0, z / 40.0)`).
+#[derive(Debug, Clone)]
+pub struct GradField3 {
+    noise: Noise,
+    o: [f64; 3],
+}
+
+impl GradField3 {
+    /// Instance semée par `graine XOR constante`.
+    pub fn new(seed: i64, constant: u64) -> Self {
+        let s = (seed as u64) ^ constant;
+        Self {
+            noise: Noise::new(s as i64),
+            o: [
+                16.0 + 224.0 * hash01(s, 1, 0, 0),
+                16.0 + 224.0 * hash01(s, 2, 0, 0),
+                16.0 + 224.0 * hash01(s, 3, 0, 0),
+            ],
+        }
+    }
+
+    /// `N₃(P)` : bruit de gradient dans [0, 1] (0,5 aux nœuds du réseau).
+    #[inline]
+    pub fn n(&self, x: f64, y: f64, z: f64) -> f64 {
+        clamp01(
+            (self
+                .noise
+                .evaluate3(x + self.o[0], y + self.o[1], z + self.o[2])
+                + 1.0)
+                * 0.5,
+        )
+    }
+
+    /// Variante « ligne de zéro » : `|2 N₃ − 1|`, nulle sur des nappes continues (filons, parois).
+    #[inline]
+    pub fn sheet(&self, x: f64, y: f64, z: f64) -> f64 {
+        (2.0 * self.n(x, y, z) - 1.0).abs()
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Worley
 // ---------------------------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 //! (`préréglage` : norrland | skargard | hogfjall ; `mode` : voir `norr::MODES`, `overview` par défaut)
 
 mod biomemap;
+mod geomap;
 mod image_out;
 mod norr;
 

@@ -18,6 +18,9 @@
 //! Session 2.1 : biomes ([`biomes`] : 25 biomes, étagement, règles de sélection, frontières
 //! tramées ; teintes, ambiances et sols dans `assets/norrcraft/biomes.json`), sols par biome dans
 //! [`terrain`], teintes moyennées sur 5 × 5 colonnes par le mailleur.
+//!
+//! Session 2.2 : sous-sol ([`subsoil`] : roche des provinces, djupberg, filons de diabase, minerais
+//! en plaques, filons et corps, cavités noyées sous la mer ou d'air au-dessus).
 
 pub mod biomes;
 pub mod climate;
@@ -27,6 +30,7 @@ pub mod height;
 pub mod hydro;
 pub mod landforms;
 pub mod math;
+pub mod subsoil;
 pub mod terrain;
 
 pub use biomes::{
@@ -38,6 +42,7 @@ pub use fields::{ChunkFields, FieldGrid, MacroFields, MacroSample, Province, COA
 pub use height::{HeightFields, Relief};
 pub use hydro::{Hydrography, Hydrology, Lake, LakeSet, SeaFacade, WaterColumn, WaterKind};
 pub use landforms::{Coast, Forms};
+pub use subsoil::{DepositInfo, Region, SiteProbe, Sites, SubColumn, Subsoil, SubsoilBlocks};
 pub use terrain::{NorrBlocks, NorrcraftTerrain};
 
 use std::sync::Arc;

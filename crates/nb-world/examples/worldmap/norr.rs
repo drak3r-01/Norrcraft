@@ -1,6 +1,6 @@
 //! Carte Norrcraft : relief ombré (session 1.2), champs macroscopiques (session 1.1), zones
 //! climatiques, provinces, sens des glaces, formes de relief (session 1.3), hydrographie (session
-//! 1.4). Sortie PNG et statistiques de répartition.
+//! 1.4), biomes (2.1), sous-sol (2.2 : `geologie`, `coupe`). Sortie PNG et statistiques de répartition.
 
 use nb_world::norrcraft::{
     ClimateZone, Coast, Forms, Hydrography, MacroSample, NorrConfig, NorrPreset, Province,
@@ -10,7 +10,7 @@ use nb_world::norrcraft::{
 use crate::image_out::write_image;
 
 pub const MODES: &str =
-    "relief | hydro | w | h | fjord | formes | biomes | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
+    "relief | hydro | w | h | fjord | formes | biomes | geologie | coupe | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
 
 type Rgb = [f64; 3];
 
@@ -287,6 +287,14 @@ pub fn run(a: &[String]) {
     }
     if mode == "biomes" {
         crate::biomemap::run(seed, preset, cx, cz, size, step, &out);
+        return;
+    }
+    if mode == "geologie" {
+        crate::geomap::geology(seed, preset, cx, cz, size, step, &out);
+        return;
+    }
+    if mode == "coupe" {
+        crate::geomap::section(seed, preset, cx, cz, size, step, &out);
         return;
     }
 

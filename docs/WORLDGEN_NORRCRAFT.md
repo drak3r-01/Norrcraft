@@ -1,10 +1,11 @@
-# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1)
+# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1), sous-sol (2.2)
 
 Le vrai relief Norrcraft (GDD doc 02 §3 à §7 et §12 ; plan 06, sessions 1.1 à 1.4 et 2.1). La 1.1
 a posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de
 hauteur et remplace le monde plat de granit de la phase 0 par un vrai terrain ; la 1.3 y pose
 archipel, côtes, eskers, tourbières, glaciers et champs de lave ; la 1.4 y met l'eau (mer, lacs,
-rivières), étanche par construction ; la 2.1 y choisit les 25 biomes, leurs sols et leurs teintes.
+rivières), étanche par construction ; la 2.1 y choisit les 25 biomes, leurs sols et leurs teintes ; la 2.2 y creuse le sous-sol (provinces
+rocheuses, filons, minerais, cavités).
 Tout vit dans `crates/nb-world/src/norrcraft/`.
 
 ## Modules
@@ -19,6 +20,7 @@ Tout vit dans `crates/nb-world/src/norrcraft/`.
 | `landforms.rs` (1.3) | `Landforms::apply` : archipel, côtes, eskers, marmites, drumlins, tourbières, palses, champ de lave, glacier → `Forms` (dans `Relief::forms`), `Coast` |
 | `terrain.rs` (1.2 à 2.1) | `NorrcraftTerrain` (`TerrainGenerator` ; `column_biome`, cache de biomes par chunk) et `NorrBlocks` (blocs des formes de la 1.3, sols des biomes, peau, neige éternelle, banquise ; glace posée au-dessus du sol et de l'eau) ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)` (25 biomes, teintes moyennées 5 × 5), utilisé par `World::for_kind` |
 | `biomes.rs` (2.1) | `NorrBiome` (25 biomes), `biome_defs`/`biome_infos` (`assets/norrcraft/biomes.json`), `BiomeSoil`, `BiomeSelector::select` (règles du §7.2, étagement, frontières tramées) → `Selection { biome, fresh_water, snow, dither }`, `DISTRIBUTION_TARGETS` (§7.5) |
+| `subsoil.rs` (2.2) | `Subsoil` (provinces au treillis 4, filons de diabase, minerais, cavités, corps de la grille : `sites`, `deposits`), `SubColumn` (tirages par colonne), `SubsoilBlocks`, `Region`, `SiteProbe` ; `math.rs` gagne `GradField3` (bruit 3D) |
 | `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
 Règles communes (doc 02 §2) : fonctions pures de (graine, config, x, z), **aucune fonction
@@ -376,6 +378,90 @@ La **banquise** (Packis) remplace la couche d'eau du dessus par `havsis`, hors d
   `NB_GFX_REQUIRE_GPU=1 NB_SH=1 crates/nb-gfx/scripts/vk-docker.sh 'NB_NORR_AT=0,-1700 cargo test --release -p nb-game --test preview_norrcraft -- --ignored'`
   (`NB_NORR_SEED`, `NB_NORR_AT=x,z` ; par défaut, le point de départ).
 
+## Sous-sol (session 2.2, doc 02 §8)
+
+Un seul fichier, `subsoil.rs` (`Subsoil`, `SubColumn`, `SubsoilBlocks`), branché dans
+`terrain.rs` : le granit de fond d'avant devient la **roche de la province**, puis filons,
+minerais et cavités. Tout est fonction pure de la graine et des coordonnées (bruit 3D :
+`GradField3` dans `math.rs`, constantes `0x…05xx`).
+
+### Blocs
+
+20 blocs ajoutés à `assets/norrcraft/blocks.json` (ids 34 à 53 : l'id 33 est celui de la lave
+commune), textures procédurales `norr_*` (`scripts/gen_norr_textures.py`) : roches `sandsten
+alunskiffer gronsten porfyr diabas krita taljsten kvarts svavel`, minerais `myrmalm sjomalm
+jarnmalm rik_jarnmalm kopparmalm silvermalm koboltmalm guldkvarts guldgrus volframmalm flinta`.
+Pas de charbon minéral, ni diamant ni émeraude (décision D8).
+
+### Strates (§8.1)
+
+* sol du biome et couverture meuble : inchangés (2.1) ; **la roche nue** des pentes, des barrages
+  et des îlots de Skärgård prend la roche de la province quand le biome ne fixe pas la sienne
+  (`rock = granit` dans `biomes.json`) : plus de bande de granit de 2 blocs sur une falaise de
+  gneiss ;
+* **socle** : roche de la province de la colonne (`Province` de la 1.1) ; **gneiss** partout où
+  `U > 0,8` (cœur de la chaîne) ; **basalte** sous le Lavafält ; **krita** (craie) à Klintkust
+  au-dessus de S − 4, avec des bandes de **flinta** (`(y + 4·N₃(p/25)) mod 6 = 0` et
+  `N₃(p/4) > 0,55`) ;
+* **djupberg** sous `y < 14` ; **bedrock** en `y ≤ 1` (avant : `y = 0` seul) ;
+* la province se lit sur un **treillis global de 4 blocs** (réévaluée exactement quand les quatre
+  coins diffèrent, et en pays calcaire pour le poids de frontière) : une colonne a toujours la
+  même province, quel que soit le chunk ;
+* **filons de diabase** : murs verticaux qui traversent tout le socle (djupberg compris) quand la
+  **distance estimée** à la ligne de zéro de `2 F(p/900) − 1` (|s| / |∇s|, gradient par
+  différences centrées) est inférieure à 1 bloc : largeur de 2 blocs partout, même là où le champ
+  est plat (la formule brute `Z < 0,004` du doc donnait des murs de plus de 20 blocs sur les
+  plateaux). Largeur médiane mesurée : 2.
+
+### Minerais (§8.2)
+
+| Gisement | Règle réalisée |
+|---|---|
+| myrmalm | Myr sec : `q(F(p/25, 3)) > 0,68`, 2 blocs sous la couverture de tourbe |
+| sjömalm | fond (2 blocs) des lacs de Sjöland et Tallhed, Bottenhav à moins de 8 blocs d'eau : `q(F(p/20, 3)) > 0,70` |
+| fer de roche | pays minier (grönsten, Bergslag, contact calcaire à moins de ~30 blocs d'une autre province) : `abs(2 N₃(P/40) − 1) < 0,035` et `N₃(P/90) > 0,55`, y de 10 à 60 ; cœur (`< 0,012`) en `rik_jarnmalm` ; **chapeau de fer** (`rodmull` en surface) quand un filon passe à 5 blocs sous le sol |
+| **Malmberg** | grille de pas 512, une cellule sur deux ; lentille de demi-axes (60, 14, 45), plan incliné à 60°, `Σ((P − c)·eₖ/aₖ)² < 1 + 0,25·N₃(P/12)`, centre 8 blocs sous le sol (elle affleure) ; `rik_jarnmalm` à `Σ < 0,55`, `jarnmalm` ailleurs ; seulement si `T₀ < 0,34` et `U > 0,20` au centre (écart : « subarctique, dans la chaîne » ne donnait aucun Malmberg à moins de 5 km de l'origine) |
+| cuivre | grille de pas 384, 60 % des cellules du pays minier : amas de rayon 12 à 20 (paroi irrégulière 0,3), `kopparmalm` au cœur, auréole de terre rouge (`rodmull`) |
+| argent | calcaire, y de 5 à 30 : `abs(2 N₃(P/28) − 1) < 0,010` |
+| cobalt | pays minier, grille de pas 64 (10 % des cellules) : poches de 3 à 6 blocs, y de 8 à 34 |
+| or | nord (`T₀ < 0,28`) : veines de quartz `abs(2 N₃(P/30) − 1) < 0,02` à y ≤ 24 (`kvarts`), `guldkvarts` quand `N₃(P/9) > 0,78` ; paillettes (`guldgrus`, 4 % des colonnes) au sommet du gravier des rivières du nord |
+| tungstène | sous Kalfjäll (surface au-dessus de `y_k`), grille de pas 64 (12 %) : poches de 2 à 4 blocs, y de 4 à 17 |
+| stéatite | grille de pas 128 (35 %), au-dessus de la limite des arbres : lentille de demi-axes (10, 4, 8) affleurante |
+| flinta | bandes de la craie de Klintkust (voir plus haut) |
+| plaques de surface | `svavel` sur le Lavafält (`q(F(p/14, 2)) > 0,86`), `kvarts` sur les roches nues (Skärgård, Högkust, Fjällhed, Kalfjäll), argile (`blalera`) sous la peau en Hagmark, Bokskog, Strandäng, sable de verrerie (`flygsand`) en Sjöland |
+
+Le fBm brut dépasse rarement 0,68 : les plaques lisent `q(F)` (le même étalement que les champs
+du §4). Les blocs de magnétite erratiques, l'ambre (déposé par les tempêtes) et les structures
+minières relèvent des sessions suivantes.
+
+### Cavités (§8.3)
+
+**Règle d'étanchéité unique** : une cellule creusée est **noyée** au-dessous du niveau de la mer
+(`y < S`), d'**air** au-dessus ; une cavité enterrée garde 4 blocs de roche au-dessus d'elle et
+sous les colonnes voisines (`min(top propre, tops voisins) − 4`) ; une cavité ouverte (faille,
+marmite, effondrement, grotte marine) n'est creusée que si aucune colonne voisine ne porte d'eau
+autre que la mer. Aucun bloc d'eau n'a donc d'air pour voisin, même d'un chunk à l'autre (test
+`norrcraft_subsoil.rs`).
+
+| Cavité | Réalisation |
+|---|---|
+| karst | province calcaire : deux nappes `abs(2 N₃ − 1) < 0,12` (échelle 30 × 18 × 30) qui se croisent → galeries ; la « rivière souterraine au niveau W » est un niveau d'eau constant S pour toutes les cavités (écart : W varie par marche, ce qui ferait voisiner eau et air d'une colonne à l'autre) ; en pays calcaire bas la plupart des galeries sont donc noyées |
+| failles | granit et gneiss, colonnes sèches à voisines sèches : distance estimée à la ligne de zéro de `2 F(p/600) − 1` < 0,8, fente de 10 à 25 blocs depuis la surface, ouverte sur le ciel |
+| grottes marines | grille de pas 48 (40 %) au pied d'une falaise (Klintkust, Högkust, calcaire) à 3..12 blocs de la mer : ellipsoïde ouvert sur l'eau, plancher à S − 2, toit de 3 blocs |
+| tunnels de lave | Lavafält : ligne de zéro `F(p/60, 2)` à profondeur constante (8 blocs, 0 à 2 de variation) sous le sol, 5 blocs de haut ; effondrements ponctuels (`N(p/5) > 0,88`) jusqu'à la surface |
+| grottes de glace | Glaciär : tunnel de fonte de 2 blocs de haut au contact glace-roche (ligne de zéro `F(p/45, 2)`), là où la glace fait au moins 6 blocs ; statique (la partie saisonnière viendra avec la 3.2) |
+| marmites de géant | grille de pas 24 (22 %) : puits 2 × 5 dans les lits de rivière (noyés comme la rivière) et sur les rochers du rivage marin à S..S + 2, hors calcaire |
+| salles de la montagne | grille de pas 700 (25 %), sous la chaîne (`U ≥ 0,55`) : ellipsoïde (14, 7, 11), centre 32 blocs sous le sol (la structure de troll viendra avec le bestiaire) |
+| chaos de blocs | reporté aux structures (phase 4) |
+
+`surface_height` ne change pas : une faille ou une marmite sèche est un trou dans une colonne que
+le moteur voit pleine (la surface reste « le premier y non solide » du haut). Le test de
+`norrcraft/mod.rs` sur la « colonne pleine sous la surface » passe sur ses chunks échantillonnés,
+mais un chunk avec faille aura de l'air sous `h − 1`.
+
+Coût mesuré : 1,3 à 1,7 ms par chunk (budget 2,5 ; 0,38 avant) : les provinces (25 évaluations
+par chunk), les distances de filons et les grilles de corps.
+
 ## Outil `worldmap`
 
 ```
@@ -386,7 +472,7 @@ cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <c
 `mode` : `relief` (défaut depuis la 1.2 : relief ombré, teintes hypsométriques, mer par
 profondeur) | `hydro` (1.4 : relief ombré après l'hydrographie, mer par profondeur, lacs en
 turquoise, rivières en bleu vif, élargies aux grands pas pour rester visibles) | `w` (1.4 : terres
-teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `biomes` (2.1 : une couleur par biome, sélection exacte de chaque colonne échantillonnée, trame comprise ; eau douce bleutée, neige éternelle blanche ; l'outil imprime la répartition face aux cibles du doc 02 §7.5 et la distance du plus proche représentant de chaque biome à l'origine) | `fjord` (relief ombré ; fjords en magenta, fonds
+teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `biomes` (2.1 : une couleur par biome, sélection exacte de chaque colonne échantillonnée, trame comprise ; eau douce bleutée, neige éternelle blanche ; l'outil imprime la répartition face aux cibles du doc 02 §7.5 et la distance du plus proche représentant de chaque biome à l'origine) | `coupe` (2.2 : coupe verticale le long de x à `z = cz`, blocs réellement générés, 3 px par bloc ; le pas est en blocs par colonne) | `geologie` (2.2 : provinces rocheuses ombrées, mer, filons de diabase au pas ≤ 4, corps de minerai en carrés : Malmberg rouge, cuivre orange, cobalt bleu, tungstène noir, stéatite cyan, grotte marine jaune ; l'outil imprime les parts de provinces et le Malmberg le plus proche) | `fjord` (relief ombré ; fjords en magenta, fonds
 de vallée principale en jaune, plateaux en cyan) | `overview` (vue des champs de la 1.1 : terre par
 zone climatique, gris de la surrection, rouge = lave) | `c` | `o` | `t0` | `hm` | `u` | `e` | `lk` |
 `gt` | `vr` | `zones` | `pv` | `theta`. Le trait de côte dessiné est désormais le vrai (h = S).
@@ -443,6 +529,19 @@ zone hémiboréale (T₀ = 0,60).
   frontière) et maillage inchangé sans moyenne. Les tests `sealed.rs` et `universe.rs` (nb-game)
   attendent désormais 25 biomes Norrcraft, `palette.rs` (nb-data) les 27 blocs ajoutés à une
   vieille palette. En 2.1, les empreintes du terrain (`norrcraft_relief.rs`) ont changé (sols).
+* `nb-world/tests/norrcraft_subsoil.rs` (2.2) : les 20 blocs existent ; **strates** (bedrock en y ≤ 1,
+  djupberg sous y = 14, roche de province au-dessus) pour 3 graines ; parts de provinces sur la
+  terre (gneiss 10 à 40 %, chaque province présente, gneiss dans la chaîne) ; **filons de diabase**
+  verticaux de largeur médiane 2 ; un **Malmberg** à moins de 5 km de l'origine pour chaque graine,
+  de plus de 20 000 blocs de fer, avec cœur riche et affleurement ; minerais dans leur gisement
+  (myrmalm en Myr, sjömalm en Sjöland, Tallhed ou Bottenhav, krita et flinta à Klintkust) ; chaque
+  espèce de corps (cuivre, cobalt, tungstène, stéatite, grotte marine, salle) existe dans 16 km et
+  contient son minerai ; fer de roche en pays minier, argent dans le calcaire, quartz et or dans le
+  nord ; **étanchéité** (aucune eau avec de l'air à côté ni dessous) autour d'un karst, de failles
+  (ouvertes sur le ciel), de grottes marines et de salles, d'un champ de lave (tubes de lave et
+  soufre) ; chunk indépendant de l'ordre de génération ; coût par chunk (< 6 ms, mesuré 1,3 à
+  1,7). `nb-world/tests/norrcraft_relief.rs` : empreintes du terrain mises à jour (blocs de
+  province). `nb-game/tests/universe.rs` : djupberg (ou diabase) à y = 10.
 * Toute modification d'une formule ou d'une constante de champ change les empreintes : les mettre
   à jour consciemment (et le dire dans le compte rendu). En 1.2, le réglage du biais de C a changé
   les empreintes des champs (`FINGERPRINTS`, `REF0`, `REF1` : seul C bouge). Les empreintes vanilla

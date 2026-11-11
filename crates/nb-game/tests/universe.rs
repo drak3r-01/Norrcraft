@@ -139,7 +139,12 @@ fn norrcraft_world_is_created_saved_reloaded_and_vanilla_is_restored() {
     // Relief Norrcraft (session 1.2) : socle, granit en profondeur, air en altitude ; le joueur
     // apparaît sur la terre ferme, au-dessus du niveau de la mer (S = 40).
     assert_eq!(g.world().block(x, 0, z), g.regs.blocks.ids().bedrock);
-    assert_eq!(g.world().block(x, 10, z), granit);
+    // Sous-sol (session 2.2) : djupberg sous y = 14 (ou un filon de diabase).
+    let deep = [
+        g.regs.blocks.get("djupberg").id,
+        g.regs.blocks.get("diabas").id,
+    ];
+    assert!(deep.contains(&g.world().block(x, 10, z)));
     assert_eq!(g.world().block(x, y, z), 0);
     assert!(p.y > 41.0, "apparition au-dessus de la mer : {}", p.y);
     g.world().set_block(x, y, z, granit);

@@ -1,4 +1,4 @@
-//! Générateur de terrain Norrcraft (sessions 1.2, 1.4 et 2.1) : le relief de [`HeightFields`]
+//! Générateur de terrain Norrcraft (sessions 1.2, 1.4, 2.1 et 2.2) : le relief de [`HeightFields`]
 //! rempli de roche, l'eau de l'hydrographie ([`Hydrography`] : mer, lacs, rivières, toutes
 //! étanches) et le sol des biomes ([`super::biomes`]).
 //!
@@ -17,6 +17,10 @@
 //! `patch`), et la **neige** au-dessus des neiges éternelles `y_n` (tramées), sur toute pente. La
 //! glace des glaciers est posée au-dessus du sol et de l'eau, jusqu'à `plancher(h + épaisseur)`.
 //! La **banquise** (Packis) remplace la couche d'eau du dessus, hors des chenaux.
+//!
+//! Le **sous-sol** (session 2.2, [`super::subsoil`]) remplace le granit de fond : roche de la
+//! province, djupberg, filons de diabase, minerais et cavités ; la roche nue des pentes et des
+//! barrages prend aussi la roche de la province quand le biome ne fixe pas la sienne.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -30,6 +34,7 @@ use super::height::{HeightFields, Relief};
 use super::hydro::{seal, Hydrography, WaterColumn, WaterKind};
 use super::landforms::Coast;
 use super::math::GradField;
+use super::subsoil::{ColumnIn, DepositInfo, Region, SiteProbe, Sites, Subsoil, SubsoilBlocks};
 use crate::chunk::{Chunk, CHUNK_SIZE_X, CHUNK_SIZE_Z};
 use crate::profile::{BiomeId, Climate, TerrainGenerator};
 use crate::world::find_spawn_location;
@@ -51,6 +56,8 @@ pub struct NorrBlocks {
     pub black_sand: BlockId,
     pub snow: BlockId,
     pub sea_ice: BlockId,
+    /// Roches de province, minerais et blocs du sous-sol (session 2.2).
+    pub sub: SubsoilBlocks,
     /// Sols des biomes, par identifiant de biome.
     pub soils: [BiomeSoil; NorrBiome::COUNT],
 }
@@ -72,6 +79,7 @@ impl NorrBlocks {
             black_sand: registry.get("svartsand").id,
             snow: registry.get("sno").id,
             sea_ice: registry.get("havsis").id,
+            sub: SubsoilBlocks::from_registry(registry),
             soils: BiomeSoil::table(registry),
         }
     }
@@ -203,6 +211,8 @@ type ChunkBiomes = [BiomeId; CHUNK_SIZE_X * CHUNK_SIZE_Z];
 struct ChunkColumns {
     water: Vec<WaterColumn>,
     reliefs: Vec<Relief>,
+    /// Champs macroscopiques des mêmes colonnes.
+    macros: Vec<MacroSample>,
     /// Sélections des 16 × 16 colonnes du chunk, `[lz * 16 + lx]`.
     biomes: Vec<Selection>,
 }
@@ -213,6 +223,7 @@ pub struct NorrcraftTerrain {
     hydro: Hydrography,
     blocks: NorrBlocks,
     selector: BiomeSelector,
+    subsoil: Subsoil,
     leads: GradField,
     /// Biomes des chunks déjà analysés, partagés par toutes les copies du générateur (le maillage
     /// relit les biomes des chunks que la génération vient de calculer).
@@ -225,6 +236,7 @@ impl NorrcraftTerrain {
             hydro: Hydrography::new(seed, cfg),
             blocks,
             selector: BiomeSelector::new(seed, cfg.sea_level),
+            subsoil: Subsoil::new(seed, cfg, blocks.sub),
             leads: GradField::new(seed, LEADS_SEED),
             biome_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -275,11 +287,13 @@ impl NorrcraftTerrain {
         let inner_n = n - 2;
         let mut water = Vec::with_capacity(inner_n * inner_n);
         let mut inner = Vec::with_capacity(inner_n * inner_n);
+        let mut inner_macros = Vec::with_capacity(inner_n * inner_n);
         for j in 1..n - 1 {
             for i in 1..n - 1 {
                 let nb = [at(i - 1, j), at(i + 1, j), at(i, j - 1), at(i, j + 1)];
                 water.push(seal(at(i, j), nb, self.world_height()));
                 inner.push(reliefs[j * n + i]);
+                inner_macros.push(macros[j * n + i]);
             }
         }
         // Biomes des 16 × 16 colonnes (indices de la grille 20 × 20 : chunk = 2..18).
@@ -303,6 +317,7 @@ impl NorrcraftTerrain {
         ChunkColumns {
             water,
             reliefs: inner,
+            macros: inner_macros,
             biomes,
         }
     }
@@ -358,6 +373,39 @@ impl NorrcraftTerrain {
         let r = self.heights().column(wx, wz);
         Some(ice_top(&r, c.top, self.world_height()).unwrap_or(c.top))
     }
+
+    pub fn subsoil(&self) -> &Subsoil {
+        &self.subsoil
+    }
+
+    /// Corps du sous-sol (Malmberg, cuivre, poches, grottes marines, salles) qui touchent le chunk
+    /// d'origine `(x0, z0)`.
+    pub fn sites(&self, x0: i32, z0: i32) -> Sites {
+        self.with_probe(|probe| self.subsoil.sites(Region::chunk(x0, z0), probe))
+    }
+
+    /// Corps de la région, décrits (cartes et tests).
+    pub fn deposits(&self, reg: Region) -> Vec<DepositInfo> {
+        self.with_probe(|probe| self.subsoil.deposits(reg, probe))
+    }
+
+    /// Emplacement du Malmberg de la cellule `(i, j)` de pas 512, s'il y en a un.
+    pub fn malmberg_at_cell(&self, i: i32, j: i32) -> Option<(i32, i32, i32)> {
+        self.with_probe(|probe| self.subsoil.malmberg_at_cell(i, j, probe))
+    }
+
+    fn with_probe<R>(&self, f: impl FnOnce(&SiteProbe) -> R) -> R {
+        let surface = |x: i32, z: i32| self.hydro.column(x, z).top;
+        let water = |x: i32, z: i32| self.hydro.column(x, z);
+        let macros = |x: i32, z: i32| self.heights().macro_fields().sample_lattice(x, z);
+        let biome = |x: i32, z: i32| self.column_biome(x, z).biome;
+        f(&SiteProbe {
+            surface: &surface,
+            water: &water,
+            macros: &macros,
+            biome: &biome,
+        })
+    }
 }
 
 impl TerrainGenerator for NorrcraftTerrain {
@@ -403,12 +451,14 @@ impl TerrainGenerator for NorrcraftTerrain {
         let sea = self.sea();
         let hmax = self.world_height();
         let b = &self.blocks;
+        let sites = self.sites(x0, z0);
 
         for lz in 0..CHUNK_SIZE_Z {
             for lx in 0..CHUNK_SIZE_X {
                 let (i, j) = (lx + 1, lz + 1);
                 let c = cols.water[j * n + i];
                 let r = &cols.reliefs[j * n + i];
+                let m = &cols.macros[j * n + i];
                 let s = &cols.biomes[lz * CHUNK_SIZE_X + lx];
                 let h = c.top;
                 let slope = [top(i - 1, j), top(i + 1, j), top(i, j - 1), top(i, j + 1)]
@@ -420,22 +470,44 @@ impl TerrainGenerator for NorrcraftTerrain {
                 let cover = b.cover(s, r, &c, slope, sea, self.selector.patch_draw(wx, wz));
                 let core_bottom = h - cover.depth - cover.core.map_or(0, |k| k.1);
                 let (x, z) = (lx as i32, lz as i32);
+                let sc = self.subsoil.column(&ColumnIn {
+                    wx,
+                    wz,
+                    water: c,
+                    neighbours: [
+                        cols.water[j * n + i - 1],
+                        cols.water[j * n + i + 1],
+                        cols.water[(j - 1) * n + i],
+                        cols.water[(j + 1) * n + i],
+                    ],
+                    biome: s.biome,
+                    fresh_water: s.fresh_water,
+                    snow: s.snow,
+                    m,
+                    province: self.subsoil.province(wx, wz, m),
+                    cover_bottom: core_bottom,
+                });
+                // Roche nue (pentes, barrages, îlots) : celle de la province, sauf si le biome
+                // fixe la sienne (calcaire du klint, granit rouge…).
+                let cover_block = if cover.block == b.granite {
+                    sc.rock()
+                } else {
+                    cover.block
+                };
                 for y in 0..h {
-                    let id = if y == 0 {
-                        b.bedrock
-                    } else if y >= h - cover.depth {
-                        cover.block
+                    let (base, bulk) = if y >= h - cover.depth {
+                        (cover_block, false)
                     } else if y >= core_bottom {
-                        cover.core.map_or(b.granite, |k| k.0)
+                        (cover.core.map_or(b.granite, |k| k.0), false)
                     } else {
-                        b.granite
+                        (b.granite, true)
                     };
+                    let (base, bulk) = match cover.skin {
+                        Some(skin) if y == h - 1 && h >= 2 => (skin, false),
+                        _ => (base, bulk),
+                    };
+                    let id = self.subsoil.cell(&sc, &sites, y, base, bulk);
                     chunk.set_block(x, y, z, id);
-                }
-                if let Some(skin) = cover.skin {
-                    if h >= 2 {
-                        chunk.set_block(x, h - 1, z, skin);
-                    }
                 }
                 for y in h..c.level {
                     chunk.set_block(x, y, z, b.water);
@@ -452,7 +524,10 @@ impl TerrainGenerator for NorrcraftTerrain {
                 let surface = c.surface();
                 if let Some(t) = ice_top(r, surface, hmax) {
                     for y in surface..t {
-                        chunk.set_block(x, y, z, b.ice);
+                        // Tunnel de fonte à la base du glacier (grotte de glace, doc 02 §8.3).
+                        if !self.subsoil.ice_tunnel(&sc, surface, t, y) {
+                            chunk.set_block(x, y, z, b.ice);
+                        }
                     }
                 }
             }

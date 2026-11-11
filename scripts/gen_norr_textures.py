@@ -186,7 +186,68 @@ def make_all():
     t["norr_vitmossa"] = vit
     torv = paint("torv_body", (78, 56, 38), cell=2, grain=0.5)
     t["norr_vitmossa_side"] = side_with_top("vitmossa", torv, vit, lambda r: r.randint(3, 5))
+    make_subsoil(t)
     return t
+
+
+def clusters(img, rng, color, n, size=2):
+    """Veinules : `n` petits amas de `color` (minerai dans la roche hôte)."""
+    for _ in range(n):
+        x, y = rng.randrange(S), rng.randrange(S)
+        for _ in range(rng.randint(2, 2 + size)):
+            img[y % S][x % S] = shade(color, 0.88 + 0.24 * rng.random())
+            x += rng.choice((-1, 0, 1))
+            y += rng.choice((-1, 0, 1))
+    return img
+
+
+def make_subsoil(t):
+    """Roches de province et minerais du sous-sol (session 2.2)."""
+    # Roches.
+    sand = paint("sandsten", (196, 142, 100), cell=2, grain=0.45)
+    t["norr_sandsten"] = bands(sand, rng_for("sandsten_b"),
+                               [(206, 156, 108), None, (176, 120, 84), None, None], 2)
+    alun = paint("alunskiffer", (50, 52, 58), cell=2, grain=0.5, spread=0.12)
+    t["norr_alunskiffer"] = bands(alun, rng_for("alun_b"), [None, (38, 38, 44), None, (74, 76, 84)], 2, 0)
+    t["norr_gronsten"] = paint("gronsten", (68, 102, 84), cell=2, grain=0.55,
+                               specks=[((40, 66, 54), 0.12), ((150, 170, 140), 0.05)])
+    t["norr_porfyr"] = paint("porfyr", (130, 62, 72), cell=2, grain=0.55,
+                             specks=[((226, 204, 190), 0.12), ((86, 38, 50), 0.08)])
+    t["norr_diabas"] = paint("diabas", (30, 30, 36), cell=2, grain=0.4, spread=0.14,
+                             specks=[((62, 64, 72), 0.04)])
+    t["norr_krita"] = cracks(paint("krita", (238, 236, 226), cell=4, grain=0.2, spread=0.05),
+                             rng_for("krita_c"), (206, 204, 190), 2)
+    t["norr_taljsten"] = paint("taljsten", (126, 140, 128), cell=4, grain=0.25, spread=0.1,
+                               specks=[((170, 186, 170), 0.06)])
+    t["norr_kvarts"] = paint("kvarts", (232, 230, 236), cell=4, grain=0.2, spread=0.06,
+                             specks=[((255, 255, 255), 0.10), ((200, 196, 208), 0.08)])
+    t["norr_svavel"] = paint("svavel", (222, 202, 60), cell=2, grain=0.5, spread=0.14,
+                             specks=[((248, 236, 120), 0.10), ((170, 150, 30), 0.08)])
+    # Minerais : roche hôte + veinules de minerai.
+    host = lambda n: paint(n + "_host", (122, 122, 126), cell=2, grain=0.5)
+    gravel = lambda n: paint(n + "_host", (132, 124, 116), cell=1, grain=0.7)
+
+    def ore(name, base, color, n, size=2):
+        t["norr_" + name] = clusters(base(name), rng_for(name + "_ore"), color, n, size)
+
+    ore("jarnmalm", host, (96, 54, 44), 9)
+    ore("rik_jarnmalm", host, (70, 36, 32), 15, 3)
+    ore("kopparmalm", host, (200, 120, 60), 8)
+    clusters(t["norr_kopparmalm"], rng_for("kopparmalm_g"), (70, 168, 140), 5)
+    ore("silvermalm", host, (226, 230, 236), 8)
+    ore("koboltmalm", host, (60, 90, 190), 8)
+    ore("volframmalm", lambda n: paint(n + "_host", (74, 70, 70), cell=2, grain=0.5),
+        (190, 112, 50), 9)
+    ore("myrmalm", lambda n: paint(n + "_host", (96, 70, 44), cell=2, grain=0.55),
+        (176, 98, 40), 12, 3)
+    ore("sjomalm", lambda n: paint(n + "_host", (84, 78, 62), cell=1, grain=0.65),
+        (140, 96, 48), 11, 3)
+    ore("guldkvarts", lambda n: paint(n + "_host", (232, 230, 236), cell=4, grain=0.2, spread=0.06),
+        (240, 196, 50), 7)
+    ore("guldgrus", gravel, (244, 200, 56), 6, 1)
+    t["norr_flinta"] = cracks(paint("flinta", (48, 50, 58), cell=4, grain=0.35, spread=0.1,
+                                    specks=[((96, 98, 104), 0.06)]),
+                              rng_for("flinta_c"), (150, 150, 150), 2)
 
 
 def main():
