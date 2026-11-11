@@ -292,9 +292,11 @@ impl ClientNet {
                 ServerMsg::Time {
                     time_of_day,
                     day_length,
+                    day,
                 } => {
                     sky.set_day_length_seconds(day_length);
                     sky.set_time(time_of_day);
+                    sky.day = day;
                 }
                 ServerMsg::Chat { from, text } => out.push(ClientNotice::Chat { from, text }),
                 ServerMsg::MobKilled(mob) => {

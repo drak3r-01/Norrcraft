@@ -496,6 +496,7 @@ impl HostNet {
             spawn,
             time_of_day: cx.sky.time_of_day,
             day_length: cx.sky.day_length_seconds,
+            day: cx.sky.day,
             mob_types: self.mob_types.clone(),
             world_kind: self.kind.as_str().to_owned(),
             block_palette: self.block_palette.clone(),
@@ -755,6 +756,7 @@ impl HostNet {
                 &ServerMsg::Time {
                     time_of_day: cx.sky.time_of_day,
                     day_length: cx.sky.day_length_seconds,
+                    day: cx.sky.day,
                 },
                 None,
             );

@@ -14,6 +14,14 @@ pub struct SkyClock {
     pub day_length_seconds: f32,
     /// Phase des aurores, jamais bornée.
     pub aurora_phase: f32,
+    /// Jours de jeu écoulés depuis la création du monde (calendrier, session 3.1) : incrémenté
+    /// à chaque tour d'horloge.
+    pub day: u64,
+    /// Latitude λ ∈ [0, 1] du lieu d'observation (lissée par le jeu), 0 sans calendrier.
+    pub latitude: f32,
+    /// Décalage solaire de la saison et de la latitude (voir [`sky_params_biased`]) : 0 = jour et
+    /// nuit égaux, comportement d'origine.
+    pub solar_bias: f32,
 }
 
 impl Default for SkyClock {
@@ -28,14 +36,18 @@ impl SkyClock {
             time_of_day: 900.0,
             day_length_seconds: 1200.0,
             aurora_phase: 0.0,
+            day: 0,
+            latitude: 0.0,
+            solar_bias: 0.0,
         }
     }
 
     /// `updateTime(dt)`, appelé à chaque tick fixe (§7.1).
     pub fn update(&mut self, dt: f64) {
         let dt = dt as f32;
-        self.time_of_day =
-            (self.time_of_day + dt * DAY_TICKS / self.day_length_seconds) % DAY_TICKS;
+        let t = self.time_of_day + dt * DAY_TICKS / self.day_length_seconds;
+        self.day += (t / DAY_TICKS).floor().max(0.0) as u64;
+        self.time_of_day = t % DAY_TICKS;
         self.aurora_phase += dt * 0.015;
     }
 
@@ -55,7 +67,13 @@ impl SkyClock {
 
     /// Paramètres de ciel de l'heure courante.
     pub fn params(&self) -> SkyParams {
-        sky_params(self.time_of_day)
+        sky_params_biased(self.time_of_day, self.solar_bias)
+    }
+
+    /// Hauteur du soleil de −1 à 1 pour l'heure, la saison et la latitude.
+    pub fn sun_height(&self) -> f32 {
+        let angle = self.time_of_day / DAY_TICKS * std::f32::consts::TAU;
+        biased_sun_height(angle, self.solar_bias).clamp(-1.0, 1.0)
     }
 }
 
@@ -103,10 +121,23 @@ fn lerp(a: Vec3, b: Vec3, t: f32) -> Vec3 {
 
 /// `sky_params(time_of_day)` (§7.2–7.3).
 pub fn sky_params(time_of_day: f32) -> SkyParams {
+    sky_params_biased(time_of_day, 0.0)
+}
+
+/// Hauteur du soleil de −1 (nadir) à 1 (zénith) pour l'angle `angle` de l'horloge et un décalage
+/// solaire `bias` : `(bias − sin θ) / (1 + |bias|)`. Avec `bias = 0` c'est `−sin θ`. Le soleil est
+/// levé pendant la fraction `(acos(−bias)) / π` du jour quand `|bias| ≤ 1` ; au-delà, il ne se
+/// couche pas (`bias > 1`, soleil de minuit) ou ne se lève pas (`bias < −1`, nuit polaire).
+fn biased_sun_height(angle: f32, bias: f32) -> f32 {
+    (bias - (angle as f64).sin() as f32) / (1.0 + bias.abs())
+}
+
+/// Comme [`sky_params`] avec le décalage solaire de la saison et de la latitude (session 3.1).
+pub fn sky_params_biased(time_of_day: f32, bias: f32) -> SkyParams {
     let angle = time_of_day / DAY_TICKS * std::f32::consts::TAU;
     let light_dir = Vec3::new(
         (angle as f64).cos() as f32,
-        (angle as f64).sin() as f32,
+        -biased_sun_height(angle, bias),
         -0.3,
     )
     .normalize();
@@ -290,6 +321,104 @@ mod tests {
         assert_eq!(c.day_length_seconds, 1.0);
         assert_eq!(named_time("midnight"), Some(300.0));
         assert_eq!(named_time("teatime"), None);
+    }
+
+    #[test]
+    fn zero_bias_is_the_original_sky() {
+        for t in (0..1200).step_by(25) {
+            assert_eq!(sky_params_biased(t as f32, 0.0), sky_params(t as f32));
+        }
+        let c = SkyClock::new();
+        assert_eq!(c.params(), sky_params(900.0));
+    }
+
+    /// Fraction du jour où le soleil est au-dessus de l'horizon pour un décalage donné.
+    fn lit_fraction(bias: f32) -> f32 {
+        let n = 2400;
+        let lit = (0..n)
+            .filter(|&i| sky_params_biased(i as f32 * 0.5, bias).light_dir.y < 0.0)
+            .count();
+        lit as f32 / n as f32
+    }
+
+    #[test]
+    fn bias_sets_the_lit_fraction_of_the_day() {
+        for raw in [0.2f32, 0.35, 0.5, 0.7, 0.9] {
+            let bias = -(std::f32::consts::PI * raw).cos();
+            let f = lit_fraction(bias);
+            assert!((f - raw).abs() < 0.01, "raw {raw} : {f}");
+        }
+    }
+
+    #[test]
+    fn midnight_sun_never_sets_and_polar_night_never_rises() {
+        for i in 0..2400 {
+            let t = i as f32 * 0.5;
+            assert!(sky_params_biased(t, 1.3).light_dir.y < 0.0, "t {t}");
+            let night = sky_params_biased(t, -1.3);
+            assert!(night.light_dir.y > 0.0, "t {t}");
+            assert!(night.moon_up);
+        }
+        // Soleil de minuit : le soleil descend très bas à minuit, sans toucher l'horizon.
+        let low = sky_params_biased(300.0, 1.3).light_dir;
+        assert!(low.y > -0.5 && low.y < 0.0, "{low:?}");
+        // Nuit polaire : à midi seulement un crépuscule bleu (ciel sombre, sans aurore pleine).
+        let noon = sky_params_biased(900.0, -1.2);
+        assert!(
+            noon.zenith.z < 0.4 && noon.zenith.x < 0.2,
+            "{:?}",
+            noon.zenith
+        );
+    }
+
+    #[test]
+    fn sky_changes_continuously_with_the_bias() {
+        for t in [0.0, 150.0, 600.0, 750.0, 900.0, 1100.0] {
+            let mut prev = sky_params_biased(t, -1.5);
+            let mut b = -1.5f32;
+            while b < 1.6 {
+                b += 0.01;
+                let p = sky_params_biased(t, b);
+                for (x, y) in [
+                    (prev.zenith, p.zenith),
+                    (prev.horizon, p.horizon),
+                    (prev.ambient, p.ambient),
+                    (prev.light_color, p.light_color),
+                ] {
+                    // La courbe en racine du jour est raide au-dessus de h = 0,1 : borne large.
+                    assert!((x - y).abs().max_element() < 0.12, "t {t} bias {b}");
+                }
+                prev = p;
+            }
+        }
+    }
+
+    #[test]
+    fn day_counter_follows_the_clock() {
+        let mut c = SkyClock::new();
+        c.set_day_length_seconds(10.0);
+        for _ in 0..(10 * 60 * 3) {
+            c.update(1.0 / 60.0);
+        }
+        assert_eq!(c.day, 3, "t = {}", c.time_of_day);
+        c.set_time(5.0);
+        assert_eq!(c.day, 3, "set_time ne change pas le jour");
+        // Un très grand pas ne perd aucun jour.
+        c.update(35.0);
+        assert!(c.day >= 6);
+    }
+
+    #[test]
+    fn sun_height_matches_the_light_direction() {
+        let mut c = SkyClock::new();
+        assert!((c.sun_height() - 1.0).abs() < 1e-5);
+        c.set_time(300.0);
+        assert!((c.sun_height() + 1.0).abs() < 1e-5);
+        c.solar_bias = 1.0;
+        assert!(c.sun_height() >= 0.0);
+        c.solar_bias = -1.0;
+        c.set_time(900.0);
+        assert!(c.sun_height() <= 0.0);
     }
 
     #[test]

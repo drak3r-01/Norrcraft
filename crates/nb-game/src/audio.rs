@@ -123,8 +123,7 @@ fn smooth(a: f32, b: f32, x: f32) -> f32 {
 
 /// Lumière du jour de 0 (nuit profonde) à 1 (plein jour) d'après l'horloge du ciel.
 pub fn daylight(sky: &SkyClock) -> f32 {
-    let angle = sky.time_of_day / nb_gfx::sky::DAY_TICKS * std::f32::consts::TAU;
-    (-angle.sin()).clamp(-1.0, 1.0) * 0.5 + 0.5
+    sky.sun_height() * 0.5 + 0.5
 }
 
 /// Thème musical d'un biome (de jour, en surface).

@@ -151,6 +151,10 @@ pub struct WorldConfig {
     pub fall_damage_enabled: bool,
     pub day_length_seconds: f32,
     pub time_of_day: f32,
+    /// Jours de jeu écoulés depuis la création (calendrier Norrcraft, session 3.1).
+    pub calendar_day: u64,
+    /// Jours de jeu par mois du calendrier (2 : année de 24 jours ; 4 ou 8 pour des années longues).
+    pub days_per_month: u32,
     /// Non persisté (comme le Java) : revient au défaut au rechargement.
     #[serde(skip)]
     pub walk_speed: f32,
@@ -210,6 +214,8 @@ impl Default for WorldConfig {
             fall_damage_enabled: true,
             day_length_seconds: 1200.0,
             time_of_day: 900.0,
+            calendar_day: 0,
+            days_per_month: 2,
             walk_speed: 4.317,
             sprint_speed: 5.612,
             fly_speed: 20.0,

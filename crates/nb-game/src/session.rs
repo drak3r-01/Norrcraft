@@ -18,9 +18,13 @@ use nb_ecs::{
 use nb_gfx::SkyClock;
 use nb_mesh::BiomeSource;
 use nb_world::save::{self, InventorySlot, PlayerState, WorldMetadata};
+use nb_world::calendar::Calendar;
 use nb_world::{ChunkStorage, World, WorldConfig};
 
 use crate::chunks::WorldBiomes;
+
+/// Réponse des commandes de calendrier dans un monde sans saisons.
+const NO_CALENDAR: &str = "Ce monde n'a pas de calendrier.";
 
 /// Registres immuables partagés (le registre de mobs est éditable : écran des mobs).
 ///
@@ -223,6 +227,9 @@ impl WorldSession {
 
     /// `CommandProcessor.executeCommand`.
     pub fn execute_command(&mut self, command: &str, sky: &mut SkyClock) -> Option<String> {
+        if let Some(reply) = self.calendar_command(command, sky) {
+            return Some(reply);
+        }
         let mut cfg = self.world.config_mut();
         nb_ecs::execute_command(
             command,
@@ -231,6 +238,74 @@ impl WorldSession {
             &mut SkyTime(sky),
             self.allow_cheats,
         )
+    }
+
+    /// Calendrier du monde, `None` quand l'univers n'a pas de saisons (vanilla).
+    pub fn calendar(&self) -> Option<Calendar> {
+        self.world
+            .profile()
+            .systems
+            .seasons
+            .then(|| Calendar::new(self.world.config().days_per_month))
+    }
+
+    /// Texte de l'Almanach (une ligne par information) pour `/almanach`.
+    pub fn almanac_text(&self, sky: &SkyClock) -> String {
+        match self.calendar() {
+            Some(c) => c
+                .almanac(sky.day, sky.time_of_day, sky.latitude)
+                .lines()
+                .join("
+"),
+            None => NO_CALENDAR.to_owned(),
+        }
+    }
+
+    /// `/almanach` et `/date [set <n> | add <n>]` (session 3.1). `None` : pas pour nous.
+    ///
+    /// `set` et `add` changent le compteur de jours et demandent les triches, comme `/time`.
+    pub fn calendar_command(&mut self, command: &str, sky: &mut SkyClock) -> Option<String> {
+        let mut words = command.split_whitespace();
+        match words.next()? {
+            "/almanach" => Some(self.almanac_text(sky)),
+            "/date" => {
+                let Some(cal) = self.calendar() else {
+                    return Some(NO_CALENDAR.to_owned());
+                };
+                let verb = words.next();
+                let value = words.next().and_then(|v| v.parse::<i64>().ok());
+                let date = |day: u64| {
+                    let d = cal.date(day);
+                    format!(
+                        "Date : {} (année {}), jour {}/{}, {}",
+                        d.label(),
+                        d.year,
+                        d.day_of_year + 1,
+                        cal.days_per_year(),
+                        d.season.name()
+                    )
+                };
+                Some(match (verb, value) {
+                    (None, _) => date(sky.day),
+                    (Some("set" | "add"), Some(_)) if !self.allow_cheats => {
+                        "Cheats are not enabled in this world.".to_owned()
+                    }
+                    (Some("set"), Some(n)) => {
+                        let year = cal.date(sky.day).year;
+                        let idx = (n.clamp(1, i64::from(cal.days_per_year())) - 1) as u32;
+                        sky.day = cal.day_for(year, idx);
+                        date(sky.day)
+                    }
+                    (Some("add"), Some(n)) => {
+                        sky.day = sky.day.saturating_add_signed(n);
+                        date(sky.day)
+                    }
+                    _ => "Usage : /date [set <jour de l'année, 1 = solstice d'hiver> | add <jours>]"
+                        .to_owned(),
+                })
+            }
+            _ => None,
+        }
     }
 
     /// Place le joueur local (pieds) : arrivée dans une partie LAN, téléportation.
@@ -295,6 +370,7 @@ impl WorldSession {
             let mut wc = self.world.config_mut();
             wc.day_length_seconds = sky.day_length_seconds;
             wc.time_of_day = sky.time_of_day;
+            wc.calendar_day = sky.day;
             meta.world_config = wc.clone();
         }
         let cam = self.camera();

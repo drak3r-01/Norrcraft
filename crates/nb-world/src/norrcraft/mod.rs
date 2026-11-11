@@ -152,7 +152,10 @@ impl WorldProfile {
         Self::new(
             WorldKind::Norrcraft,
             biome_infos(),
-            Systems::default(),
+            Systems {
+                seasons: true,
+                ..Systems::default()
+            },
             Arc::new(NorrcraftTerrain::new(
                 seed,
                 cfg,

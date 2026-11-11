@@ -218,6 +218,8 @@ impl Game {
         self.session = s;
         self.sky.set_day_length_seconds(w.day_length);
         self.sky.set_time(w.time_of_day);
+        self.sky.day = w.day;
+        self.calendar_state = Default::default();
         self.cursor.reset();
         self.chat.set_net_mode(true);
         self.chat.push(
@@ -402,6 +404,10 @@ impl Game {
         outgoing: &mut Vec<String>,
         text: &str,
     ) -> Option<String> {
+        // L'Almanach se lit sans rien changer : permis aussi à un invité.
+        if text.trim_start().starts_with("/almanach") {
+            return Some(session.almanac_text(sky));
+        }
         if role == LanRole::Off || text.starts_with('/') {
             if role == LanRole::Client && !text.trim_start().starts_with("/help") {
                 return Some(HOST_ONLY.to_owned());

@@ -113,10 +113,13 @@ impl Chat {
                     });
                 }
                 if let Some(feedback) = execute(&command) {
-                    self.log.push(ChatMessage {
-                        text: feedback,
-                        color: ChatColor::Yellow,
-                    });
+                    // Une réponse sur plusieurs lignes (Almanach) devient plusieurs messages.
+                    for line in feedback.split('\n') {
+                        self.log.push(ChatMessage {
+                            text: line.to_owned(),
+                            color: ChatColor::Yellow,
+                        });
+                    }
                 }
                 let excess = self.log.len().saturating_sub(self.max_lines());
                 self.log.drain(..excess);

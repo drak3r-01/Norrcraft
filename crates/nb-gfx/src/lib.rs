@@ -61,7 +61,7 @@ pub use mob_model::{
 pub use nb_core::ChunkPos;
 pub use nb_mesh::ChunkVertex;
 pub use packs::{find_packs_root, list_resource_packs, ResourcePackMeta};
-pub use sky::{heat_from_nearest_lava_dist_sq, sky_params, SkyClock, SkyParams};
+pub use sky::{heat_from_nearest_lava_dist_sq, sky_params, sky_params_biased, SkyClock, SkyParams};
 pub use vk::{GfxError, GpuContext, OffscreenRenderer, SceneAssets, SceneRenderer};
 #[cfg(feature = "window")]
 pub use window::Renderer;

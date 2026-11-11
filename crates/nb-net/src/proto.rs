@@ -8,7 +8,10 @@ use crate::wire::{Reader, WireError, Writer};
 /// 3 (plan Norrcraft, session 0.3) : `Hello` annonce le contenu du jeu de l'invité (empreinte de
 /// la palette de blocs de chaque univers) ; `Welcome` donne l'univers et la palette de blocs du
 /// monde de l'hôte.
-pub const PROTOCOL_VERSION: u16 = 3;
+///
+/// 4 (plan Norrcraft, session 3.1) : `Welcome` et `Time` portent le compteur de jours du
+/// calendrier (l'hôte fait foi).
+pub const PROTOCOL_VERSION: u16 = 4;
 /// Port TCP de jeu par défaut.
 pub const DEFAULT_GAME_PORT: u16 = 25570;
 /// Nombre maximal de joueurs (hôte compris).
@@ -52,6 +55,8 @@ pub struct Welcome {
     pub spawn: [f64; 3],
     pub time_of_day: f32,
     pub day_length: f32,
+    /// Jours de jeu écoulés (calendrier).
+    pub day: u64,
     /// Table des types de mobs (index → identifiant).
     pub mob_types: Vec<String>,
     /// Univers du monde de l'hôte (`vanilla`, `norrcraft`).
@@ -131,6 +136,8 @@ pub enum ServerMsg {
     Time {
         time_of_day: f32,
         day_length: f32,
+        /// Jours de jeu écoulés (calendrier).
+        day: u64,
     },
     /// Message de chat ; `from` vide = message système.
     Chat {
@@ -200,7 +207,11 @@ impl ClientMsg {
             } => {
                 let mut w = Writer::new(tag::C_STATE);
                 w.f64(pos[0]).f64(pos[1]).f64(pos[2]);
-                w.f32(*yaw).f32(*pitch).f32(*health).bool(*creative).f32(*reduction);
+                w.f32(*yaw)
+                    .f32(*pitch)
+                    .f32(*health)
+                    .bool(*creative)
+                    .f32(*reduction);
                 w.buf
             }
             ClientMsg::BlockEdit { pos, block } => {
@@ -284,7 +295,7 @@ impl ServerMsg {
                     .bool(m.allow_cheats)
                     .str(&m.config_json);
                 w.f64(m.spawn[0]).f64(m.spawn[1]).f64(m.spawn[2]);
-                w.f32(m.time_of_day).f32(m.day_length);
+                w.f32(m.time_of_day).f32(m.day_length).i64(m.day as i64);
                 w.u32(m.mob_types.len() as u32);
                 for t in &m.mob_types {
                     w.str(t);
@@ -349,9 +360,10 @@ impl ServerMsg {
             ServerMsg::Time {
                 time_of_day,
                 day_length,
+                day,
             } => {
                 let mut w = Writer::new(tag::S_TIME);
-                w.f32(*time_of_day).f32(*day_length);
+                w.f32(*time_of_day).f32(*day_length).i64(*day as i64);
                 w.buf
             }
             ServerMsg::Chat { from, text } => {
@@ -387,6 +399,7 @@ impl ServerMsg {
                 let spawn = vec3_f64(&mut r)?;
                 let time_of_day = r.f32()?;
                 let day_length = r.f32()?;
+                let day = r.i64()?.max(0) as u64;
                 let n = r.len(4)?;
                 let mut mob_types = Vec::with_capacity(n);
                 for _ in 0..n {
@@ -410,6 +423,7 @@ impl ServerMsg {
                     spawn,
                     time_of_day,
                     day_length,
+                    day,
                     mob_types,
                     world_kind,
                     block_palette,
@@ -460,6 +474,7 @@ impl ServerMsg {
             tag::S_TIME => ServerMsg::Time {
                 time_of_day: r.f32()?,
                 day_length: r.f32()?,
+                day: r.i64()?.max(0) as u64,
             },
             tag::S_CHAT => ServerMsg::Chat {
                 from: r.str()?,
@@ -489,6 +504,7 @@ mod tests {
             spawn: [1.5, 70.0, -3.25],
             time_of_day: 0.25,
             day_length: 600.0,
+            day: 17,
             mob_types: vec!["wild_boar".into(), "elk".into()],
             world_kind: "norrcraft".into(),
             block_palette: vec!["air".into(), "granit".into(), String::new(), "grus".into()],
@@ -572,6 +588,7 @@ mod tests {
             ServerMsg::Time {
                 time_of_day: 0.5,
                 day_length: 300.0,
+                day: 41,
             },
             ServerMsg::Chat {
                 from: "Gab".into(),

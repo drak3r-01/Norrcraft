@@ -5,7 +5,7 @@ use glam::{IVec3, Mat4, Vec3};
 pub use nb_data::ShadowQuality;
 
 use crate::camera::{light_space_gl, Camera, VK_CLIP_CORRECTION};
-use crate::sky::{sky_params, SkyClock, SkyParams};
+use crate::sky::{SkyClock, SkyParams};
 
 /// Réglages graphiques (sous-ensemble de `GameSettings`).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -178,7 +178,7 @@ impl FrameDerived {
         if extent.0 > 0 && extent.1 > 0 {
             camera.aspect = extent.0 as f32 / extent.1 as f32;
         }
-        let sky = sky_params(input.sky_clock.time_of_day);
+        let sky = input.sky_clock.params();
         let (fluid_state, clear_color) = input.eye_fluid.state_and_color(sky.base_fog);
         let proj_gl = camera.proj_gl();
         let view = camera.view();

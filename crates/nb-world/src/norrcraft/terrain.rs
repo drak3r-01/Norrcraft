@@ -692,7 +692,7 @@ impl TerrainGenerator for NorrcraftTerrain {
         Some(Climate {
             temperature: m.t0,
             humidity: m.hm,
-            latitude: None,
+            latitude: Some(f64::from(crate::calendar::latitude_from_t0(m.t0))),
         })
     }
 }

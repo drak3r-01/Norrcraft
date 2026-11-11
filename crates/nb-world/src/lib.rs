@@ -25,6 +25,7 @@
 //! Les autres corrections retenues (shadow map, accumulateur 60 Hz, tri du quadtree) relèvent
 //! d'autres crates.
 
+pub mod calendar;
 pub mod chunk;
 pub mod light;
 pub mod manager;

@@ -26,6 +26,7 @@ use crate::render::{build_view, RenderInterp, RenderView};
 use crate::session::{Registries, WorldSession};
 use crate::state::{GameState, HudState, SettingsTab};
 
+mod calendar;
 mod lan;
 use crate::ui::{ItemIcons, NewWorld, NullUi, Ui, UiCommand, UiFrame, UiView};
 
@@ -153,6 +154,7 @@ pub struct Game {
     opts: GameOptions,
     chat: Chat,
     sky: SkyClock,
+    calendar_state: calendar::CalendarState,
     session: WorldSession,
     state: GameState,
     previous_state: GameState,
@@ -264,6 +266,7 @@ impl Game {
             input: InputManager::new(),
             chat: Chat::new(),
             sky: SkyClock::new(),
+            calendar_state: calendar::CalendarState::default(),
             session,
             state: GameState::MainMenu,
             previous_state: GameState::MainMenu,
@@ -803,6 +806,7 @@ impl Game {
 
         self.step(Step::Time);
         self.sky.update(dt);
+        self.update_calendar(dt);
 
         self.step(Step::Chat);
         {
@@ -1488,6 +1492,8 @@ impl Game {
         self.sky
             .set_day_length_seconds(meta.world_config.day_length_seconds);
         self.sky.set_time(meta.world_config.time_of_day);
+        self.sky.day = meta.world_config.calendar_day;
+        self.calendar_state = Default::default();
         self.session.apply_player_state(meta, &self.regs);
         Ok(())
     }

@@ -78,7 +78,8 @@ pub struct Climate {
     /// Température brute du générateur (échelle propre à l'univers).
     pub temperature: f64,
     pub humidity: f64,
-    /// Latitude en degrés, si l'univers en a une.
+    /// Latitude λ de 0 (sud, tempéré) à 1 (pôle), si l'univers en a une. Norrcraft : λ = 1 − T₀ ;
+    /// la durée du jour en dépend (`crate::calendar`).
     pub latitude: Option<f64>,
 }
 

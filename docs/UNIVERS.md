@@ -61,7 +61,7 @@ toujours vanilla ; quitter un monde Norrcraft remet les registres vanilla.
 `saves/mobs.json` est scindé par univers : `mobs_vanilla.json` (l'ancien `mobs.json` est encore
 lu en repli) et `mobs_norrcraft.json`.
 
-## Réseau local (protocole 3)
+## Réseau local (protocole 4)
 
 * `Hello` (invité → hôte) annonce le contenu de la version de l'invité : pour chaque univers,
   l'empreinte FNV-1a de sa palette par défaut (`content_fingerprints`).
@@ -70,6 +70,8 @@ lu en repli) et `mobs_norrcraft.json`.
 * `Welcome` (hôte → invité) donne `world_kind` et `block_palette` du monde. L'invité construit ses
   registres d'après eux : les chunks reçus sont dans les identifiants de l'hôte. En quittant la
   partie, il retrouve les registres vanilla de son menu.
+* Protocole 4 (session 3.1) : `Welcome` et `Time` portent le compteur de jours du calendrier ;
+  l'hôte fait foi (voir `docs/CALENDRIER.md`).
 
 ## Interface et générateur bouchon (session 0.4)
 
