@@ -1,9 +1,16 @@
-//! Carte du monde vue de dessus (biomes + relief ombré) en PPM, et statistiques de répartition.
+//! Carte du monde vue de dessus et statistiques de répartition.
 //!
-//! Usage : cargo run --release -p nb-world --example worldmap -- <graine> <type> <centre_x> <centre_z> <taille> <pas> <fichier.ppm>
+//! **Vanilla** (biomes + relief ombré, PPM ou PNG selon l'extension) :
+//! `cargo run --release -p nb-world --example worldmap -- <graine> <type> <centre_x> <centre_z> <taille> <pas> <fichier.ppm|png>`
 //! (`type` : normal | flat | amplified | island | archipelago | highlands | classic ; `taille` en pixels, `pas` en blocs par pixel)
+//!
+//! **Norrcraft** (champs macroscopiques, PNG) :
+//! `cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <centre_x> <centre_z> <taille> <pas> <fichier.png> [mode]`
+//! (`préréglage` : norrland | skargard | hogfjall ; `mode` : voir `norr::MODES`, `overview` par défaut)
 
-use std::io::Write;
+mod image_out;
+mod norr;
+
 use std::sync::Arc;
 
 use nb_world::{Biome, BiomeSystem, GeneratorKind, Noise, WorldConfig, WorldType};
@@ -47,6 +54,10 @@ fn main() {
     let a: Vec<String> = std::env::args().collect();
     let seed: i64 = a.get(1).and_then(|s| s.parse().ok()).unwrap_or(12345);
     let kind = a.get(2).map(String::as_str).unwrap_or("normal");
+    if nb_world::norrcraft::NorrPreset::parse(kind).is_some() || kind == "norrcraft" {
+        norr::run(&a);
+        return;
+    }
     let cx: i32 = a.get(3).and_then(|s| s.parse().ok()).unwrap_or(0);
     let cz: i32 = a.get(4).and_then(|s| s.parse().ok()).unwrap_or(0);
     let size: i32 = a.get(5).and_then(|s| s.parse().ok()).unwrap_or(512);
@@ -149,7 +160,5 @@ fn main() {
             println!("SAMPLE {} {x} {z}", b.name());
         }
     }
-    let mut f = std::fs::File::create(&out).unwrap();
-    write!(f, "P6\n{size} {size}\n255\n").unwrap();
-    f.write_all(&px).unwrap();
+    image_out::write_image(&out, size as u32, size as u32, &px).unwrap();
 }

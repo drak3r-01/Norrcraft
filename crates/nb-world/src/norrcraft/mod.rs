@@ -2,6 +2,18 @@
 //!
 //! Phase 0 : un générateur bouchon (monde plat de granit) prouve le circuit complet (création,
 //! sauvegarde, palette de blocs, LAN). La phase 1 le remplacera par le vrai relief.
+//!
+//! Session 1.1 : briques mathématiques ([`math`]), réglages et préréglages ([`config`]), champs
+//! macroscopiques ([`fields`]) et climat ([`climate`]). Le relief lui-même arrive avec la 1.2.
+
+pub mod climate;
+pub mod config;
+pub mod fields;
+pub mod math;
+
+pub use climate::{altitudes, temperature_at, Altitudes, ClimateZone};
+pub use config::{NorrConfig, NorrPreset, DEFAULT_SEA_LEVEL, DEFAULT_WORLD_HEIGHT};
+pub use fields::{ChunkFields, MacroFields, MacroSample, Province, COAST_C};
 
 use std::sync::Arc;
 
