@@ -19,6 +19,7 @@
 //! sol de sa colonne.
 
 use std::collections::HashMap;
+use std::f64::consts::FRAC_1_SQRT_2 as R;
 use std::sync::{Arc, Mutex};
 
 use nb_data::{BlockId, BlockRegistry};
@@ -419,19 +420,19 @@ fn pow075(x: f64) -> f64 {
 const DIRS: [(f64, f64); 16] = [
     (1.0, 0.0),
     (0.9239, 0.3827),
-    (0.7071, 0.7071),
+    (R, R),
     (0.3827, 0.9239),
     (0.0, 1.0),
     (-0.3827, 0.9239),
-    (-0.7071, 0.7071),
+    (-R, R),
     (-0.9239, 0.3827),
     (-1.0, 0.0),
     (-0.9239, -0.3827),
-    (-0.7071, -0.7071),
+    (-R, -R),
     (-0.3827, -0.9239),
     (0.0, -1.0),
     (0.3827, -0.9239),
-    (0.7071, -0.7071),
+    (R, -R),
     (0.9239, -0.3827),
 ];
 
@@ -534,7 +535,11 @@ fn tall<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
             tz += lz;
         }
         path.push((tx, tz));
-        let w = if y * 4 >= h * 3 { Wood::TallTop } else { Wood::Tall };
+        let w = if y * 4 >= h * 3 {
+            Wood::TallTop
+        } else {
+            Wood::Tall
+        };
         p.wood(tx, y, tz, w);
     }
     for i in 0..plates {
@@ -618,8 +623,8 @@ fn fjallbjork<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let stems = if dwarf { r.int(1, 2) } else { r.int(2, 4) };
     let h = if dwarf { r.int(1, 2) } else { r.int(3, 6) };
     const STARTS: [(i32, i32); 4] = [(0, 0), (1, 0), (-1, 1), (0, -1)];
-    for s in 0..stems as usize {
-        let (mut x, mut z) = STARTS[s];
+    for (s, &start) in STARTS.iter().enumerate().take(stems as usize) {
+        let (mut x, mut z) = start;
         let sh = (h - r.int(0, 1)).max(1);
         if (x, z) != (0, 0) {
             foot(p, x, z, Wood::Bjork);
@@ -637,7 +642,11 @@ fn fjallbjork<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
                 }
             }
         }
-        let tuft = if dwarf { (1.1, 0.8, 1.1) } else { (1.7, 1.3, 1.7) };
+        let tuft = if dwarf {
+            (1.1, 0.8, 1.1)
+        } else {
+            (1.7, 1.3, 1.7)
+        };
         ellipsoid(
             p,
             pl.seed ^ s as u64,
@@ -650,7 +659,11 @@ fn fjallbjork<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
             ellipsoid(
                 p,
                 pl.seed ^ 0x9,
-                (f64::from(x) + f64::from(r.int(-1, 1)), f64::from(sh) - 2.0, f64::from(z)),
+                (
+                    f64::from(x) + f64::from(r.int(-1, 1)),
+                    f64::from(sh) - 2.0,
+                    f64::from(z),
+                ),
                 (1.2, 1.0, 1.2),
                 Leaf::Bjork,
                 0.5,
@@ -682,8 +695,22 @@ fn bok<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
         }
     }
     let hf = f64::from(h);
-    ellipsoid(p, pl.seed, (0.0, hf - 4.8, 0.0), (5.8, 2.2, 5.8), Leaf::Bok, 0.5);
-    ellipsoid(p, pl.seed ^ 3, (0.0, hf - 2.2, 0.0), (4.2, 2.6, 4.2), Leaf::Bok, 0.5);
+    ellipsoid(
+        p,
+        pl.seed,
+        (0.0, hf - 4.8, 0.0),
+        (5.8, 2.2, 5.8),
+        Leaf::Bok,
+        0.5,
+    );
+    ellipsoid(
+        p,
+        pl.seed ^ 3,
+        (0.0, hf - 2.2, 0.0),
+        (4.2, 2.6, 4.2),
+        Leaf::Bok,
+        0.5,
+    );
 }
 
 /// Chêne : branches maîtresses par colonisation d'espace simplifiée (6 à 9 points d'attraction
@@ -719,17 +746,19 @@ fn ek<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
         if u * u + v * v + w * w > 1.0 {
             continue;
         }
-        let a = (off + u * rx, (hf - 2.5 + v * ry).max(f64::from(tk) + 1.0), off + w * rx);
+        let a = (
+            off + u * rx,
+            (hf - 2.5 + v * ry).max(f64::from(tk) + 1.0),
+            off + w * rx,
+        );
         // Plus proche nœud du squelette.
         let near = nodes
             .iter()
             .copied()
             .min_by(|n, m| {
                 let d = |q: &(f64, f64, f64)| {
-                    {
                     let (dx, dy, dz) = (q.0 - a.0, q.1 - a.1, q.2 - a.2);
                     dx * dx + dy * dy + dz * dz
-                }
                 };
                 d(n).total_cmp(&d(m))
             })
@@ -793,7 +822,15 @@ fn al<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let start = (f64::from(h) * 0.4).round() as i32;
     for y in start..=h {
         let v = f64::from(y - start) / f64::from((h - start).max(1));
-        disc(p, pl.seed, (0.0, 0.0), y, 3.0 * pow075(1.0 - v) + 0.3, Leaf::Al, 0.4);
+        disc(
+            p,
+            pl.seed,
+            (0.0, 0.0),
+            y,
+            3.0 * pow075(1.0 - v) + 0.3,
+            Leaf::Al,
+            0.4,
+        );
     }
 }
 
@@ -869,8 +906,7 @@ fn lind<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     }
     let stems = r.int(3, 5);
     const RING: [(i32, i32); 5] = [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)];
-    for s in 0..stems as usize {
-        let (ox, oz) = RING[s];
+    for (s, &(ox, oz)) in RING.iter().enumerate().take(stems as usize) {
         let sh = r.int(3, 5);
         let (mut x, mut z) = (ox, oz);
         if (ox, oz) != (0, 0) {
@@ -932,7 +968,11 @@ fn log<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let len = r.int(4, 9);
     let start = -(len / 2);
     for k in 0..len {
-        let (dx, dz) = if along_x { (start + k, 0) } else { (0, start + k) };
+        let (dx, dz) = if along_x {
+            (start + k, 0)
+        } else {
+            (0, start + k)
+        };
         if p.supported(dx, 0, dz) {
             p.wood(dx, 0, dz, Wood::Mossy);
         }
@@ -1202,6 +1242,9 @@ fn profile(b: NorrBiome) -> Option<Profile> {
     }
 }
 
+/// Cellule mémoïsée : position dans la grille et plantes.
+type Cell = ((i32, i32), Arc<[Plant]>);
+
 type CellCache = Arc<Mutex<HashMap<(i32, i32), Arc<[Plant]>>>>;
 
 /// Placement des arbres : fonction pure de (graine, colonne), cellules mémoïsées.
@@ -1277,8 +1320,16 @@ impl Trees {
         let shape = hash01(self.seed, i, j, 5);
         let seed = (hash01(self.seed, i, j, 6) * 9_007_199_254_740_992.0) as u64;
         let lean = [
-            if m.theta[0].abs() > 0.38 { m.theta[0].signum() as i8 } else { 0 },
-            if m.theta[1].abs() > 0.38 { m.theta[1].signum() as i8 } else { 0 },
+            if m.theta[0].abs() > 0.38 {
+                m.theta[0].signum() as i8
+            } else {
+                0
+            },
+            if m.theta[1].abs() > 0.38 {
+                m.theta[1].signum() as i8
+            } else {
+                0
+            },
         ];
         let plant = |kind, style, x, z, y, seed| Plant {
             kind,
@@ -1397,7 +1448,7 @@ impl Trees {
             let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             cells.iter().map(|c| cache.get(c).cloned()).collect()
         };
-        let mut fresh: Vec<((i32, i32), Arc<[Plant]>)> = Vec::new();
+        let mut fresh: Vec<Cell> = Vec::new();
         for (k, c) in cells.iter().enumerate() {
             if found[k].is_none() {
                 let plants: Arc<[Plant]> = self.cell_plants(probe, c.0, c.1).into();
@@ -1536,7 +1587,13 @@ mod tests {
                 let mut c = Collect::default();
                 draw(&pl, &mut c);
                 assert!(!c.leaf.is_empty(), "{s:?} sans feuillage");
-                let top = c.wood.iter().chain(c.leaf.iter()).map(|p| p.1).max().unwrap();
+                let top = c
+                    .wood
+                    .iter()
+                    .chain(c.leaf.iter())
+                    .map(|p| p.1)
+                    .max()
+                    .unwrap();
                 tall_sum += top;
                 n += 1;
                 if !matches!(s, Species::En) {
@@ -1577,7 +1634,12 @@ mod tests {
         };
         let top = c.leaf.iter().map(|p| p.1).max().unwrap();
         let low = c.leaf.iter().map(|p| p.1).min().unwrap();
-        assert!(width(low + 1) > width(top - 2), "{} {}", width(low + 1), width(top - 2));
+        assert!(
+            width(low + 1) > width(top - 2),
+            "{} {}",
+            width(low + 1),
+            width(top - 2)
+        );
     }
 
     #[test]

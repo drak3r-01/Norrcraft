@@ -18,7 +18,11 @@ fn reg() -> BlockRegistry {
 }
 
 fn terrain(seed: i64) -> NorrcraftTerrain {
-    NorrcraftTerrain::new(seed, NorrConfig::default(), NorrBlocks::from_registry(&reg()))
+    NorrcraftTerrain::new(
+        seed,
+        NorrConfig::default(),
+        NorrBlocks::from_registry(&reg()),
+    )
 }
 
 fn chunk(t: &NorrcraftTerrain, cx: i32, cz: i32) -> Chunk {
@@ -94,10 +98,18 @@ fn trees_do_not_depend_on_the_chunk_order_or_the_cache() {
         // Un chunk isolé à froid donne la même chose que dans la zone, et une copie aussi.
         let cold = chunk(&terrain(seed), 0, 0);
         let k = (3 * fwd.n + 3) as usize;
-        assert_eq!(cold.voxels()[..], fwd.chunks[k].voxels()[..], "graine {seed}");
+        assert_eq!(
+            cold.voxels()[..],
+            fwd.chunks[k].voxels()[..],
+            "graine {seed}"
+        );
         let mut forked = Chunk::new(ChunkPos::new(0, 0));
         a.fork().generate_chunk(&mut forked);
-        assert_eq!(forked.voxels()[..], fwd.chunks[k].voxels()[..], "graine {seed}");
+        assert_eq!(
+            forked.voxels()[..],
+            fwd.chunks[k].voxels()[..],
+            "graine {seed}"
+        );
     }
 }
 
@@ -158,7 +170,11 @@ fn crowns_are_whole_across_chunk_borders() {
         let (x0, z0) = (cx0 * 16 + m, cz0 * 16 + m);
         let (x1, z1) = ((cx0 + n) * 16 - 1 - m, (cz0 + n) * 16 - 1 - m);
         let plants = plants_in(&t, x0, z0, x1, z1);
-        assert!(plants.len() > 120, "graine {seed} : {} plantes", plants.len());
+        assert!(
+            plants.len() > 120,
+            "graine {seed} : {} plantes",
+            plants.len()
+        );
         for pl in plants.iter().filter(|p| p.kind != TreeKind::Log) {
             let mut w = World {
                 wood: Vec::new(),
@@ -168,17 +184,23 @@ fn crowns_are_whole_across_chunk_borders() {
             draw(pl, &mut w);
             let mut borders = false;
             for &(x, y, z, _) in &w.wood {
-                if y >= 0 && y < 128 {
+                if (0..128).contains(&y) {
                     let b = area.block(x, y, z).unwrap();
-                    assert_ne!(b, 0, "graine {seed} : tronc absent en ({x},{y},{z}) de {pl:?}");
+                    assert_ne!(
+                        b, 0,
+                        "graine {seed} : tronc absent en ({x},{y},{z}) de {pl:?}"
+                    );
                     checked += 1;
                     borders |= x.rem_euclid(16) == 0 || z.rem_euclid(16) == 0;
                 }
             }
             for &(x, y, z, _) in &w.leaf {
-                if y >= 0 && y < 128 {
+                if (0..128).contains(&y) {
                     let b = area.block(x, y, z).unwrap();
-                    assert_ne!(b, 0, "graine {seed} : feuille absente en ({x},{y},{z}) de {pl:?}");
+                    assert_ne!(
+                        b, 0,
+                        "graine {seed} : feuille absente en ({x},{y},{z}) de {pl:?}"
+                    );
                     checked += 1;
                     borders |= x.rem_euclid(16) == 0 || z.rem_euclid(16) == 0;
                 }
@@ -199,7 +221,11 @@ fn placement_respects_the_ground_rules() {
         let t = terrain(seed);
         let mut per_biome: BTreeMap<&str, u32> = BTreeMap::new();
         let plants = plants_in(&t, -1500, -1500, 1500, 1500);
-        assert!(plants.len() > 20_000, "graine {seed} : {} plantes", plants.len());
+        assert!(
+            plants.len() > 20_000,
+            "graine {seed} : {} plantes",
+            plants.len()
+        );
         for pl in &plants {
             let sel = t.column_biome(pl.x, pl.z);
             *per_biome.entry(sel.biome.name()).or_default() += 1;
@@ -233,8 +259,11 @@ fn placement_respects_the_ground_rules() {
             assert!(!sel.snow, "plante sous les neiges éternelles : {pl:?}");
             // Limite des arbres : aucune forêt au-dessus de y_a (les biomes de toundra et de
             // tourbière sont exemptés : arbustes nains).
-            let line = altitudes(t.heights().macro_fields().sample_lattice(pl.x, pl.z).t0, sea)
-                .tree_line;
+            let line = altitudes(
+                t.heights().macro_fields().sample_lattice(pl.x, pl.z).t0,
+                sea,
+            )
+            .tree_line;
             if !matches!(
                 sel.biome,
                 NorrBiome::Fjord
@@ -247,7 +276,10 @@ fn placement_respects_the_ground_rules() {
                     | NorrBiome::Palsmyr
                     | NorrBiome::Lavafalt
             ) {
-                assert!(f64::from(pl.y) < line, "{pl:?} au-dessus de la limite {line}");
+                assert!(
+                    f64::from(pl.y) < line,
+                    "{pl:?} au-dessus de la limite {line}"
+                );
             }
         }
         eprintln!("graine {seed} : {per_biome:?}");
@@ -302,7 +334,10 @@ fn species_follow_their_biomes() {
         assert!(of("URSKOG", w) > 0, "Urskog sans {w}");
     }
     let dead = of("URSKOG", "chicot") + of("URSKOG", "souche") + of("URSKOG", "tronc couche");
-    assert!((4..=13).contains(&(dead * 100 / urskog)), "bois mort {dead}/{urskog}");
+    assert!(
+        (4..=13).contains(&(dead * 100 / urskog)),
+        "bois mort {dead}/{urskog}"
+    );
     // Pin seul en pinède, hêtre en hêtraie, rien dans la mer ni sur la glace.
     let tallhed = all("TALLHED");
     if tallhed > 200 {
@@ -311,20 +346,33 @@ fn species_follow_their_biomes() {
     }
     let bokskog = all("BOKSKOG");
     if bokskog > 200 {
-        assert!(of("BOKSKOG", "bok") * 100 / bokskog >= 40, "hêtre de Bokskog");
+        assert!(
+            of("BOKSKOG", "bok") * 100 / bokskog >= 40,
+            "hêtre de Bokskog"
+        );
         assert_eq!(of("BOKSKOG", "gran"), 0);
     }
     let sjoland = all("SJOLAND");
     if sjoland > 200 {
         assert!(of("SJOLAND", "al") > 0 && of("SJOLAND", "gran") > 0);
     }
-    for b in ["VASTERHAV", "DJUPHAV", "BOTTENHAV", "PACKIS", "KALFJALL", "GLACIAR"] {
+    for b in [
+        "VASTERHAV",
+        "DJUPHAV",
+        "BOTTENHAV",
+        "PACKIS",
+        "KALFJALL",
+        "GLACIAR",
+    ] {
         assert_eq!(all(b), 0, "{b} porte des arbres");
     }
     // Toundra : seulement des saules et des bouleaux nains.
     for w in ["gran", "tall", "bok", "ek", "asp", "al"] {
         // Les membres d'un bosquet de trembles peuvent déborder de quelques blocs.
-        assert!(of("FJALLHED", w) * 50 <= all("FJALLHED"), "Fjällhed porte {w}");
+        assert!(
+            of("FJALLHED", w) * 50 <= all("FJALLHED"),
+            "Fjällhed porte {w}"
+        );
     }
     // Les 12 essences apparaissent.
     for s in Species::ALL {
@@ -358,7 +406,10 @@ fn canopy_density_orders_the_biomes() {
             }
         });
     }
-    let share = |b: &str| rate.get(b).map(|&(n, k)| f64::from(k) / f64::from(n.max(1)));
+    let share = |b: &str| {
+        rate.get(b)
+            .map(|&(n, k)| f64::from(k) / f64::from(n.max(1)))
+    };
     eprintln!(
         "{:?}",
         rate.iter()
@@ -385,6 +436,9 @@ fn generation_cost_stays_in_the_budget() {
     let start = Instant::now();
     let area = Area::new(&t, 20, 20, 12, false);
     let per_chunk = start.elapsed().as_secs_f64() * 1000.0 / 144.0;
-    eprintln!("{per_chunk:.2} ms par chunk, avec les arbres ({} chunks)", area.chunks.len());
+    eprintln!(
+        "{per_chunk:.2} ms par chunk, avec les arbres ({} chunks)",
+        area.chunks.len()
+    );
     assert!(per_chunk < 5.0, "{per_chunk} ms par chunk");
 }
