@@ -4,7 +4,7 @@
 //! `cargo run --release -p nb-world --example worldmap -- <graine> <type> <centre_x> <centre_z> <taille> <pas> <fichier.ppm|png>`
 //! (`type` : normal | flat | amplified | island | archipelago | highlands | classic ; `taille` en pixels, `pas` en blocs par pixel)
 //!
-//! **Norrcraft** (champs macroscopiques, PNG) :
+//! **Norrcraft** (relief et champs macroscopiques, PNG) :
 //! `cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <centre_x> <centre_z> <taille> <pas> <fichier.png> [mode]`
 //! (`préréglage` : norrland | skargard | hogfjall ; `mode` : voir `norr::MODES`, `overview` par défaut)
 

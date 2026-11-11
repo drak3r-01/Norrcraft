@@ -1,13 +1,14 @@
-//! Carte des champs macroscopiques Norrcraft (session 1.1) : vue d'ensemble, un champ à la fois,
-//! zones climatiques, provinces, sens des glaces. Sortie PNG et statistiques de répartition.
+//! Carte Norrcraft : relief ombré (session 1.2), champs macroscopiques (session 1.1), zones
+//! climatiques, provinces, sens des glaces. Sortie PNG et statistiques de répartition.
 
 use nb_world::norrcraft::{
-    ClimateZone, MacroFields, MacroSample, NorrConfig, NorrPreset, Province, COAST_C,
+    ClimateZone, HeightFields, MacroSample, NorrConfig, NorrPreset, Province, COAST_C,
 };
 
 use crate::image_out::write_image;
 
-pub const MODES: &str = "overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
+pub const MODES: &str =
+    "relief | h | fjord | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
 
 type Rgb = [f64; 3];
 
@@ -20,19 +21,50 @@ fn mix(a: Rgb, b: Rgb, t: f64) -> Rgb {
     ]
 }
 
-/// Rampe continue à plusieurs nœuds (bleu nuit → turquoise → vert → jaune → blanc).
+/// Rampe continue à plusieurs nœuds.
+fn ramp_of(stops: &[Rgb], t: f64) -> Rgb {
+    let t = t.clamp(0.0, 1.0) * (stops.len() - 1) as f64;
+    let i = (t.floor() as usize).min(stops.len() - 2);
+    mix(stops[i], stops[i + 1], t - i as f64)
+}
+
+/// Rampe des champs (bleu nuit → turquoise → vert → jaune → blanc).
 fn ramp(t: f64) -> Rgb {
-    const STOPS: [Rgb; 6] = [
-        [15.0, 20.0, 80.0],
-        [30.0, 110.0, 170.0],
-        [60.0, 160.0, 90.0],
-        [220.0, 210.0, 70.0],
-        [200.0, 100.0, 50.0],
-        [250.0, 245.0, 240.0],
-    ];
-    let t = t.clamp(0.0, 1.0) * (STOPS.len() - 1) as f64;
-    let i = (t.floor() as usize).min(STOPS.len() - 2);
-    mix(STOPS[i], STOPS[i + 1], t - i as f64)
+    ramp_of(
+        &[
+            [15.0, 20.0, 80.0],
+            [30.0, 110.0, 170.0],
+            [60.0, 160.0, 90.0],
+            [220.0, 210.0, 70.0],
+            [200.0, 100.0, 50.0],
+            [250.0, 245.0, 240.0],
+        ],
+        t,
+    )
+}
+
+/// Teintes hypsométriques des terres, de S à S + 84.
+fn land_tint(above_sea: f64) -> Rgb {
+    ramp_of(
+        &[
+            [96.0, 140.0, 80.0],
+            [70.0, 112.0, 62.0],
+            [120.0, 125.0, 80.0],
+            [140.0, 120.0, 95.0],
+            [150.0, 145.0, 140.0],
+            [235.0, 238.0, 242.0],
+        ],
+        above_sea / 84.0,
+    )
+}
+
+/// Bleu de la mer selon la profondeur (0 à 40 blocs).
+fn water_tint(depth: f64) -> Rgb {
+    mix(
+        [95.0, 160.0, 205.0],
+        [8.0, 22.0, 70.0],
+        (depth / 32.0).sqrt(),
+    )
 }
 
 fn zone_color(z: ClimateZone) -> Rgb {
@@ -101,6 +133,26 @@ fn quantiles(mut v: Vec<f64>) -> [f64; 7] {
     [q(0.0), q(0.05), q(0.25), q(0.5), q(0.75), q(0.95), q(1.0)]
 }
 
+fn print_quantiles(name: &str, v: Vec<f64>) {
+    let q = quantiles(v);
+    println!(
+        "{name:>3} {}",
+        q.iter()
+            .map(|x| format!("{x:6.2}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    );
+}
+
+/// Ce que la seconde passe (couleurs du relief) doit savoir d'un pixel.
+#[derive(Clone, Copy)]
+struct Px {
+    h: f64,
+    fjord: bool,
+    valley: f64,
+    plateau: f64,
+}
+
 pub fn run(a: &[String]) {
     let seed: i64 = a.get(1).and_then(|s| s.parse().ok()).unwrap_or(12345);
     let preset = a
@@ -112,51 +164,69 @@ pub fn run(a: &[String]) {
     let size: i32 = a.get(5).and_then(|s| s.parse().ok()).unwrap_or(512);
     let step: i32 = a.get(6).and_then(|s| s.parse().ok()).unwrap_or(16);
     let out = a.get(7).cloned().unwrap_or_else(|| "norrmap.png".into());
-    let mode = a.get(8).map(String::as_str).unwrap_or("overview");
+    let mode = a.get(8).map(String::as_str).unwrap_or("relief");
     if !MODES.split(" | ").any(|m| m == mode) {
         eprintln!("mode inconnu « {mode} » ; modes : {MODES}");
         std::process::exit(2);
     }
 
     let cfg = NorrConfig::with_preset(preset);
-    let f = MacroFields::new(seed, cfg);
+    let hf = HeightFields::new(seed, cfg);
+    let f = hf.macro_fields();
+    let sea = f64::from(cfg.sea_level);
     let n = (size * size) as usize;
     let x0 = cx - size * step / 2;
     let z0 = cz - size * step / 2;
 
     let mut px = vec![0u8; n * 3];
+    let mut cells = Vec::with_capacity(n);
     let mut field_values: Vec<Vec<f64>> = (0..9).map(|_| Vec::with_capacity(n)).collect();
+    let mut heights = Vec::with_capacity(n);
     let mut zone_all = [0u64; 5];
     let mut zone_land = [0u64; 5];
     let mut prov = [0u64; 8];
-    let mut land = 0u64;
-    let mut lava = 0u64;
+    let (mut land, mut land_c, mut lava, mut fjord, mut plateau, mut high) =
+        (0u64, 0u64, 0u64, 0u64, 0u64, 0u64);
     for j in 0..size {
         for i in 0..size {
             let (wx, wz) = (f64::from(x0 + i * step), f64::from(z0 + j * step));
             let s = f.sample(wx, wz);
+            let r = hf.relief(wx, wz, &s);
             let p = f.province(wx, wz);
             let zone = ClimateZone::from_t0(s.t0);
             let zi = ClimateZone::ALL.iter().position(|&z| z == zone).unwrap();
             zone_all[zi] += 1;
             prov[p as usize] += 1;
-            if s.is_land() {
+            let is_land = r.h.floor() >= sea;
+            if is_land {
                 land += 1;
                 zone_land[zi] += 1;
             }
+            land_c += u64::from(s.is_land());
             lava += u64::from(s.gt > 0.5);
+            fjord += u64::from(r.fjord && !is_land);
+            plateau += u64::from(r.plateau > 0.5);
+            high += u64::from(r.h >= sea + 44.0);
+            heights.push(r.h);
             for (k, v) in [s.c, s.o, s.t0, s.hm, s.u, s.e, s.lk, s.gt, s.vr]
                 .into_iter()
                 .enumerate()
             {
                 field_values[k].push(v);
             }
+            cells.push(Px {
+                h: r.h,
+                fjord: r.fjord,
+                valley: r.valley,
+                plateau: r.plateau,
+            });
 
             let mut c: Rgb = match mode {
+                "relief" | "h" | "fjord" => [0.0; 3],
                 "overview" => overview_color(&s),
                 "zones" => {
                     let base = zone_color(zone);
-                    if s.is_land() {
+                    if is_land {
                         base
                     } else {
                         mix(base, [10.0, 20.0, 60.0], 0.65)
@@ -171,16 +241,14 @@ pub fn run(a: &[String]) {
                 m => {
                     let v = scalar(m, &s).unwrap_or(0.0);
                     let mut c = ramp(v);
-                    // Trait de côte en blanc sur les cartes de champs.
-                    if (s.c - COAST_C).abs() < 0.003 * (f64::from(step) / 8.0).max(1.0) && m != "c"
-                    {
+                    // Trait de côte réel (h = S) en blanc sur les cartes de champs.
+                    if (r.h - sea).abs() < 0.6 * (f64::from(step) / 8.0).max(1.0) {
                         c = [255.0, 255.0, 255.0];
                     }
                     c
                 }
             };
-            // Trait de côte discret aussi sur la vue d'ensemble.
-            if mode == "overview" && (s.c - COAST_C).abs() < 0.002 {
+            if mode == "overview" && (r.h - sea).abs() < 0.4 {
                 c = mix(c, [255.0, 255.0, 255.0], 0.5);
             }
             let o = ((j * size + i) * 3) as usize;
@@ -190,30 +258,84 @@ pub fn run(a: &[String]) {
         }
     }
 
+    // Seconde passe : relief ombré (lumière du nord-ouest), à partir des hauteurs voisines.
+    if matches!(mode, "relief" | "h" | "fjord") {
+        let at =
+            |i: i32, j: i32| cells[(j.clamp(0, size - 1) * size + i.clamp(0, size - 1)) as usize];
+        for j in 0..size {
+            for i in 0..size {
+                let p = at(i, j);
+                let (dx, dz) = (
+                    (at(i + 1, j).h - at(i - 1, j).h) / f64::from(2 * step),
+                    (at(i, j + 1).h - at(i, j - 1).h) / f64::from(2 * step),
+                );
+                // Éclairage de type Lambert sans trigonométrie : normale (−dx, 1, −dz) normalisée.
+                let k = 3.0;
+                let (nx, nz) = (-dx * k, -dz * k);
+                let norm = (nx * nx + 1.0 + nz * nz).sqrt();
+                let light = (-0.6 * nx - 0.6 * nz + 0.55) / norm;
+                let shade = (0.55 + 0.75 * light).clamp(0.25, 1.35);
+                let c: Rgb = match mode {
+                    "h" => {
+                        let v = ramp((p.h - 8.0) / 116.0);
+                        if p.h < sea {
+                            mix(v, [0.0, 0.0, 40.0], 0.3)
+                        } else {
+                            v
+                        }
+                    }
+                    _ if p.h.floor() < sea => {
+                        let mut c = water_tint(sea - p.h);
+                        if mode == "fjord" && p.fjord {
+                            c = mix(c, [200.0, 40.0, 160.0], 0.6);
+                        }
+                        // Le relief sous-marin reste lisible, atténué.
+                        let s = 1.0 + (shade - 1.0) * 0.35;
+                        [c[0] * s, c[1] * s, c[2] * s]
+                    }
+                    _ => {
+                        let mut c = land_tint(p.h - sea);
+                        if mode == "fjord" {
+                            if p.valley > 0.5 {
+                                c = mix(c, [230.0, 170.0, 40.0], 0.5);
+                            } else if p.plateau > 0.5 {
+                                c = mix(c, [60.0, 170.0, 200.0], 0.4);
+                            }
+                        }
+                        [c[0] * shade, c[1] * shade, c[2] * shade]
+                    }
+                };
+                let o = ((j * size + i) * 3) as usize;
+                for k in 0..3 {
+                    px[o + k] = c[k].clamp(0.0, 255.0) as u8;
+                }
+            }
+        }
+    }
+
     let total = n as f64;
+    let pct = |v: u64| v as f64 * 100.0 / total;
     println!(
-        "-- Norrcraft « {} », graine {seed}, {size} px × {step} blocs ({} km), centre ({cx}, {cz})",
+        "-- Norrcraft « {} », graine {seed}, {size} px × {step} blocs ({} km), centre ({cx}, {cz}), mode {mode}",
         preset.label(),
         f64::from(size * step) / 1000.0
     );
     println!(
-        "terre (C ≥ {COAST_C}) : {:.1} %   province de lave (Gt > 0,5) : {:.2} %",
-        land as f64 * 100.0 / total,
-        lava as f64 * 100.0 / total
+        "terre (h ≥ S) : {:.1} %   (C ≥ {COAST_C} : {:.1} %)   fjords : {:.2} %   plateaux : {:.1} %   au-dessus de S+44 : {:.1} %   lave (Gt > 0,5) : {:.2} %",
+        pct(land),
+        pct(land_c),
+        pct(fjord),
+        pct(plateau),
+        pct(high),
+        pct(lava)
     );
     println!("-- quantiles (min 5% 25% 50% 75% 95% max)");
+    print_quantiles("h", heights);
     for (name, v) in ["c", "o", "t0", "hm", "u", "e", "lk", "gt", "vr"]
         .iter()
         .zip(field_values)
     {
-        let q = quantiles(v);
-        println!(
-            "{name:>3} {}",
-            q.iter()
-                .map(|x| format!("{x:5.2}"))
-                .collect::<Vec<_>>()
-                .join(" ")
-        );
+        print_quantiles(name, v);
     }
     println!("-- zones climatiques (% de la carte / % de la terre)");
     for (k, z) in ClimateZone::ALL.iter().enumerate() {
@@ -226,11 +348,7 @@ pub fn run(a: &[String]) {
     }
     println!("-- provinces rocheuses (% de la carte)");
     for p in Province::ALL {
-        println!(
-            "{:>12} {:5.1}",
-            p.name(),
-            prov[p as usize] as f64 * 100.0 / total
-        );
+        println!("{:>12} {:5.1}", p.name(), pct(prov[p as usize]));
     }
 
     write_image(&out, size as u32, size as u32, &px).expect("écriture de l'image");

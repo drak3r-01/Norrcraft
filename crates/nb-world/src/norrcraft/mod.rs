@@ -4,16 +4,23 @@
 //! sauvegarde, palette de blocs, LAN). La phase 1 le remplacera par le vrai relief.
 //!
 //! Session 1.1 : briques mathématiques ([`math`]), réglages et préréglages ([`config`]), champs
-//! macroscopiques ([`fields`]) et climat ([`climate`]). Le relief lui-même arrive avec la 1.2.
+//! macroscopiques ([`fields`]) et climat ([`climate`]).
+//!
+//! Session 1.2 : fonction de hauteur ([`height`] : socle, collines, chaîne, plateaux, vallées en U,
+//! fjords) et vrai générateur ([`terrain`]), qui remplace le monde plat de granit dans les mondes.
 
 pub mod climate;
 pub mod config;
 pub mod fields;
+pub mod height;
 pub mod math;
+pub mod terrain;
 
 pub use climate::{altitudes, temperature_at, Altitudes, ClimateZone};
 pub use config::{NorrConfig, NorrPreset, DEFAULT_SEA_LEVEL, DEFAULT_WORLD_HEIGHT};
-pub use fields::{ChunkFields, MacroFields, MacroSample, Province, COAST_C};
+pub use fields::{ChunkFields, FieldGrid, MacroFields, MacroSample, Province, COAST_C};
+pub use height::{HeightFields, Relief};
+pub use terrain::{NorrBlocks, NorrcraftTerrain};
 
 use std::sync::Arc;
 
@@ -99,9 +106,19 @@ impl WorldProfile {
         Self::norrcraft_with(Arc::new(EmptyTerrain))
     }
 
-    /// Profil de Norrcraft au stade de la phase 0 : monde plat de granit.
+    /// Profil de Norrcraft au stade de la phase 0 : monde plat de granit (bouchon, tests).
     pub fn norrcraft_flat(registry: &BlockRegistry) -> Self {
         Self::norrcraft_with(Arc::new(FlatGraniteTerrain::from_registry(registry)))
+    }
+
+    /// Profil de Norrcraft avec le vrai relief (session 1.2). Un seul biome neutre jusqu'à la
+    /// sélection des biomes (session 2.1).
+    pub fn norrcraft(seed: i64, cfg: NorrConfig, registry: &BlockRegistry) -> Self {
+        Self::norrcraft_with(Arc::new(NorrcraftTerrain::new(
+            seed,
+            cfg,
+            NorrBlocks::from_registry(registry),
+        )))
     }
 
     fn norrcraft_with(generator: Arc<dyn TerrainGenerator>) -> Self {
@@ -142,5 +159,39 @@ mod tests {
         assert_eq!(chunk.block(7, FLAT_SURFACE_Y, 7), 0);
         assert_eq!(p.generator().surface_height(-40, 9), FLAT_SURFACE_Y);
         assert_eq!(p.generator().find_spawn(63)[1], f64::from(FLAT_SURFACE_Y));
+    }
+
+    #[test]
+    fn relief_profile_matches_surface_height_and_spawns_on_land() {
+        let reg = BlockRegistry::for_kind(WorldKind::Norrcraft);
+        let p = WorldProfile::norrcraft(12345, NorrConfig::default(), &reg);
+        let gen = p.new_generator();
+        let (water, bedrock) = (reg.get("water").id, reg.get("bedrock").id);
+        for (cx, cz) in [(0, 0), (-3, 5), (40, -17), (-250, 90)] {
+            let mut chunk = Chunk::new(nb_core::ChunkPos::new(cx, cz));
+            gen.generate_chunk(&mut chunk);
+            for z in 0..16 {
+                for x in 0..16 {
+                    let h = p.generator().surface_height(cx * 16 + x, cz * 16 + z);
+                    assert_eq!(chunk.block(x, 0, z), bedrock);
+                    assert_ne!(
+                        chunk.block(x, h - 1, z),
+                        0,
+                        "colonne pleine sous la surface"
+                    );
+                    assert_ne!(chunk.block(x, h - 1, z), water);
+                    let above = chunk.block(x, h, z);
+                    if h < DEFAULT_SEA_LEVEL {
+                        assert_eq!(above, water);
+                        assert_eq!(chunk.block(x, DEFAULT_SEA_LEVEL, z), 0);
+                    } else {
+                        assert_eq!(above, 0);
+                    }
+                }
+            }
+        }
+        let spawn = p.generator().find_spawn(34);
+        let (sx, sz) = (spawn[0].floor() as i32, spawn[2].floor() as i32);
+        assert!(p.generator().surface_height(sx, sz) >= DEFAULT_SEA_LEVEL);
     }
 }

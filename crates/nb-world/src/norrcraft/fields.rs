@@ -75,7 +75,14 @@ impl MacroSample {
     }
 
     /// Combinaison bilinéaire de quatre échantillons (`tx`, `tz` dans [0, 1]).
-    fn bilinear(s00: &Self, s10: &Self, s01: &Self, s11: &Self, tx: f64, tz: f64) -> Self {
+    pub(crate) fn bilinear(
+        s00: &Self,
+        s10: &Self,
+        s01: &Self,
+        s11: &Self,
+        tx: f64,
+        tz: f64,
+    ) -> Self {
         let m = |a: f64, b: f64, c: f64, d: f64| lerp(lerp(a, b, tx), lerp(c, d, tx), tz);
         let tx_ = m(s00.theta[0], s10.theta[0], s01.theta[0], s11.theta[0]);
         let tz_ = m(s00.theta[1], s10.theta[1], s01.theta[1], s11.theta[1]);
@@ -221,23 +228,24 @@ impl MacroFields {
     }
 
     /// Nœuds `(x, décalage de C)` du biais d'océanité du préréglage Norrland : océan profond à
-    /// l'ouest (−0,40), noyau continental surélevé (+0,17) pour que les terres du centre
-    /// ne soient pas criblées de mers intérieures, golfe à l'est (−0,05, puis contraction vers le
-    /// plateau continental, voir `GULF_PULL`). Constant au-delà
-    /// des extrémités (le monde reste infini). Entre deux nœuds : seuil lisse (dérivée nulle aux nœuds).
+    /// l'ouest (−0,40), noyau continental surélevé (+0,23) pour que les terres du centre ne soient
+    /// pas criblées de mers intérieures, golfe à l'est (−0,02, puis contraction vers le plateau
+    /// continental, voir `GULF_PULL`). Réglé en 1.2 sur le relief réel : 70 % de terre sur 16 km.
+    /// Constant au-delà des extrémités (le monde reste infini). Entre deux nœuds : seuil lisse
+    /// (dérivée nulle aux nœuds).
     const C_BIAS_KNOTS: [(f64, f64); 7] = [
         (-9000.0, -0.40),
-        (-6500.0, -0.18),
-        (-4500.0, 0.08),
-        (-2000.0, 0.17),
-        (2500.0, 0.17),
-        (5500.0, 0.02),
-        (9000.0, -0.05),
+        (-6500.0, -0.15),
+        (-4500.0, 0.12),
+        (-2000.0, 0.23),
+        (3000.0, 0.23),
+        (6000.0, 0.08),
+        (9500.0, -0.02),
     ];
 
-    /// Poids du golfe oriental : 0 à l'ouest de x ≈ 3500, 1 à l'est de x ≈ 8000.
+    /// Poids du golfe oriental : 0 à l'ouest de x ≈ 4500, 1 à l'est de x ≈ 9000.
     pub fn gulf_weight(x: f64) -> f64 {
-        smooth(3500.0, 8000.0, x)
+        smooth(4500.0, 9000.0, x)
     }
 
     /// Vers quelle valeur de C le golfe contracte la continentalité (plateau continental, juste sous
@@ -405,6 +413,90 @@ impl MacroFields {
     pub fn sample_column(&self, wx: i32, wz: i32) -> MacroSample {
         self.sample(f64::from(wx), f64::from(wz))
     }
+
+    /// Champs de la colonne `(wx, wz)` lus par le treillis 4 × 4 : **exactement** (bit à bit) la
+    /// valeur que donnent [`ChunkFields::at`] et [`FieldGrid::at`] pour cette colonne. Sert aux
+    /// requêtes isolées (hauteur d'une colonne, départ du joueur) qui doivent coïncider avec les
+    /// chunks générés.
+    pub fn sample_lattice(&self, wx: i32, wz: i32) -> MacroSample {
+        let (nx, nz) = (lattice_floor(wx), lattice_floor(wz));
+        let s00 = self.sample_column(nx, nz);
+        let s10 = self.sample_column(nx + LATTICE_STEP, nz);
+        let s01 = self.sample_column(nx, nz + LATTICE_STEP);
+        let s11 = self.sample_column(nx + LATTICE_STEP, nz + LATTICE_STEP);
+        let (tx, tz) = (lattice_frac(wx), lattice_frac(wz));
+        MacroSample::bilinear(&s00, &s10, &s01, &s11, tx, tz)
+    }
+}
+
+/// Nœud du treillis à gauche de `w` (multiple de 4, arrondi vers −∞).
+#[inline]
+fn lattice_floor(w: i32) -> i32 {
+    w.div_euclid(LATTICE_STEP) * LATTICE_STEP
+}
+
+/// Position de `w` entre ses deux nœuds, dans [0, 1).
+#[inline]
+fn lattice_frac(w: i32) -> f64 {
+    f64::from(w.rem_euclid(LATTICE_STEP)) / f64::from(LATTICE_STEP)
+}
+
+/// Treillis 4 × 4 sur un rectangle quelconque de colonnes (un chunk et sa bordure, une carte…).
+///
+/// Mêmes nœuds et même interpolation que [`ChunkFields`] : `at(wx, wz)` vaut bit à bit
+/// [`MacroFields::sample_lattice`].
+#[derive(Debug, Clone)]
+pub struct FieldGrid {
+    /// Premier nœud (multiples de 4).
+    x0: i32,
+    z0: i32,
+    nx: usize,
+    nz: usize,
+    nodes: Vec<MacroSample>,
+}
+
+impl FieldGrid {
+    /// Couvre les colonnes `x_min..=x_max` × `z_min..=z_max`.
+    pub fn new(fields: &MacroFields, x_min: i32, z_min: i32, x_max: i32, z_max: i32) -> Self {
+        let (x0, z0) = (lattice_floor(x_min), lattice_floor(z_min));
+        let nx = ((lattice_floor(x_max) - x0) / LATTICE_STEP + 2) as usize;
+        let nz = ((lattice_floor(z_max) - z0) / LATTICE_STEP + 2) as usize;
+        let mut nodes = Vec::with_capacity(nx * nz);
+        for j in 0..nz {
+            for i in 0..nx {
+                nodes.push(
+                    fields
+                        .sample_column(x0 + i as i32 * LATTICE_STEP, z0 + j as i32 * LATTICE_STEP),
+                );
+            }
+        }
+        Self {
+            x0,
+            z0,
+            nx,
+            nz,
+            nodes,
+        }
+    }
+
+    /// Champs interpolés à la colonne monde `(wx, wz)`, qui doit être dans le rectangle couvert.
+    pub fn at(&self, wx: i32, wz: i32) -> MacroSample {
+        let i = ((lattice_floor(wx) - self.x0) / LATTICE_STEP) as usize;
+        let j = ((lattice_floor(wz) - self.z0) / LATTICE_STEP) as usize;
+        debug_assert!(
+            i + 1 < self.nx && j + 1 < self.nz,
+            "colonne hors du treillis"
+        );
+        let n = |i: usize, j: usize| &self.nodes[j * self.nx + i];
+        MacroSample::bilinear(
+            n(i, j),
+            n(i + 1, j),
+            n(i, j + 1),
+            n(i + 1, j + 1),
+            lattice_frac(wx),
+            lattice_frac(wz),
+        )
+    }
 }
 
 /// Champs d'un chunk : treillis de 5 × 5 nœuds espacés de 4 blocs, interpolés bilinéairement.
@@ -530,7 +622,7 @@ mod tests {
         assert_eq!(REF1, [t.c, t.o, t.t0, t.hm, t.u, t.e, t.lk, t.gt, t.vr]);
     }
     const REF0: [f64; 9] = [
-        0.6728762556226175,
+        0.7328762556226175,
         0.5637335299211184,
         0.6014374106307567,
         0.5120814271552735,
@@ -541,7 +633,7 @@ mod tests {
         0.2619092120579295,
     ];
     const REF1: [f64; 9] = [
-        0.6810208997292713,
+        0.7125833997292713,
         0.5401781450549421,
         0.36323408428150755,
         0.6743030302933914,

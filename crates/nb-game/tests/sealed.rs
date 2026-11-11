@@ -8,6 +8,7 @@ use std::sync::Arc;
 use nb_data::blocks::SOCLE;
 use nb_data::{BlockRegistry, ItemRegistry, WorldKind};
 use nb_game::Registries;
+use nb_world::norrcraft::NorrConfig;
 use nb_world::{WorldConfig, WorldProfile};
 
 fn items_of(kind: WorldKind) -> BTreeSet<String> {
@@ -34,7 +35,7 @@ fn biomes_of(kind: WorldKind) -> BTreeSet<String> {
     let reg = BlockRegistry::for_kind(kind);
     let profile = match kind {
         WorldKind::Vanilla => WorldProfile::vanilla(1, Arc::new(WorldConfig::default()), reg.ids()),
-        WorldKind::Norrcraft => WorldProfile::norrcraft_flat(&reg),
+        WorldKind::Norrcraft => WorldProfile::norrcraft(1, NorrConfig::default(), &reg),
     };
     profile.biomes.iter().map(|b| b.name.to_lowercase()).collect()
 }
@@ -85,7 +86,7 @@ fn no_norrcraft_name_contains_a_vanilla_biome_or_mob() {
 }
 
 #[test]
-fn norrcraft_flat_world_is_granite_from_the_registry() {
+fn norrcraft_world_uses_granite_from_the_registry() {
     let reg = BlockRegistry::for_kind(WorldKind::Norrcraft);
     assert_ne!(reg.get("granit").id, 0);
     assert_eq!(biomes_of(WorldKind::Norrcraft).len(), 1);

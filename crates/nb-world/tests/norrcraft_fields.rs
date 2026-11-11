@@ -41,17 +41,27 @@ fn chunk_fingerprint(seed: i64, preset: NorrPreset) -> u64 {
 /// compte rendu de session. Le calcul n'utilise que `+ − × ÷ sqrt floor` : mêmes valeurs sous Linux
 /// et Windows.
 const FINGERPRINTS: [(i64, u64); 3] = [
-    (12345, 0xcddab82e37fc38ff),
-    (-98765, 0xa681ebc4e0bfa4c3),
-    (20261111, 0x2e260cc8767dd1d0),
+    (12345, 0x5449b711ed273e21),
+    (-98765, 0xb4f91f8a70a65450),
+    (20261111, 0x9e53ab058fa65817),
 ];
 
 #[test]
 fn field_fingerprints_are_frozen() {
-    for (seed, expected) in FINGERPRINTS {
-        let actual = chunk_fingerprint(seed, NorrPreset::Norrland);
-        assert_eq!(actual, expected, "graine {seed} : {actual:#x}");
-    }
+    let actual: Vec<(i64, u64)> = FINGERPRINTS
+        .iter()
+        .map(|&(seed, _)| (seed, chunk_fingerprint(seed, NorrPreset::Norrland)))
+        .collect();
+    assert_eq!(
+        actual.as_slice(),
+        FINGERPRINTS.as_slice(),
+        "empreintes : {}",
+        actual
+            .iter()
+            .map(|(s, h)| format!("({s}, {h:#x})"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 }
 
 #[test]

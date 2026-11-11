@@ -135,12 +135,13 @@ fn norrcraft_world_is_created_saved_reloaded_and_vanilla_is_restored() {
     wait_chunk(&mut g);
     let granit = g.regs.blocks.get("granit").id;
     let p = g.camera().position;
-    let (x, y, z) = (p.x.floor() as i32, 80, p.z.floor() as i32);
-    // Générateur bouchon : sol de granit sur socle, air au-dessus (le joueur apparaît dessus).
+    let (x, y, z) = (p.x.floor() as i32, 120, p.z.floor() as i32);
+    // Relief Norrcraft (session 1.2) : socle, granit en profondeur, air en altitude ; le joueur
+    // apparaît sur la terre ferme, au-dessus du niveau de la mer (S = 40).
     assert_eq!(g.world().block(x, 0, z), g.regs.blocks.ids().bedrock);
     assert_eq!(g.world().block(x, 10, z), granit);
     assert_eq!(g.world().block(x, y, z), 0);
-    assert!(p.y >= 64.0, "apparition au-dessus du sol : {}", p.y);
+    assert!(p.y > 41.0, "apparition au-dessus de la mer : {}", p.y);
     g.world().set_block(x, y, z, granit);
     g.save_current();
 
