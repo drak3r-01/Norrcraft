@@ -194,7 +194,7 @@ impl FrameDerived {
             light_dir: v4(sky.shadow_light_dir, 0.0),
             ambient_color: v4(sky.ambient, 0.0),
             light_color: v4(sky.light_color, 0.0),
-            fog_color: v4(clear_color, 0.0),
+            fog_color: v4(clear_color, sky.fog_density),
             zenith_color: v4(sky.zenith, 0.0),
             horizon_color: v4(sky.horizon, 0.0),
             sun_color: v4(sky.sun_color, 0.0),

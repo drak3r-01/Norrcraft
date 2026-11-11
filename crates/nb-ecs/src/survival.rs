@@ -7,6 +7,9 @@
 
 use nb_core::glam::{DVec3, IVec3, Vec3};
 use nb_data::{ArmorSlot, BlockId, ItemId, SurvivalData, ToolKind};
+use nb_world::weather::{
+    drying_rate, felt_ambient, freezing_point, wetting_rate, Environment, Wind,
+};
 
 use crate::components::{
     EntityId, GameMode, Health, InventoryComp, MobType, Player, RemotePlayer, Transform, Velocity,
@@ -101,6 +104,13 @@ pub struct Vitals {
     pub cold_notice: u8,
     pub hunger_notice: bool,
     pub heat_scan: f32,
+    /// Vêtements trempés par la pluie, la sueur ou l'eau, 0 à 1 (météo, session 3.3).
+    pub wetness: f32,
+    /// Abri au vent du lieu, 0 à 1 (relevé espacé).
+    pub shelter: f32,
+    pub shelter_scan: f32,
+    /// Le joueur était dans l'eau au tick précédent (choc du froid à l'entrée).
+    pub was_in_water: bool,
 }
 
 impl Default for Vitals {
@@ -134,6 +144,10 @@ impl Default for Vitals {
             cold_notice: 0,
             hunger_notice: false,
             heat_scan: 0.0,
+            wetness: 0.0,
+            shelter: 0.0,
+            shelter_scan: 0.0,
+            was_in_water: false,
         }
     }
 }
@@ -356,7 +370,11 @@ pub(crate) fn primary(
             progress: 0.0,
             sound_timer: 0.0,
         });
-    st.progress += if m.seconds <= 0.0 { 1.0 } else { dt / m.seconds };
+    st.progress += if m.seconds <= 0.0 {
+        1.0
+    } else {
+        dt / m.seconds
+    };
     st.sound_timer -= dt;
     v.swing = 0.3;
     v.spend(0.004 * dt * 10.0);
@@ -420,8 +438,10 @@ pub(crate) fn secondary(
     if let Some(a) = props.armor {
         if let Some(inv) = world.get_mut::<InventoryComp>(id) {
             let old = inv.0.armor(a.slot);
-            inv.0
-                .set_armor(a.slot, Some(ItemStack::new(held.item, 1).with_wear(held.wear)));
+            inv.0.set_armor(
+                a.slot,
+                Some(ItemStack::new(held.item, 1).with_wear(held.wear)),
+            );
             inv.0.set_slot(HOTBAR_START + slot, None);
             if let Some(o) = old {
                 inv.0.set_slot(HOTBAR_START + slot, Some(o));
@@ -485,7 +505,9 @@ fn cast(world: &mut EntityWorld, ctx: &mut TickCtx<'_>, id: EntityId, origin: Ve
     let mut hit = None;
     for _ in 0..(CAST_RANGE / 0.2) as i32 {
         p += step;
-        let b = ctx.blocks.block(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
+        let b = ctx
+            .blocks
+            .block(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
         if b == ids.water {
             hit = Some(DVec3::new(
                 f64::from(p.x),
@@ -599,6 +621,87 @@ pub(crate) fn eating(
 // Systèmes
 // ---------------------------------------------------------------------------------------------
 
+/// Sous cette hauteur (blocs), un lieu couvert est dans le sous-sol : la roche tient la
+/// température (univers à météo ; le niveau de la mer de Norrcraft est 40).
+const UNDERGROUND_Y: i32 = 28;
+
+/// Part du vent arrêtée en amont du joueur : arbres, murs et reliefs sur 8 blocs, 0 à 1.
+fn windbreak(ctx: &mut TickCtx<'_>, (bx, by, bz): (i32, i32, i32), wind: Wind) -> f32 {
+    if wind.speed < 0.02 {
+        return 0.0;
+    }
+    let air = ctx.block_reg.ids().air;
+    let mut blocked = 0;
+    for step in [1, 2, 3, 5, 8] {
+        let x = bx - (wind.dir[0] * step as f32).round() as i32;
+        let z = bz - (wind.dir[1] * step as f32).round() as i32;
+        for dy in 0..2 {
+            let b = ctx.blocks.block(x, by + dy, z);
+            if b != air && ctx.is_solid(b) {
+                blocked += 1;
+            }
+        }
+    }
+    (blocked as f32 * 0.25).min(1.0)
+}
+
+/// Température ressentie dans un univers à météo (doc 04 §3.3) : tient à jour la mouillure
+/// (pluie, sueur, eau), le choc de l'eau glacée et l'abri au vent, et renvoie le ressenti sur
+/// l'échelle de la survie, avant les sources de chaleur et l'isolation.
+#[allow(clippy::too_many_arguments)]
+fn weather_ambient(
+    v: &mut Vitals,
+    ctx: &mut TickCtx<'_>,
+    env: &Environment,
+    cell: (i32, i32, i32),
+    sheltered: bool,
+    in_water: bool,
+    (windproof, waterproof): (f32, f32),
+    dt: f32,
+) -> f32 {
+    v.shelter_scan -= dt;
+    if v.shelter_scan <= 0.0 {
+        v.shelter_scan = 0.4;
+        v.shelter = windbreak(ctx, cell, env.wind);
+    }
+    let shelter = if sheltered { 1.0 } else { v.shelter };
+    let cold_water = f64::from(env.air) < freezing_point() + 0.12;
+    if in_water && !v.was_in_water && cold_water {
+        // Tomber dans l'eau glacée : choc (endurance à zéro) et chute de la chaleur.
+        v.stamina = 0.0;
+        v.warmth = (v.warmth - 12.0).max(0.0);
+        notice(ctx, "The icy water takes your breath away!");
+    }
+    v.was_in_water = in_water;
+    if in_water {
+        v.wetness = 1.0;
+    } else {
+        let mut gain = wetting_rate(env.rain, env.snow, sheltered, waterproof);
+        if v.sprinting && v.insulation > 0.4 {
+            // Sueur : courir trop couvert.
+            gain += 0.012 * ((v.insulation - 0.4) / 0.55).clamp(0.0, 1.0);
+        }
+        if gain > 0.0 {
+            v.wetness += gain * dt;
+        } else {
+            v.wetness -= drying_rate(v.heat > 0.25, sheltered, env.air) * dt;
+        }
+        v.wetness = v.wetness.clamp(0.0, 1.0);
+    }
+    let mut a = felt_ambient(
+        env.air,
+        env.wind.speed,
+        shelter,
+        env.chill,
+        windproof,
+        v.wetness,
+    );
+    if in_water {
+        a -= if cold_water { 0.45 } else { 0.15 };
+    }
+    a
+}
+
 /// Faim, froid, endurance, régénération, pêche, usure de l'armure.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct VitalsSystem;
@@ -644,20 +747,24 @@ impl System for VitalsSystem {
         let Some(pos) = pos else { return };
 
         // --- Armure : défense, isolation, usure ---
-        let (defense, insulation) = world
+        let (defense, insulation, windproof, waterproof) = world
             .get::<InventoryComp>(id)
             .map(|inv| {
                 let mut d = 0.0;
                 let mut w = 0.0;
+                let mut wind = 0.0;
+                let mut water = 0.0;
                 for s in ArmorSlot::ALL {
                     if let Some(a) = inv.0.armor(s).and_then(|st| data.armor(st.item)) {
                         d += a.defense;
                         w += a.warmth;
+                        wind += a.windproof * s.coverage();
+                        water += a.waterproof * s.coverage();
                     }
                 }
-                (d, w)
+                (d, w, wind, water)
             })
-            .unwrap_or((0.0, 0.0));
+            .unwrap_or((0.0, 0.0, 0.0, 0.0));
         v.defense = defense;
         v.reduction = (defense * DEFENSE_PER_POINT).min(MAX_REDUCTION);
         v.insulation = insulation.min(0.95);
@@ -692,10 +799,27 @@ impl System for VitalsSystem {
             let b = ctx.blocks.block(bx, by + k, bz);
             b != ids.air && ctx.is_solid(b)
         });
-        let mut ambient = biome + time_term + alt_term + wet_term;
+        let in_water = v.wet;
+        let (mut ambient, underground) = match ctx.environment.copied() {
+            // Univers à météo (Norrcraft) : air de la saison, vent, abri, mouillure, vêtements.
+            Some(env) => (
+                weather_ambient(
+                    &mut v,
+                    ctx,
+                    &env,
+                    (bx, by, bz),
+                    sheltered,
+                    in_water,
+                    (windproof, waterproof),
+                    dt,
+                ),
+                by < UNDERGROUND_Y,
+            ),
+            None => (biome + time_term + alt_term + wet_term, by < 52),
+        };
         if sheltered {
             ambient += 0.08;
-            if by < 52 {
+            if underground {
                 ambient = ambient.max(-0.12);
             }
         }
@@ -913,7 +1037,11 @@ impl System for CropSystem {
 
 fn grow_around(ctx: &mut TickCtx<'_>, data: &SurvivalData, pos: DVec3, dt: f32) {
     {
-        let t = Transform { pos, yaw: 0.0, pitch: 0.0 };
+        let t = Transform {
+            pos,
+            yaw: 0.0,
+            pitch: 0.0,
+        };
         let area = std::f32::consts::PI * (CROP_RADIUS * CROP_RADIUS) as f32;
         let mut col = [0u8; 128];
         for _ in 0..SAMPLES {
@@ -973,12 +1101,7 @@ pub fn loot_direct(
 }
 
 /// Butin d'un mob mort : au joueur qui l'a frappé en dernier.
-pub fn loot_for_kill(
-    world: &mut EntityWorld,
-    ctx: &mut TickCtx<'_>,
-    mob: EntityId,
-    mob_id: &str,
-) {
+pub fn loot_for_kill(world: &mut EntityWorld, ctx: &mut TickCtx<'_>, mob: EntityId, mob_id: &str) {
     let Some(data) = ctx.survival else { return };
     let Some(&pid) = world
         .query_ids::<(&Player, &Vitals)>()

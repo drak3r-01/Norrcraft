@@ -39,6 +39,8 @@ pub struct Harness {
     pub ticks: u64,
     /// Règles de survie (`None` : comportement d'origine).
     pub survival: Option<SurvivalData>,
+    /// Météo vécue par le joueur (`None` : chaleur par biome et heure).
+    pub environment: Option<nb_world::weather::Environment>,
 }
 
 impl Harness {
@@ -66,6 +68,7 @@ impl Harness {
             time: FakeTime::default(),
             ticks: 0,
             survival: None,
+            environment: None,
         }
     }
 
@@ -141,6 +144,7 @@ impl Harness {
             rngs: &mut self.rngs,
             events: &mut self.events,
             survival: self.survival.as_ref(),
+            environment: self.environment.as_ref(),
         };
         self.sim.tick(&mut ctx, TICK_DT);
         self.ticks += 1;

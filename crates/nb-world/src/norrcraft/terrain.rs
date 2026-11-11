@@ -800,6 +800,11 @@ impl TerrainGenerator for NorrcraftTerrain {
             temperature: m.t0,
             humidity: m.hm,
             latitude: Some(f64::from(crate::calendar::latitude_from_t0(m.t0))),
+            ocean: m.o,
+            continental: m.c,
+            rugged: 1.0 - m.e,
+            grain: m.theta,
+            sea_level: self.sea(),
         })
     }
 }

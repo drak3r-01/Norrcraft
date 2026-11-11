@@ -650,6 +650,13 @@ impl AudioDirector {
             },
         });
         let mut amb = ambience_targets(p.ambience, day, p.y);
+        // Météo (session 3.3) : le vent local souffle dans l'ambiance, les oiseaux se taisent
+        // avant le mauvais temps. Sans météo (`SkyWeather` neutre), rien ne change.
+        let w = &ctx.sky.weather;
+        if w.wind > 0.0 {
+            amb.wind = (amb.wind * 0.4 + w.wind * 0.9).min(1.0);
+        }
+        amb.birds *= 1.0 - w.birds_quiet.clamp(0.0, 1.0);
         let open = 1.0 - p.cave;
         amb.wind *= open;
         amb.birds *= open;

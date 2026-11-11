@@ -145,6 +145,7 @@ fn ambient_rain_only_where_sky_is_open() {
         snow: 0.0,
         night: 0.0,
         eye_in_water: false,
+        wind: [0.0, 0.0],
     };
     for _ in 0..60 {
         a.update(&mut s, &Roof, &ctx, 1.0 / 60.0);

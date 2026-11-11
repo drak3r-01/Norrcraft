@@ -17,3 +17,15 @@ Limites à respecter :
 - Les arêtes `INFERRED` / `AMBIGUOUS` sont des hypothèses : le dire dans la réponse, vérifier dans le code.
 - Ne pas appeler `list_prs`, `get_pr_impact`, `triage_prs` (indisponibles dans cette installation).
 - Ne pas lire les ressources `graphify://...` en entier sans nécessité (taille non bornée).
+
+## Compilation, tests et disque (méthode depuis la session 3.3)
+
+Rust uniquement via Docker (`scripts/cargo-docker.sh`, `scripts/build-windows.sh`, `crates/nb-gfx/scripts/vk-docker.sh`). Ne jamais créer de volume Docker : un **seul cache partagé** pour tous les worktrees, `NB_TARGET_VOL=nb-target-win` (avec `nb-cargo` pour le registre) ; les worktrees sont montés au même chemin `/w` dans le conteneur, le cache profite donc à toutes les branches. Pas de volume `nb-target-<branche>`.
+
+Rythme d'une session :
+1. Pendant le développement : `cargo check` et les tests de **la seule crate touchée** (`cargo test -p nb-world --lib weather`). Filtrer par nom, ne pas lancer le workspace.
+2. Une seule passe complète juste avant la fusion : `cargo test --workspace --no-fail-fast` puis `cargo clippy --workspace --all-targets`.
+3. Pas de build de l'exe release à la fin de chaque session : seulement en fin de phase (`build-windows.sh` → `dist/Norrblock`) ou à la demande de Gabriel.
+4. Aperçus PNG (`preview_norrcraft`) seulement si le visuel change ; les copier dans `apercu-norr/<session>/` du dossier principal avant de supprimer le worktree.
+
+Moins d'écritures disque : le profil `dev` n'écrit que `debug = "line-tables-only"` (rien pour les dépendances) ; pas de fichiers temporaires inutiles dans le dépôt (scratchpad pour les scripts) ; pas de `cargo clean`, pas de `docker system prune`.

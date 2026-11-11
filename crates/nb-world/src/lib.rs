@@ -36,6 +36,7 @@ pub mod save;
 pub mod seasons;
 pub mod storage;
 pub mod vanilla;
+pub mod weather;
 pub mod world;
 
 // Chemins historiques conservés : les modules vanilla restent accessibles à la racine.

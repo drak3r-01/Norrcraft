@@ -81,6 +81,16 @@ pub struct Climate {
     /// Latitude λ de 0 (sud, tempéré) à 1 (pôle), si l'univers en a une. Norrcraft : λ = 1 − T₀ ;
     /// la durée du jour en dépend (`crate::calendar`).
     pub latitude: Option<f64>,
+    /// Océanité O (0 baltique, 1 atlantique) ; 0,5 sans océan.
+    pub ocean: f64,
+    /// Continentalité C (0 haute mer, 0,465 trait de côte, 1 intérieur) ; 0,5 sans océan.
+    pub continental: f64,
+    /// Relief accidenté (1 − E) : fjords et vallées.
+    pub rugged: f64,
+    /// Axe des fjords (vecteur unitaire x, z).
+    pub grain: [f64; 2],
+    /// Niveau de la mer propre au générateur.
+    pub sea_level: i32,
 }
 
 /// Interface unique, pure et réentrante, par laquelle le moteur parle à un générateur.

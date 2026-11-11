@@ -27,6 +27,8 @@ pub struct AmbientCtx {
     /// 0 (jour) .. 1 (nuit noire).
     pub night: f32,
     pub eye_in_water: bool,
+    /// Vent local en x, z (direction × module, module 0..1) : incline la pluie, couche la neige.
+    pub wind: [f32; 2],
 }
 
 #[derive(Clone, Debug, Default)]
@@ -71,11 +73,16 @@ impl Ambient {
         const TOP: i32 = 20;
         let room = (0.9 - fx.load()).clamp(0.0, 1.0);
         self.rain_acc += 650.0 * c.rain * room * dt;
-        self.snow_acc += 330.0 * c.snow * room * dt;
+        let wind = Vec3::new(c.wind[0], 0.0, c.wind[1]);
+        // Plus de flocons dans la bourrasque.
+        self.snow_acc += 330.0 * c.snow * (1.0 + 1.2 * wind.length().min(1.0)) * room * dt;
         let (rain, snow) = (self.rain_acc as u32, self.snow_acc as u32);
         self.rain_acc -= rain as f32;
         self.snow_acc -= snow as f32;
-        for (def, n) in [(&pre::RAIN, rain), (&pre::SNOW, snow)] {
+        // Le vent incline la pluie (≈ 25° à pleine force) et pousse les flocons presque à
+        // l'horizontale.
+        for (def, n, slant) in [(&pre::RAIN, rain, 0.45), (&pre::SNOW, snow, 2.2)] {
+            let fall = (Vec3::NEG_Y + wind * slant).normalize_or_zero();
             for _ in 0..n {
                 let a = fx.rng.f32() * std::f32::consts::TAU;
                 let rad = fx.rng.f32().sqrt() * 17.0;
@@ -85,7 +92,7 @@ impl Ambient {
                 if world.cell(x, yy, z) != Cell::Air || !world.sky_open(x, yy, z, TOP) {
                     continue;
                 }
-                let e = Emit::at(p, 1).dir(Vec3::NEG_Y);
+                let e = Emit::at(p, 1).dir(fall);
                 fx.spawn(def, &e);
             }
         }

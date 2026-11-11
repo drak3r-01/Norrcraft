@@ -62,9 +62,13 @@ all = { level = "warn", priority = -1 }
 
 [profile.dev]
 opt-level = 1
+# Moins d'écritures disque (session 3.3) : tables de lignes seulement (assez pour les
+# backtraces des tests), rien pour les dépendances.
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 3
+debug = false
 
 [profile.release]
 lto = "thin"

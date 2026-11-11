@@ -11,7 +11,7 @@ layout(set = 0, binding = 0, std140) uniform Frame {
     vec4 lightDir;      // xyz = shadowLightDir (uLightDir)
     vec4 ambientColor;
     vec4 lightColor;
-    vec4 fogColor;      // (r,g,b) §8.1
+    vec4 fogColor;      // (r,g,b) §8.1 ; w = densité de brouillard ajoutée par la météo (air)
     vec4 zenithColor;
     vec4 horizonColor;
     vec4 sunColor;

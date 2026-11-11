@@ -175,6 +175,7 @@ fn runs_on_a_real_nb_world() {
             rngs: &mut rngs,
             events: &mut events,
     survival: None,
+            environment: None,
         };
         sim.tick(&mut ctx, TICK_DT);
     }

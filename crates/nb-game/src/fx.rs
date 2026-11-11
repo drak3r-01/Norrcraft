@@ -60,6 +60,8 @@ pub struct Fx {
     snow: f32,
     rain_target: f32,
     snow_target: f32,
+    /// Vent local (direction × module) qui incline la pluie et la neige.
+    wind: [f32; 2],
     track: Track,
     /// Dernière position connue des mobs (pour les effets de coup et de mort, l'entité détruite
     /// n'étant plus lisible).
@@ -113,6 +115,7 @@ impl Fx {
             snow: 0.0,
             rain_target: 0.0,
             snow_target: 0.0,
+            wind: [0.0, 0.0],
             track: Track::default(),
             mob_pos: HashMap::new(),
             eye: Vec3::ZERO,
@@ -189,6 +192,11 @@ impl Fx {
     pub fn set_weather(&mut self, rain: f32, snow: f32) {
         self.rain_target = rain.clamp(0.0, 1.0);
         self.snow_target = snow.clamp(0.0, 1.0);
+    }
+
+    /// Vent local : vecteur (x, z) de module 0..1.
+    pub fn set_wind(&mut self, wind: [f32; 2]) {
+        self.wind = wind;
     }
 
     pub fn weather(&self) -> (f32, f32) {
@@ -314,6 +322,7 @@ impl Fx {
             snow: self.snow,
             night: params.night,
             eye_in_water,
+            wind: self.wind,
         };
         self.ambient.update(&mut self.sys, &fw, &ctx, dt);
         self.sys.update(dt, &fw);

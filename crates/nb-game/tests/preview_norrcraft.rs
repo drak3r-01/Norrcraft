@@ -49,6 +49,31 @@ fn preview_norrcraft() {
         .ok()
         .and_then(|s| s.parse().ok());
     gen.set_season(season);
+    // Météo (session 3.3) : `NB_NORR_WEATHER=clear|veiled|drizzle|rain|mist|storm|snow|blizzard|
+    // gale|frost` et `NB_NORR_TIME=0..1200` (défaut 900, midi ; 300, minuit).
+    let weather = std::env::var("NB_NORR_WEATHER")
+        .ok()
+        .and_then(|k| nb_world::weather::Weather::parse(&k))
+        .map(|w| {
+            use nb_world::weather::{Atmosphere, Locale, WeatherClock, WeatherModel};
+            let cal = nb_world::calendar::Calendar::default();
+            let base = WeatherModel::new(1).sample(
+                &WeatherClock::new(&cal, 0, 0.0),
+                &Locale::plain(0.4),
+                0.0,
+            );
+            let a = Atmosphere::forced(&base, w);
+            nb_gfx::SkyWeather {
+                overcast: a.overcast,
+                fog: a.fog,
+                wind: a.wind.speed,
+                ..nb_gfx::SkyWeather::default()
+            }
+        });
+    let time: f32 = std::env::var("NB_NORR_TIME")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(900.0);
     let (ox, oz) = match std::env::var("NB_NORR_AT").ok() {
         Some(s) => {
             let v: Vec<i32> = s.split(',').filter_map(|p| p.trim().parse().ok()).collect();
@@ -122,7 +147,10 @@ fn preview_norrcraft() {
             ..Camera::default()
         };
         let mut clock = SkyClock::new();
-        clock.set_time(900.0);
+        clock.set_time(time);
+        if let Some(w) = weather {
+            clock.weather = w;
+        }
         let input = FrameInput {
             camera: &cam,
             time_seconds: 3.0,
@@ -137,7 +165,10 @@ fn preview_norrcraft() {
             r.render(&input).unwrap();
         }
         let img = r.render(&input).unwrap();
-        let tag = season.map_or(String::new(), |s| format!("_s{s}"));
+        let mut tag = season.map_or(String::new(), |s| format!("_s{s}"));
+        if let Ok(k) = std::env::var("NB_NORR_WEATHER") {
+            tag.push_str(&format!("_{k}_t{time}"));
+        }
         img.save(dir.join(format!("norrcraft_{seed}_{ox}_{oz}{tag}_{label}.png")))
             .unwrap();
     }

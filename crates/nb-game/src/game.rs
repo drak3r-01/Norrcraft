@@ -28,6 +28,7 @@ use crate::state::{GameState, HudState, SettingsTab};
 
 mod calendar;
 mod lan;
+mod weather;
 use crate::ui::{ItemIcons, NewWorld, NullUi, Ui, UiCommand, UiFrame, UiView};
 
 /// Demandes faites à la plateforme (fenêtre, GPU) ; la logique reste sans effet de bord.
@@ -155,6 +156,7 @@ pub struct Game {
     chat: Chat,
     sky: SkyClock,
     calendar_state: calendar::CalendarState,
+    weather: weather::WeatherState,
     session: WorldSession,
     state: GameState,
     previous_state: GameState,
@@ -267,6 +269,7 @@ impl Game {
             chat: Chat::new(),
             sky: SkyClock::new(),
             calendar_state: calendar::CalendarState::default(),
+            weather: weather::WeatherState::default(),
             session,
             state: GameState::MainMenu,
             previous_state: GameState::MainMenu,
@@ -807,20 +810,25 @@ impl Game {
         self.step(Step::Time);
         self.sky.update(dt);
         self.update_calendar(dt);
+        self.update_weather(dt);
 
         self.step(Step::Chat);
         {
             let role = self.net.role();
             let mut outgoing = Vec::new();
-            let (chat, input, session, sky, fx) = (
+            let (chat, input, session, sky, fx, weather) = (
                 &mut self.chat,
                 &mut self.input,
                 &mut self.session,
                 &mut self.sky,
                 &mut self.fx,
+                &mut self.weather,
             );
             chat.update(dt, input, |cmd| {
                 if role != LanRole::Client {
+                    if let Some(reply) = weather.command(cmd) {
+                        return Some(reply);
+                    }
                     if let Some(reply) = fx.command(cmd) {
                         return Some(reply);
                     }
@@ -1494,6 +1502,7 @@ impl Game {
         self.sky.set_time(meta.world_config.time_of_day);
         self.sky.day = meta.world_config.calendar_day;
         self.calendar_state = Default::default();
+        self.weather = Default::default();
         self.session.apply_player_state(meta, &self.regs);
         Ok(())
     }

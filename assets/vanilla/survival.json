@@ -2186,7 +2186,9 @@
     "defense": 1,
     "durability": 65,
     "slot": "feet",
-    "warmth": 0.087
+    "warmth": 0.087,
+    "waterproof": 0.3,
+    "windproof": 0.7
    }
   },
   "fur_cap": {
@@ -2194,7 +2196,9 @@
     "defense": 1,
     "durability": 55,
     "slot": "head",
-    "warmth": 0.112
+    "warmth": 0.112,
+    "waterproof": 0.3,
+    "windproof": 0.7
    }
   },
   "fur_trousers": {
@@ -2202,7 +2206,9 @@
     "defense": 2,
     "durability": 75,
     "slot": "legs",
-    "warmth": 0.174
+    "warmth": 0.174,
+    "waterproof": 0.3,
+    "windproof": 0.7
    }
   },
   "fur_tunic": {
@@ -2210,7 +2216,9 @@
     "defense": 3,
     "durability": 80,
     "slot": "chest",
-    "warmth": 0.248
+    "warmth": 0.248,
+    "waterproof": 0.3,
+    "windproof": 0.7
    }
   },
   "iron_axe": {

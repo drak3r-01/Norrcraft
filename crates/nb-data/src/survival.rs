@@ -118,6 +118,21 @@ pub struct ArmorInfo {
     /// Isolation thermique de la pièce (somme sur les 4 pièces ≤ 1).
     pub warmth: f32,
     pub durability: u16,
+    /// Coupe-vent de la pièce, 0 à 1 (météo, session 3.3).
+    pub windproof: f32,
+    /// Imperméabilité de la pièce, 0 à 1 (météo, session 3.3).
+    pub waterproof: f32,
+}
+
+impl ArmorSlot {
+    /// Part de la pièce dans le coupe-vent et l'imperméabilité de la tenue (somme 1).
+    pub fn coverage(self) -> f32 {
+        match self {
+            ArmorSlot::Chest => 0.4,
+            ArmorSlot::Legs => 0.3,
+            ArmorSlot::Head | ArmorSlot::Feet => 0.15,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -204,6 +219,10 @@ struct RawArmor {
     defense: f32,
     warmth: f32,
     durability: u16,
+    #[serde(default)]
+    windproof: f32,
+    #[serde(default)]
+    waterproof: f32,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -335,6 +354,8 @@ impl SurvivalData {
                     defense: a.defense,
                     warmth: a.warmth,
                     durability: a.durability,
+                    windproof: a.windproof.clamp(0.0, 1.0),
+                    waterproof: a.waterproof.clamp(0.0, 1.0),
                 }),
                 None => None,
             };

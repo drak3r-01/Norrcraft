@@ -57,6 +57,11 @@ impl TerrainGenerator for VanillaTerrain {
             temperature: bs.temperature(x, z),
             humidity: bs.humidity(x, z),
             latitude: None,
+            ocean: 0.5,
+            continental: 0.5,
+            rugged: 0.0,
+            grain: [1.0, 0.0],
+            sea_level: 63,
         })
     }
 }

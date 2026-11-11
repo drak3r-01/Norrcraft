@@ -19,6 +19,7 @@ use nb_gfx::SkyClock;
 use nb_mesh::BiomeSource;
 use nb_world::save::{self, InventorySlot, PlayerState, WorldMetadata};
 use nb_world::calendar::Calendar;
+use nb_world::weather::Environment;
 use nb_world::{ChunkStorage, World, WorldConfig};
 
 use crate::chunks::WorldBiomes;
@@ -126,6 +127,8 @@ pub struct WorldSession {
     /// `currentWorldName` : `None` pour le monde du menu (jamais sauvegardé).
     pub name: Option<String>,
     pub allow_cheats: bool,
+    /// Météo vécue par le joueur local, réglée par le jeu à chaque tick (univers à météo).
+    pub environment: Option<Environment>,
     biomes: Arc<dyn BiomeSource>,
 }
 
@@ -163,6 +166,7 @@ impl WorldSession {
             rngs,
             name: None,
             allow_cheats: false,
+            environment: None,
             biomes,
         }
     }
@@ -221,6 +225,7 @@ impl WorldSession {
             rngs: &mut self.rngs,
             events,
             survival: Some(&regs.survival),
+            environment: self.environment.as_ref(),
         };
         self.sim.tick(&mut ctx, dt);
     }

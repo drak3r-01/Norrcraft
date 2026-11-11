@@ -133,6 +133,9 @@ pub struct TickCtx<'a> {
     pub events: &'a mut Vec<EcsEvent>,
     /// Règles du mode survie (`None` : comportement d'origine, sans faim ni minage progressif).
     pub survival: Option<&'a SurvivalData>,
+    /// Météo vécue par le joueur local (air, vent, pluie) dans les univers qui en ont une ;
+    /// `None` : la chaleur vient du biome et de l'heure, comme avant la session 3.3.
+    pub environment: Option<&'a nb_world::weather::Environment>,
 }
 
 impl TickCtx<'_> {

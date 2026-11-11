@@ -22,6 +22,41 @@ pub struct SkyClock {
     /// Décalage solaire de la saison et de la latitude (voir [`sky_params_biased`]) : 0 = jour et
     /// nuit égaux, comportement d'origine.
     pub solar_bias: f32,
+    /// Météo vue du ciel (session 3.3) ; neutre par défaut : ciel d'origine.
+    pub weather: SkyWeather,
+}
+
+/// Ce que la météo change au ciel (assombrissement, brouillard, aurore, éclair, ciel rouge).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SkyWeather {
+    /// Couverture nuageuse, 0 (dégagé) à 1 (plafond bas) : grise et assombrit le ciel.
+    pub overcast: f32,
+    /// Densité de brouillard ajoutée à celle de l'air du shader (0,002).
+    pub fog: f32,
+    /// Part de l'aurore de la nuit qui est visible (1 : comportement d'origine).
+    pub aurora_scale: f32,
+    /// Éclair en cours, 0 à 1.
+    pub flash: f32,
+    /// Signe avant-coureur : ciel rouge à l'aube et au crépuscule, 0 à 1.
+    pub red_sky: f32,
+    /// Vent local, 0 à 1 (ambiance sonore).
+    pub wind: f32,
+    /// Silence des oiseaux annonciateur d'un temps qui se gâte, 0 à 1.
+    pub birds_quiet: f32,
+}
+
+impl Default for SkyWeather {
+    fn default() -> Self {
+        Self {
+            overcast: 0.0,
+            fog: 0.0,
+            aurora_scale: 1.0,
+            flash: 0.0,
+            red_sky: 0.0,
+            wind: 0.0,
+            birds_quiet: 0.0,
+        }
+    }
 }
 
 impl Default for SkyClock {
@@ -39,6 +74,7 @@ impl SkyClock {
             day: 0,
             latitude: 0.0,
             solar_bias: 0.0,
+            weather: SkyWeather::default(),
         }
     }
 
@@ -67,7 +103,10 @@ impl SkyClock {
 
     /// Paramètres de ciel de l'heure courante.
     pub fn params(&self) -> SkyParams {
-        sky_params_biased(self.time_of_day, self.solar_bias)
+        apply_weather(
+            sky_params_biased(self.time_of_day, self.solar_bias),
+            &self.weather,
+        )
     }
 
     /// Hauteur du soleil de −1 à 1 pour l'heure, la saison et la latitude.
@@ -112,6 +151,50 @@ pub struct SkyParams {
     /// `true` quand la lumière principale (`shadow_light_dir`) vient de la lune : le soleil est
     /// sous l'horizon et le disque affiché au ciel est celui de la lune.
     pub moon_up: bool,
+    /// Densité de brouillard à ajouter à celle de l'air (météo ; 0 par défaut).
+    pub fog_density: f32,
+}
+
+#[inline]
+fn luma(c: Vec3) -> f32 {
+    c.dot(Vec3::new(0.299, 0.587, 0.114))
+}
+
+/// Applique la météo à un ciel de base : plafond gris et plus sombre, lumière directe qui
+/// s'éteint, étoiles et aurore masquées, éclair, ciel rouge, brouillard. Avec
+/// `SkyWeather::default()` le ciel est inchangé.
+pub fn apply_weather(mut p: SkyParams, w: &SkyWeather) -> SkyParams {
+    let o = w.overcast.clamp(0.0, 1.0);
+    if o > 0.0 {
+        let grey = Vec3::splat(luma(p.horizon));
+        let dim = 1.0 - 0.35 * o;
+        p.zenith = lerp(p.zenith, grey * 0.8, 0.8 * o) * dim;
+        p.horizon = lerp(p.horizon, grey, 0.75 * o) * dim;
+        p.base_fog = lerp(p.base_fog, Vec3::splat(luma(p.base_fog)), 0.75 * o) * dim;
+        p.sun_color *= 1.0 - 0.75 * o;
+        p.light_color *= 1.0 - 0.55 * o;
+        p.ambient = lerp(p.ambient, Vec3::splat(luma(p.ambient)), 0.5 * o) * (1.0 - 0.1 * o);
+        p.night *= 1.0 - 0.9 * o;
+    }
+    p.aurora_intensity *= w.aurora_scale.clamp(0.0, 1.0);
+    // Ciel rouge : seulement quand le soleil est bas (h entre −0,05 et 0,3).
+    if w.red_sky > 0.0 {
+        let h = -p.light_dir.y;
+        let band = ((h + 0.05) / 0.15).clamp(0.0, 1.0) * ((0.3 - h) / 0.2).clamp(0.0, 1.0);
+        let k = w.red_sky.clamp(0.0, 1.0) * band;
+        p.horizon = lerp(p.horizon, Vec3::new(1.0, 0.25, 0.14), 0.5 * k);
+        p.zenith = lerp(p.zenith, Vec3::new(0.55, 0.2, 0.22), 0.25 * k);
+        p.base_fog = lerp(p.base_fog, Vec3::new(0.8, 0.3, 0.2), 0.4 * k);
+    }
+    if w.flash > 0.0 {
+        let f = w.flash.clamp(0.0, 1.0);
+        p.ambient += Vec3::splat(0.6 * f);
+        p.light_color += Vec3::new(0.35, 0.37, 0.5) * f;
+        p.zenith = lerp(p.zenith, Vec3::new(0.7, 0.75, 0.95), 0.6 * f);
+        p.horizon = lerp(p.horizon, Vec3::new(0.8, 0.82, 1.0), 0.6 * f);
+    }
+    p.fog_density = w.fog.max(0.0);
+    p
 }
 
 #[inline]
@@ -202,6 +285,7 @@ pub fn sky_params_biased(time_of_day: f32, bias: f32) -> SkyParams {
         aurora_intensity: aurora,
         night,
         moon_up: light_dir.y > 0.0,
+        fog_density: 0.0,
     }
 }
 
@@ -419,6 +503,64 @@ mod tests {
         c.solar_bias = -1.0;
         c.set_time(900.0);
         assert!(c.sun_height() <= 0.0);
+    }
+
+    #[test]
+    fn neutral_weather_leaves_the_sky_alone() {
+        for t in [0.0, 300.0, 600.0, 750.0, 900.0, 1100.0] {
+            let mut c = SkyClock::new();
+            c.set_time(t);
+            c.solar_bias = 0.3;
+            assert_eq!(c.params(), sky_params_biased(t, 0.3), "t = {t}");
+        }
+    }
+
+    #[test]
+    fn overcast_dims_greys_and_hides_the_night_sky() {
+        let mut c = SkyClock::new();
+        c.set_time(900.0);
+        let clear = c.params();
+        c.weather.overcast = 1.0;
+        let grey = c.params();
+        assert!(luma(grey.light_color) < luma(clear.light_color) * 0.6);
+        assert!(luma(grey.sun_color) < luma(clear.sun_color) * 0.4);
+        // Plafond uniforme : le zénith et l'horizon sont presque de la même teinte grise.
+        let spread = (grey.zenith - grey.horizon).abs().max_element();
+        assert!(spread < (clear.zenith - clear.horizon).abs().max_element() * 0.5);
+        // Les étoiles et l'aurore s'effacent de nuit.
+        c.set_time(300.0);
+        c.weather.overcast = 0.0;
+        let night = c.params();
+        c.weather.overcast = 1.0;
+        let cloudy = c.params();
+        assert!(cloudy.night < night.night * 0.2);
+        c.weather.overcast = 0.0;
+        c.weather.aurora_scale = 0.0;
+        assert_eq!(c.params().aurora_intensity, 0.0);
+        assert!(night.aurora_intensity > 0.5);
+    }
+
+    #[test]
+    fn red_sky_only_at_low_sun_and_flash_lights_the_scene() {
+        let mut c = SkyClock::new();
+        c.weather.red_sky = 1.0;
+        c.set_time(900.0);
+        assert_eq!(
+            c.params().horizon,
+            sky_params_biased(900.0, 0.0).horizon,
+            "midi"
+        );
+        c.set_time(1180.0);
+        let base = sky_params_biased(1180.0, 0.0);
+        let red = c.params();
+        assert!(red.horizon.x > red.horizon.z && red.horizon != base.horizon);
+        c.weather.red_sky = 0.0;
+        c.weather.flash = 1.0;
+        c.set_time(300.0);
+        assert!(c.params().ambient.x > sky_params_biased(300.0, 0.0).ambient.x + 0.5);
+        c.weather.flash = 0.0;
+        c.weather.fog = 0.12;
+        assert_eq!(c.params().fog_density, 0.12);
     }
 
     #[test]

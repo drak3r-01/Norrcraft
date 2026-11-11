@@ -347,6 +347,10 @@ void main() {
     // ------------------------------------------------------------------ brouillard
     float fogDensity = 0.002;
     float fogFalloff = 1.8;
+    if (fluid == FLUID_AIR) {
+        // Brouillard de la météo (brume, neige, blizzard) : densité ajoutée, 0 par temps clair.
+        fogDensity += u.fogColor.w;
+    }
     if (fluid == FLUID_WATER) {
         fogDensity = 0.015;
         fogFalloff = 1.2;
