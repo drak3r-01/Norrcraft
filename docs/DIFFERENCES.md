@@ -19,7 +19,7 @@ ligne à ligne) est dans `docs/spec/*.md` ; les décisions de Gabriel sont consi
 | 7 | Ombres **OFF** : la carte d'ombre restait échantillonnée sans être effacée (ombres figées ou contenu non initialisé, souvent tout ombré) | la carte est effacée à **1.0** au démarrage et au passage à OFF (aucune ombre) | `nb-gfx` ; `tests/render::shadows_and_shadow_off_clear` |
 | 8 | `treeDensityOverrides` de longueur < 8 dans un `world.json` : exception dans la génération, chunks du biome jamais chargés | tableau complété par −1.0 (ou tronqué) à la lecture | `nb-world:config::tolerant_json_and_override_padding` |
 | 9 | Ordre d'itération des entités = ordre d'un `HashMap<Integer>` | ordre **déterministe par id croissant** | `nb-ecs:world::query_is_sorted_snapshot` |
-| 10 | `saves/mobs_defaults.json` du Java : renne `aggressorDetectRange = 0`, `aggressorFleeSpeed = 0` (faux par rapport au code `ReindeerDefinition`) | 10 et 3, comme le code Java (seul le fichier de référence change ; le comportement est celui du Java) | `assets/mobs_defaults.json` ; `nb-data:mobs::builtin_order_and_values` |
+| 10 | `saves/mobs_defaults.json` du Java : renne `aggressorDetectRange = 0`, `aggressorFleeSpeed = 0` (faux par rapport au code `ReindeerDefinition`) | 10 et 3, comme le code Java (seul le fichier de référence change ; le comportement est celui du Java) | `assets/vanilla/mobs_defaults.json` ; `nb-data:mobs::builtin_order_and_values` |
 | 11 | `groupSizeMax < groupSizeMin` ou rayon de spawn nul : exception `nextInt(≤ 0)` | aucun spawn pour ce mob + message, pas de panique | `nb-ecs:tests/mobs::far_mobs_despawn_and_degenerate_configs_do_not_panic` |
 | 12 | `world.json` illisible : métadonnées neuves (graine 0) | la graine du monde est conservée | `nb-game` |
 | 13 | Culling : un nœud du quadtree était testé sans la marge d'un demi-chunk (un chunk est rangé par son centre et dépasse de son quadrant) ; caméra au sol, le chunk sous les pieds disparaissait par intermittence et on voyait le dessous du monde | nœuds élargis d'un demi-chunk dans `query_node` | `nb-mesh`, `tests/culling::quadtree_never_drops_visible_chunk_near_camera` |
@@ -35,7 +35,7 @@ ligne à ligne) est dans `docs/spec/*.md` ; les décisions de Gabriel sont consi
   `nb-ui:font::non_ascii_replaced`.
 * **Sauvegardes** : nouveau format **versionné**, **sans compatibilité** avec les mondes Java
   (ni lecture des anciens `world.json` sans version, ni des `.bin`) :
-  `saves/<nom>/world.json` (`"formatVersion": 1`, serde) et `saves/<nom>/chunks/c_<cx>_<cz>.nbc`
+  `saves/<nom>/world.json` (`"formatVersion": 2`, serde) et `saves/<nom>/chunks/c_<cx>_<cz>.nbc`
   (en-tête `NBCK`, version, layout, compression RLE). « Jamais joué » est `player: null` au lieu
   de la sentinelle `playerY == 100.0` (un joueur sauvegardé pile à y = 100 n'est plus renvoyé au
   spawn). Un nom assaini vide donne le dossier `world`.

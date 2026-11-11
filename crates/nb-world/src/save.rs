@@ -1,12 +1,16 @@
 //! Sauvegardes (`WorldSaveManager.java`, `WorldMetadata.java`) au nouveau format versionné.
 //!
 //! ```text
-//! <racine>/<nom-assaini>/world.json   (serde_json, "formatVersion": 1)
+//! <racine>/<nom-assaini>/world.json   (serde_json, "formatVersion": 2)
 //! <racine>/<nom-assaini>/chunks/c_<cx>_<cz>.nbc
 //! ```
 //!
 //! Aucune compatibilité avec l'ancien format Java (`world.json` sans version, `.bin` bruts) :
 //! un `world.json` sans `formatVersion` est refusé (`Error::SaveVersion { found: 0, .. }`).
+//!
+//! La version 2 (plan Norrcraft, session 0.3) ajoute l'univers du monde (`worldKind`), sa palette
+//! de blocs (`blockPalette`) et sa table de biomes (`biomePalette`). Un fichier de version 1 se lit
+//! avec les valeurs par défaut (vanilla, palette d'origine) et se réécrit en version 2.
 //! L'état du joueur est fourni par `nb-game` ([`PlayerState`]) ; `player: None` remplace la
 //! sentinelle Java `playerY == 100.0` (« jamais joué » → recherche du spawn).
 
@@ -17,11 +21,15 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use nb_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
+use nb_data::{BlockPalette, WorldKind};
+
 use crate::config::WorldConfig;
 use crate::storage::write_atomic;
 
 /// Version courante de `world.json`.
-pub const WORLD_FORMAT_VERSION: u32 = 1;
+pub const WORLD_FORMAT_VERSION: u32 = 2;
+/// Plus ancienne version encore lue.
+pub const MIN_WORLD_FORMAT_VERSION: u32 = 1;
 /// Nom du fichier de métadonnées.
 pub const WORLD_FILE: &str = "world.json";
 /// Sous-répertoire des chunks.
@@ -127,6 +135,16 @@ pub struct WorldMetadata {
     /// Faim, chaleur, endurance, usure et armure (mode survie).
     #[serde(default)]
     pub survival: Option<SurvivalSave>,
+    /// Univers du monde (version 2) ; `vanilla` quand le champ est absent.
+    #[serde(default)]
+    pub world_kind: WorldKind,
+    /// Palette de blocs du monde (version 2) : nom de chaque identifiant. Vide = palette par
+    /// défaut de l'univers (monde jamais ouvert, ou fichier de version 1).
+    #[serde(default, skip_serializing_if = "BlockPalette::is_empty")]
+    pub block_palette: BlockPalette,
+    /// Noms des biomes dans l'ordre de leurs identifiants (version 2) ; vide = table par défaut.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub biome_palette: Vec<String>,
 }
 
 impl WorldMetadata {
@@ -145,6 +163,9 @@ impl WorldMetadata {
             inventory_slots: Vec::new(),
             world_config: WorldConfig::default(),
             survival: None,
+            world_kind: WorldKind::default(),
+            block_palette: BlockPalette::default(),
+            biome_palette: Vec::new(),
         }
     }
 
@@ -245,7 +266,7 @@ pub fn parse_metadata(text: &str) -> Result<WorldMetadata> {
         .get("formatVersion")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0) as u32;
-    if found != WORLD_FORMAT_VERSION {
+    if !(MIN_WORLD_FORMAT_VERSION..=WORLD_FORMAT_VERSION).contains(&found) {
         return Err(Error::SaveVersion {
             found,
             expected: WORLD_FORMAT_VERSION,
@@ -297,6 +318,9 @@ fn copy_dir(src: &Path, dst: &Path) -> Result<()> {
 pub fn clone_world(root: &Path, src: &WorldMetadata, new_name: &str) -> Result<WorldMetadata> {
     let mut meta = WorldMetadata::new(new_name, src.seed, src.game_mode.clone());
     meta.world_config = src.world_config.clone();
+    meta.world_kind = src.world_kind;
+    meta.block_palette = src.block_palette.clone();
+    meta.biome_palette = src.biome_palette.clone();
     let dir = create_world_directory(root, &mut meta)?;
     let src_chunks = world_dir(root, &src.name).join(CHUNKS_DIR);
     if src_chunks.is_dir() {
@@ -359,6 +383,35 @@ mod tests {
     }
 
     #[test]
+    fn kind_and_palettes_are_saved_in_version_2_and_cloned() {
+        let root = TempDir::new("save-v2");
+        let r = &root.0;
+        let mut m = WorldMetadata::new("Nord", 7, "CREATIVE");
+        m.world_kind = WorldKind::Norrcraft;
+        m.block_palette =
+            BlockPalette::new(vec!["air".into(), "granit".into(), String::new(), "grus".into()]);
+        m.biome_palette = vec!["VIDE".into()];
+        create_world_directory(r, &mut m).unwrap();
+        let text = fs::read_to_string(r.join("Nord").join(WORLD_FILE)).unwrap();
+        assert!(text.contains("\"formatVersion\": 2"), "{text}");
+        assert!(text.contains("\"worldKind\": \"norrcraft\""), "{text}");
+        assert!(text.contains("\"blockPalette\""), "{text}");
+        let back = load_metadata(r, "Nord").unwrap();
+        assert_eq!(back, m);
+        assert_eq!(back.block_palette.names()[3], "grus");
+        let c = clone_world(r, &back, "Copie").unwrap();
+        assert_eq!(c.world_kind, WorldKind::Norrcraft);
+        assert_eq!(c.block_palette, back.block_palette);
+        assert_eq!(c.biome_palette, back.biome_palette);
+        // Un monde vanilla neuf n'écrit pas de palette vide.
+        let mut v = WorldMetadata::new("Van", 1, "CREATIVE");
+        create_world_directory(r, &mut v).unwrap();
+        let text = fs::read_to_string(r.join("Van").join(WORLD_FILE)).unwrap();
+        assert!(text.contains("\"worldKind\": \"vanilla\""), "{text}");
+        assert!(!text.contains("blockPalette") && !text.contains("biomePalette"));
+    }
+
+    #[test]
     fn empty_name_goes_to_world_dir() {
         let root = TempDir::new("save-empty");
         let mut m = WorldMetadata::new("???", 0, "CREATIVE");
@@ -379,14 +432,17 @@ mod tests {
             Err(Error::SaveVersion { found: 0, .. })
         ));
         assert!(matches!(
-            parse_metadata(r#"{"formatVersion":2,"name":"x"}"#),
-            Err(Error::SaveVersion { found: 2, .. })
+            parse_metadata(r#"{"formatVersion":3,"name":"x"}"#),
+            Err(Error::SaveVersion { found: 3, .. })
         ));
         let m = parse_metadata(
             r#"{"formatVersion":1,"name":"x","seed":-987654321012345,
                 "worldConfig":{"seaLevel":40,"treeDensityOverrides":[0.3]}}"#,
         )
         .unwrap();
+        // Un fichier de version 1 se lit avec les valeurs par défaut de la version 2.
+        assert_eq!(m.world_kind, WorldKind::Vanilla);
+        assert!(m.block_palette.is_empty() && m.biome_palette.is_empty());
         assert_eq!(m.seed, -987654321012345);
         assert_eq!(m.game_mode, "CREATIVE");
         assert!(m.never_played());

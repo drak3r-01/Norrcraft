@@ -12,9 +12,10 @@ use serde::Deserialize;
 
 use crate::blocks::{BlockId, BlockRegistry};
 use crate::items::{ItemId, ItemRegistry};
+use crate::universe::WorldKind;
 
 /// Contenu de `assets/survival.json`, embarqué dans le binaire.
-pub const SURVIVAL_JSON: &str = include_str!("../../../assets/survival.json");
+pub const SURVIVAL_JSON: &str = include_str!("../../../assets/vanilla/survival.json");
 
 /// Famille d'un outil.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -273,9 +274,18 @@ pub struct SurvivalData {
 }
 
 impl SurvivalData {
-    /// Données intégrées.
+    /// Données intégrées de vanilla.
     pub fn builtin(blocks: &BlockRegistry, items: &ItemRegistry) -> Self {
         Self::from_json(blocks, items, SURVIVAL_JSON).expect("survival.json embarqué invalide")
+    }
+
+    /// Règles de survie d'un univers. Norrcraft n'a pas encore de table (elle viendra avec ses
+    /// mécaniques) : aucune règle, donc ni dureté, ni butin, ni outil.
+    pub fn for_kind(kind: WorldKind, blocks: &BlockRegistry, items: &ItemRegistry) -> Self {
+        match kind {
+            WorldKind::Vanilla => Self::builtin(blocks, items),
+            WorldKind::Norrcraft => Self::default(),
+        }
     }
 
     pub fn from_json(blocks: &BlockRegistry, items: &ItemRegistry, json: &str) -> Result<Self> {

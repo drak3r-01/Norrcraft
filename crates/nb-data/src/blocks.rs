@@ -1,21 +1,94 @@
-//! Registre des blocs (`blocks.json`).
+//! Registre des blocs (`blocks.json`) et palette de blocs par monde.
+//!
+//! Les blocs sont rangés par univers (`assets/common`, `assets/vanilla`, `assets/norrcraft`,
+//! voir [`crate::universe`]). Un monde sauvegarde sa **palette** ([`BlockPalette`]) : la liste
+//! ordonnée des noms de blocs, dont la position est l'identifiant `u8` stocké dans les chunks.
+//! Au chargement, le registre est reconstruit d'après cette palette : un contenu ajouté plus tard
+//! ne décale jamais les identifiants d'un monde existant, et un nom devenu inconnu donne un bloc
+//! « manquant » visible au lieu d'un plantage.
 
 use std::collections::HashMap;
 
 use nb_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::universe::WorldKind;
+
 /// Identifiant d'un bloc tel que stocké dans les tableaux de chunks (un octet).
 pub type BlockId = u8;
 
-/// Contenu de `assets/blocks.json`, embarqué dans le binaire (comme la ressource Java).
-pub const BLOCKS_JSON: &str = include_str!("../../../assets/blocks.json");
+/// Identifiant réservé : jamais attribué à un bloc. Il remplace, dans [`BlockIds`], un bloc
+/// « connu du code » que l'univers du monde ne définit pas (aucun chunk ne le contient, donc
+/// aucune comparaison ne peut réussir par erreur).
+pub const UNASSIGNED_ID: BlockId = u8::MAX;
 
-/// Blocs du système de craft (`assets/blocks_craft.json`, identifiants 200 et plus, réservés).
-pub const CRAFT_BLOCKS_JSON: &str = include_str!("../../../assets/blocks_craft.json");
+/// Nom de la texture d'un bloc dont le nom n'existe plus dans le contenu du jeu.
+pub const MISSING_TEXTURE: &str = "missing";
+
+/// Blocs de vanilla (`assets/vanilla/blocks.json`), hors socle commun.
+pub const BLOCKS_JSON: &str = include_str!("../../../assets/vanilla/blocks.json");
+
+/// Blocs du système de craft (`assets/vanilla/blocks_craft.json`, identifiants 200 et plus,
+/// réservés).
+pub const CRAFT_BLOCKS_JSON: &str = include_str!("../../../assets/vanilla/blocks_craft.json");
 
 /// Stades de culture du mode survie (`scripts/gen_survival.py`), identifiants 210 et plus.
-pub const SURVIVAL_BLOCKS_JSON: &str = include_str!("../../../assets/blocks_survival.json");
+pub const SURVIVAL_BLOCKS_JSON: &str =
+    include_str!("../../../assets/vanilla/blocks_survival.json");
+
+/// Noms du socle commun, requis dans tout registre (identifiants fixes d'un univers à l'autre).
+pub const SOCLE: [&str; 4] = ["air", "water", "bedrock", "lava"];
+
+/// Palette de blocs d'un monde : `names[id]` est le nom du bloc d'identifiant `id` ; une chaîne
+/// vide marque un identifiant libre.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct BlockPalette(Vec<String>);
+
+impl BlockPalette {
+    pub fn new(names: Vec<String>) -> Self {
+        Self(names)
+    }
+
+    pub fn names(&self) -> &[String] {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.iter().all(String::is_empty)
+    }
+
+    /// Identifiant d'un nom (le premier qui correspond).
+    pub fn id_of(&self, name: &str) -> Option<BlockId> {
+        if name.is_empty() {
+            return None;
+        }
+        self.0.iter().position(|n| n == name).map(|i| i as BlockId)
+    }
+
+    /// Empreinte FNV-1a 64 bits de la palette (échangée par le réseau local). Les identifiants
+    /// libres de queue ne comptent pas.
+    pub fn fingerprint(&self) -> u64 {
+        let end = self.0.iter().rposition(|n| !n.is_empty()).map_or(0, |i| i + 1);
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for n in &self.0[..end] {
+            for b in n.bytes().chain(std::iter::once(0)) {
+                h ^= u64::from(b);
+                h = h.wrapping_mul(0x0000_0100_0000_01b3);
+            }
+        }
+        h
+    }
+}
+
+/// Ce que la reconstruction d'un registre depuis une palette a dû corriger.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PaletteReport {
+    /// Noms de la palette que le contenu du jeu ne connaît plus (remplacés par un bloc manquant).
+    pub unknown: Vec<String>,
+    /// Blocs du contenu absents de la palette (ajoutés à un identifiant libre).
+    pub added: Vec<String>,
+}
 
 /// Entrée brute de `blocks.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -335,22 +408,129 @@ pub struct BlockRegistry {
 }
 
 impl BlockRegistry {
-    /// Registre construit depuis le `blocks.json` embarqué.
+    /// Registre de vanilla réduit à `blocks.json` (socle compris), sans craft ni cultures.
     pub fn builtin() -> Self {
-        Self::from_json(BLOCKS_JSON).expect("blocks.json embarqué invalide")
+        let mut props = Self::parse_all(&[
+            ("common/blocks.json", crate::universe::COMMON_BLOCKS_JSON),
+            ("vanilla/blocks.json", BLOCKS_JSON),
+        ]);
+        props.sort_by_key(|p| p.id);
+        Self::from_properties(props).expect("blocks.json embarqué invalide")
     }
 
-    /// Registre complet du jeu : `blocks.json` + blocs de craft (`blocks_craft.json`).
+    /// Registre complet de vanilla : `blocks.json` + blocs de craft + cultures.
     pub fn builtin_with_craft() -> Self {
-        let mut props: Vec<BlockProperties> =
-            serde_json::from_str(BLOCKS_JSON).expect("blocks.json embarqué invalide");
-        let extra: Vec<BlockProperties> =
-            serde_json::from_str(CRAFT_BLOCKS_JSON).expect("blocks_craft.json embarqué invalide");
-        props.extend(extra);
-        let crops: Vec<BlockProperties> = serde_json::from_str(SURVIVAL_BLOCKS_JSON)
-            .expect("blocks_survival.json embarqué invalide");
-        props.extend(crops);
+        Self::for_kind(WorldKind::Vanilla)
+    }
+
+    /// Registre d'un univers avec les identifiants de ses fichiers (monde neuf).
+    pub fn for_kind(kind: WorldKind) -> Self {
+        let props = Self::kind_properties(kind);
         Self::from_properties(props).expect("blocs embarqués invalides")
+    }
+
+    /// Définitions de blocs d'un univers, socle compris, triées par identifiant.
+    pub fn kind_properties(kind: WorldKind) -> Vec<BlockProperties> {
+        let mut props = Self::parse_all(&kind.block_sources());
+        props.sort_by_key(|p| p.id);
+        props
+    }
+
+    fn parse_all(sources: &[(&str, &str)]) -> Vec<BlockProperties> {
+        let mut props = Vec::new();
+        for (name, json) in sources {
+            let part: Vec<BlockProperties> = serde_json::from_str(json)
+                .unwrap_or_else(|e| panic!("{name} embarqué invalide : {e}"));
+            props.extend(part);
+        }
+        props
+    }
+
+    /// Registre d'un monde existant : les identifiants viennent de `palette`, pas des fichiers.
+    ///
+    /// * un nom de la palette que l'univers ne définit plus devient un bloc « manquant » (plein,
+    ///   opaque, texture [`MISSING_TEXTURE`]) qui garde son nom et sa place ;
+    /// * un bloc de l'univers absent de la palette prend le premier identifiant libre ;
+    /// * `air` doit être à l'identifiant 0, sinon la palette est refusée.
+    pub fn from_palette(kind: WorldKind, palette: &BlockPalette) -> Result<(Self, PaletteReport)> {
+        let defs = Self::kind_properties(kind);
+        let mut report = PaletteReport::default();
+        if palette.names().first().map(String::as_str) != Some("air") {
+            return Err(Error::data(
+                "world.json",
+                "blockPalette : `air` doit être à l'identifiant 0",
+            ));
+        }
+        if palette.names().len() > 256 {
+            return Err(Error::data("world.json", "blockPalette : plus de 256 blocs"));
+        }
+        let mut used = vec![false; 256];
+        let mut props: Vec<BlockProperties> = Vec::new();
+        for (i, name) in palette.names().iter().enumerate() {
+            if name.is_empty() {
+                continue;
+            }
+            if i == usize::from(UNASSIGNED_ID) {
+                return Err(Error::data(
+                    "world.json",
+                    "blockPalette : l'identifiant 255 est réservé",
+                ));
+            }
+            if palette.names()[..i].contains(name) {
+                return Err(Error::data(
+                    "world.json",
+                    format!("blockPalette : nom en double : {name}"),
+                ));
+            }
+            used[i] = true;
+            match defs.iter().find(|d| &d.name == name) {
+                Some(d) => props.push(BlockProperties {
+                    id: i as BlockId,
+                    ..d.clone()
+                }),
+                None => {
+                    report.unknown.push(name.clone());
+                    props.push(BlockProperties {
+                        id: i as BlockId,
+                        name: name.clone(),
+                        textures: vec![MISSING_TEXTURE.to_owned(); 6],
+                        transparent: false,
+                        cross_shaped: false,
+                        grass_tinted: false,
+                        leaves_tinted: false,
+                        solid: true,
+                        light_attenuation: 15,
+                        light_emission: 0,
+                    });
+                }
+            }
+        }
+        for d in &defs {
+            if palette.id_of(&d.name).is_some() {
+                continue;
+            }
+            let free = (0..usize::from(UNASSIGNED_ID))
+                .find(|&i| !used[i])
+                .ok_or_else(|| Error::data("blocks.json", "plus d'identifiant de bloc libre"))?;
+            used[free] = true;
+            report.added.push(d.name.clone());
+            props.push(BlockProperties {
+                id: free as BlockId,
+                ..d.clone()
+            });
+        }
+        Ok((Self::from_properties(props)?, report))
+    }
+
+    /// Palette du registre : nom de chaque identifiant, `""` pour les identifiants libres.
+    pub fn palette(&self) -> BlockPalette {
+        let end = self.by_id.iter().rposition(Option::is_some).map_or(0, |i| i + 1);
+        BlockPalette(
+            self.by_id[..end]
+                .iter()
+                .map(|b| b.as_ref().map_or_else(String::new, |b| b.name.clone()))
+                .collect(),
+        )
     }
 
     pub fn from_json(json: &str) -> Result<Self> {
@@ -359,6 +539,9 @@ impl BlockRegistry {
         Self::from_properties(props)
     }
 
+    /// Construit le registre depuis des définitions. Les blocs du socle (`air`, `water`,
+    /// `bedrock`, `lava`) sont requis ; un autre bloc « connu du code » absent reçoit
+    /// [`UNASSIGNED_ID`].
     pub fn from_properties(props: Vec<BlockProperties>) -> Result<Self> {
         let mut by_id: Vec<Option<BlockType>> = vec![None; 256];
         let mut by_name = HashMap::new();
@@ -369,10 +552,14 @@ impl BlockRegistry {
             by_id[slot] = Some(block);
         }
         let find = |name: &str| -> Result<BlockId> {
-            by_name
-                .get(name)
-                .copied()
-                .ok_or_else(|| Error::data("blocks.json", format!("bloc requis manquant: {name}")))
+            match by_name.get(name) {
+                Some(id) => Ok(*id),
+                None if SOCLE.contains(&name) => Err(Error::data(
+                    "blocks.json",
+                    format!("bloc requis manquant: {name}"),
+                )),
+                None => Ok(UNASSIGNED_ID),
+            }
         };
         let mut v = [0; WELL_KNOWN.len()];
         for (slot, name) in v.iter_mut().zip(WELL_KNOWN) {
@@ -594,7 +781,11 @@ mod craft_tests {
 
     #[test]
     fn craft_blocks_use_reserved_ids_without_overlap() {
-        let base: Vec<BlockProperties> = serde_json::from_str(BLOCKS_JSON).unwrap();
+        let mut base: Vec<BlockProperties> = serde_json::from_str(BLOCKS_JSON).unwrap();
+        base.extend(
+            serde_json::from_str::<Vec<BlockProperties>>(crate::universe::COMMON_BLOCKS_JSON)
+                .unwrap(),
+        );
         let extra: Vec<BlockProperties> = serde_json::from_str(CRAFT_BLOCKS_JSON).unwrap();
         assert!(
             extra.iter().all(|b| b.id >= 200),

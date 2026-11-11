@@ -4,8 +4,8 @@ Depuis la phase 9, le jeu compte **45 mobs** : les trois d'origine (renne, poiss
 l'apparition reste celle du Java) et **42 animaux** de Norrblock. Ils sont décrits par deux
 fichiers générés par `scripts/gen_mobs.py` :
 
-* `assets/mobs_nb.json` : réglages (même format que `mobs_defaults.json` + conditions d'apparition) ;
-* `assets/mob_geometry_nb.json` : géométrie en boîtes colorées (pixels MC, 16 px = 1 bloc, museau
+* `assets/vanilla/mobs_nb.json` : réglages (même format que `mobs_defaults.json` + conditions d'apparition) ;
+* `assets/vanilla/mob_geometry_nb.json` : géométrie en boîtes colorées (pixels MC, 16 px = 1 bloc, museau
   vers +Z), comme le renne d'origine.
 
 Les animaux n'ont pas de texture : ce sont des **placeholders en boîtes colorées** (625 boîtes au
@@ -17,7 +17,7 @@ n'y a aucune collision.
 
 Chaque animal (et les 3 mobs d'origine) est **animé** : squelette, marche, course, repos, variantes
 d'idle, regard, réactions aux dégâts, attaque, nage… générés avec la géométrie
-(`assets/mob_rigs.json`). Voir [`ANIMATION.md`](ANIMATION.md).
+(`assets/vanilla/mob_rigs.json`). Voir [`ANIMATION.md`](ANIMATION.md).
 
 Pour régénérer (ou aperçu PNG de tous les animaux) :
 

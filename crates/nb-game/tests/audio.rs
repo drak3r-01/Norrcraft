@@ -106,6 +106,7 @@ fn ui_commands_click_and_overlays_open_and_close() {
         game_mode: GameMode::Creative,
         allow_cheats: true,
         config: WorldConfig::default(),
+        world_kind: Default::default(),
     })));
     g.audio().engine().take_recorded();
     g.switch_state(GameState::Paused);
@@ -124,6 +125,7 @@ fn in_world_frames_publish_listener_ambience_and_music() {
         game_mode: GameMode::Creative,
         allow_cheats: true,
         config: WorldConfig::default(),
+        world_kind: Default::default(),
     })));
     g.audio().engine().take_recorded();
     for _ in 0..30 {
@@ -162,6 +164,7 @@ fn block_events_play_positioned_material_sounds() {
         game_mode: GameMode::Creative,
         allow_cheats: true,
         config: WorldConfig::default(),
+        world_kind: Default::default(),
     })));
     g.run_ticks(5);
     let ids = *g.regs.blocks.ids();
@@ -217,6 +220,7 @@ fn walking_makes_footsteps_and_unknown_mob_events_are_ignored() {
         game_mode: GameMode::Survival,
         allow_cheats: true,
         config: WorldConfig::default(),
+        world_kind: Default::default(),
     })));
     // Laisse le terrain se charger et le joueur se poser.
     let t0 = std::time::Instant::now();

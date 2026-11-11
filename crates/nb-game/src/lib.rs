@@ -43,7 +43,7 @@ pub use game::{parse_seed, Game, GameOptions, PlatformRequest, Step};
 pub use input::{Action, InputManager};
 pub use render::{MobInstance, RenderView};
 pub use screens::NbUi;
-pub use session::{Registries, WorldSession};
+pub use session::{content_fingerprints, Registries, WorldSession};
 pub use state::{GameState, HudState, SettingsTab};
 pub use ui::{ItemIcons, NewWorld, NullUi, StubUi, Ui, UiCommand, UiFrame, UiView};
 

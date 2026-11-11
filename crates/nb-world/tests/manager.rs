@@ -222,7 +222,7 @@ fn world_spawn_and_save_roundtrip() {
     assert_eq!(back, meta);
     assert_eq!(back.world_config.spawn, Some([-31.5, 49.0, -31.5]));
     let text = std::fs::read_to_string(dir.join("world.json")).unwrap();
-    assert!(text.contains("\"formatVersion\": 1"));
+    assert!(text.contains("\"formatVersion\": 2"));
 
     let world = World::new(
         back.seed,

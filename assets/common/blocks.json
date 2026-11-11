@@ -1,0 +1,6 @@
+[
+  {"id": 0, "name": "air", "textures": ["", "", "", "", "", ""], "transparent": true, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": false, "lightAttenuation": 0, "lightEmission": 0},
+  {"id": 4, "name": "water", "textures": ["water_still", "water_still", "water_still", "water_still", "water_still", "water_still"], "transparent": true, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": false, "lightAttenuation": 2, "lightEmission": 0},
+  {"id": 6, "name": "bedrock", "textures": ["bedrock", "bedrock", "bedrock", "bedrock", "bedrock", "bedrock"], "transparent": false, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": true, "lightAttenuation": 15, "lightEmission": 0},
+  {"id": 33, "name": "lava", "textures": ["lava_still", "lava_still", "lava_still", "lava_still", "lava_still", "lava_still"], "transparent": true, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": false, "lightAttenuation": 3, "lightEmission": 15}
+]

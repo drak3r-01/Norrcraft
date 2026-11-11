@@ -605,6 +605,7 @@ impl NbUi {
                 game_mode: GameMode::from_java_name(&game_mode),
                 allow_cheats,
                 config: config_for(world_type, &params),
+                world_kind: Default::default(),
             })),
             WorldAction::Edit {
                 old_name,

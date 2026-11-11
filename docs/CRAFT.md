@@ -30,7 +30,7 @@ reliquat est perdu (comportement `returnHeld` du Java, bogue B20 conservé).
 ## Objets
 
 Un **objet** est soit un bloc (identifiant d'objet = identifiant de bloc, `0..=255`), soit un
-**objet pur** défini dans `assets/items.json` (identifiant `>= 256`). Les sauvegardes stockent
+**objet pur** défini dans `assets/vanilla/items.json` (identifiant `>= 256`). Les sauvegardes stockent
 les objets **par nom** : les anciens mondes se relisent tels quels (un nom inconnu est ignoré).
 Les piles font 64 au plus.
 
@@ -45,7 +45,7 @@ Les piles font 64 au plus.
 
 ## Blocs exclusifs (ids 200 à 208)
 
-Dans `assets/blocks_craft.json`, chargé après `blocks.json` (`BlockRegistry::builtin_with_craft`).
+Dans `assets/vanilla/blocks_craft.json`, chargé après `blocks.json` (`BlockRegistry::builtin_with_craft`).
 Les identifiants **200 et plus sont réservés au craft** ; la génération de terrain et les
 autres fils utilisent `0..=199`.
 
@@ -139,13 +139,13 @@ fonderie), `aurora_block`, `lantern` (lingots + éclat), `sea_lantern` (éclats 
 
 ## Ajouter une recette ou un objet
 
-1. **Recette** : ajouter une entrée à `assets/recipes.json` (`station` = `hand`, `workbench` ou
+1. **Recette** : ajouter une entrée à `assets/vanilla/recipes.json` (`station` = `hand`, `workbench` ou
    `forge`) avec `pattern` + `key` (motif) ou `shapeless` (liste), et `result {item, count}`.
    Le test `every_recipe_output_is_reachable_by_its_own_pattern` vérifie qu'aucune recette n'est
    masquée par une précédente (la première recette qui correspond gagne).
 2. **Objet pur** : ajouter `{"id": 264, "name": "...", "texture": "item_..."}` à
-   `assets/items.json` (identifiant `>= 256`, unique) et fournir `item_….png` dans le pack.
-3. **Bloc** : ajouter l'entrée à `assets/blocks_craft.json` (identifiant libre à partir de 209).
+   `assets/vanilla/items.json` (identifiant `>= 256`, unique) et fournir `item_….png` dans le pack.
+3. **Bloc** : ajouter l'entrée à `assets/vanilla/blocks_craft.json` (identifiant libre à partir de 209).
 
 Toute erreur de données (objet inconnu, motif irrégulier, recette qui ne tient pas dans la
 grille de sa station…) fait échouer le chargement avec un message précis.

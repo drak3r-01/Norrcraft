@@ -11,10 +11,10 @@ Toutes les règles sont **pilotées par des fichiers** générés par `scripts/g
 
 | Fichier | Contenu |
 |---|---|
-| `assets/items_survival.json` | 82 objets purs (ids ≥ 300) |
-| `assets/blocks_survival.json` | 11 blocs de culture (ids 210–220) |
-| `assets/survival.json` | propriétés des objets, dureté / outil / butin de **chaque bloc**, butin des 45 mobs, croissance des cultures, températures des biomes, table de pêche, sources de chaleur |
-| `assets/recipes_survival.json` | 70 recettes (en plus des 46 de `recipes.json`) |
+| `assets/vanilla/items_survival.json` | 82 objets purs (ids ≥ 300) |
+| `assets/vanilla/blocks_survival.json` | 11 blocs de culture (ids 210–220) |
+| `assets/vanilla/survival.json` | propriétés des objets, dureté / outil / butin de **chaque bloc**, butin des 45 mobs, croissance des cultures, températures des biomes, table de pêche, sources de chaleur |
+| `assets/vanilla/recipes_survival.json` | 70 recettes (en plus des 46 de `recipes.json`) |
 | `resource_packs/Default/.../item_*.png` | textures **procédurales** provisoires (placeholders) |
 
 ## Commandes de jeu

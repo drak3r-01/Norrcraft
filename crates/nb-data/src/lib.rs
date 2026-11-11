@@ -13,10 +13,13 @@ pub mod particles;
 pub mod recipes;
 pub mod settings;
 pub mod survival;
+pub mod universe;
 
 pub use blocks::{
-    BlockId, BlockIds, BlockProperties, BlockRegistry, BlockType, BLOCKS_JSON, CRAFT_BLOCKS_JSON,
+    BlockId, BlockIds, BlockPalette, BlockProperties, BlockRegistry, BlockType, PaletteReport,
+    BLOCKS_JSON, CRAFT_BLOCKS_JSON, UNASSIGNED_ID,
 };
+pub use universe::WorldKind;
 pub use items::{ItemId, ItemInfo, ItemRegistry, FIRST_PURE_ITEM, ITEMS_JSON, STACK_MAX};
 pub use mobs::{
     builtin_mob_ids, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,

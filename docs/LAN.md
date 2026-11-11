@@ -65,6 +65,8 @@ port TCP seul est nécessaire.
 | Connection refused: is the game still open to LAN at that address? | L'hôte n'a pas ouvert sa partie, ou mauvais port |
 | No answer from that address… | Mauvaise adresse, ordinateurs sur deux réseaux différents, pare-feu |
 | Incompatible versions (host 1, you 2)… | Les deux jeux n'ont pas la même version du protocole : même compilation des deux côtés |
+| This game uses the "norrcraft" universe, which your version of Norrblock does not have… | Le monde de l'hôte est d'un univers que la version de l'invité ne contient pas : mettre à jour |
+| Your version of Norrblock has other "…" blocks than the host's… | Même univers, mais les blocs de l'invité diffèrent de ceux de l'hôte (versions différentes) |
 | The game is full (8 players) | Limite de 8 joueurs atteinte |
 | The host closed the game | L'hôte a fermé la partie ou quitté le monde |
 | Connection to the host timed out | Plus de nouvelles de l'hôte depuis 20 s |

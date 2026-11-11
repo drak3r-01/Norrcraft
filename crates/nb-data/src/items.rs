@@ -10,6 +10,7 @@ use nb_core::{Error, Result};
 use serde::Deserialize;
 
 use crate::blocks::{BlockId, BlockRegistry};
+use crate::universe::WorldKind;
 
 /// Identifiant d'objet : `0..=255` = bloc du même identifiant, `>= 256` = objet pur.
 pub type ItemId = u16;
@@ -21,11 +22,11 @@ pub const FIRST_PURE_ITEM: ItemId = 256;
 pub const STACK_MAX: i32 = 64;
 
 /// Contenu de `assets/items.json`, embarqué dans le binaire.
-pub const ITEMS_JSON: &str = include_str!("../../../assets/items.json");
+pub const ITEMS_JSON: &str = include_str!("../../../assets/vanilla/items.json");
 
 /// Objets du mode survie (outils, armures, nourriture, matériaux), générés par
 /// `scripts/gen_survival.py`.
-pub const SURVIVAL_ITEMS_JSON: &str = include_str!("../../../assets/items_survival.json");
+pub const SURVIVAL_ITEMS_JSON: &str = include_str!("../../../assets/vanilla/items_survival.json");
 
 #[derive(Debug, Deserialize)]
 struct RawItem {
@@ -55,10 +56,14 @@ pub struct ItemRegistry {
 }
 
 impl ItemRegistry {
-    /// Registre intégré : tous les blocs (hors air) + `items.json`.
+    /// Registre intégré de vanilla : tous les blocs (hors air) + `items.json`.
     pub fn builtin(blocks: &BlockRegistry) -> Self {
-        Self::from_json_parts(blocks, &[ITEMS_JSON, SURVIVAL_ITEMS_JSON])
-            .expect("items.json embarqué invalide")
+        Self::for_kind(WorldKind::Vanilla, blocks)
+    }
+
+    /// Registre d'un univers : les blocs de `blocks` (hors air) + les objets purs de l'univers.
+    pub fn for_kind(kind: WorldKind, blocks: &BlockRegistry) -> Self {
+        Self::from_json_parts(blocks, &kind.item_sources()).expect("items.json embarqué invalide")
     }
 
     pub fn from_json(blocks: &BlockRegistry, json: &str) -> Result<Self> {

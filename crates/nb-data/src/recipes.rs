@@ -12,13 +12,14 @@ use nb_core::{Error, Result};
 use serde::Deserialize;
 
 use crate::items::{ItemId, ItemRegistry};
+use crate::universe::WorldKind;
 
 /// Contenu de `assets/recipes.json`, embarqué dans le binaire.
-pub const RECIPES_JSON: &str = include_str!("../../../assets/recipes.json");
+pub const RECIPES_JSON: &str = include_str!("../../../assets/vanilla/recipes.json");
 
 /// Recettes du mode survie (`scripts/gen_survival.py`) ; leurs étiquettes s'ajoutent à celles
 /// de `recipes.json`.
-pub const SURVIVAL_RECIPES_JSON: &str = include_str!("../../../assets/recipes_survival.json");
+pub const SURVIVAL_RECIPES_JSON: &str = include_str!("../../../assets/vanilla/recipes_survival.json");
 
 /// Station de craft.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
@@ -138,10 +139,14 @@ pub struct RecipeBook {
 }
 
 impl RecipeBook {
-    /// Livre intégré (`recipes.json`).
+    /// Livre intégré de vanilla (`recipes.json`).
     pub fn builtin(items: &ItemRegistry) -> Self {
-        Self::from_json_parts(items, &[RECIPES_JSON, SURVIVAL_RECIPES_JSON])
-            .expect("recipes.json embarqué invalide")
+        Self::for_kind(WorldKind::Vanilla, items)
+    }
+
+    /// Livre d'un univers.
+    pub fn for_kind(kind: WorldKind, items: &ItemRegistry) -> Self {
+        Self::from_json_parts(items, &kind.recipe_sources()).expect("recipes.json embarqué invalide")
     }
 
     pub fn from_recipes(recipes: Vec<Recipe>) -> Self {

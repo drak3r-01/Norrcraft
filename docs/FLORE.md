@@ -3,7 +3,7 @@
 ## Blocs ajoutés (identifiants 68 à 118)
 
 51 blocs : matériaux de construction des structures, plantes, feuillages et bois des nouveaux
-arbres (`assets/blocks.json`, `crates/nb-data/src/blocks.rs`).
+arbres (`assets/vanilla/blocks.json`, `crates/nb-data/src/blocks.rs`).
 
 * **Construction** : 6 planches (`planks_oak/spruce/birch/acacia/dark_oak/cherry`), `cobblestone`,
   `mossy_cobblestone`, `stone_bricks`, `mossy_stone_bricks`, `cut_sandstone`, `chiseled_sandstone`,

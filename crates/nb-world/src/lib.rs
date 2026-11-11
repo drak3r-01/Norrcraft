@@ -29,6 +29,7 @@ pub mod chunk;
 pub mod light;
 pub mod manager;
 pub mod noise;
+pub mod norrcraft;
 pub mod profile;
 pub mod save;
 pub mod storage;
@@ -53,6 +54,7 @@ pub use generator::WorldGenerator;
 pub use light::{compute_light, LightContext, LightTable};
 pub use manager::{BlockEdit, ChunkManager, DEFAULT_RENDER_DISTANCE};
 pub use noise::{hash_position, java_string_hash, Noise};
+pub use norrcraft::EmptyTerrain;
 pub use profile::{
     BiomeAmbience, BiomeId, BiomeInfo, Climate, Precipitation, Systems, TerrainGenerator,
     WorldKind, WorldProfile,

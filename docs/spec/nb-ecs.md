@@ -672,7 +672,7 @@ Champs non fournis par le builder = 0 / `false` / `null`.
 | attackDamage, attackCooldown, knockbackForce | 0, 0, 0 | 0, 0, 0 | 5.0, 2.5, 9.0 |
 
 ⚠ `saves/mobs_defaults.json` (Java, **non lu par le Java** — le fichier lu est `saves/mobs.json`)
-et donc `assets/mobs_defaults.json` côté Rust indiquent pour le renne
+et donc `assets/vanilla/mobs_defaults.json` côté Rust indiquent pour le renne
 `aggressorDetectRange = 0.0`, `aggressorFleeSpeed = 0.0` : **c'est faux** par rapport au code
 (10.0 / 3.0). Sans agresseur terrestre l'effet est invisible, mais un agresseur LAND
 personnalisé (ex. « zombie ») ferait fuir le renne en Java. À corriger dans `nb-data`.

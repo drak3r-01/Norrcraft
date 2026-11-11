@@ -68,6 +68,7 @@ fn new_world(name: &str, mode: GameMode) -> UiCommand {
         game_mode: mode,
         allow_cheats: true,
         config: WorldConfig::default(),
+        world_kind: Default::default(),
     }))
 }
 
@@ -554,7 +555,7 @@ fn edited_mobs_are_despawned_when_leaving_mob_settings() {
     g.command(UiCommand::SwitchState(GameState::MobSettings));
     let reg = g.regs.mobs.clone();
     g.command(UiCommand::SetMobRegistry(Box::new(reg)));
-    assert!(dir.0.join("mobs.json").is_file());
+    assert!(dir.0.join("mobs_vanilla.json").is_file());
     g.command(UiCommand::LeaveMobSettings);
     assert_eq!(g.state(), GameState::Settings);
     assert!(!g.session().sim.entities.contains(mob));

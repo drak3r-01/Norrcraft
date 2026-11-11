@@ -109,6 +109,7 @@ fn start_in_world(d: &mut Driver, name: &str) {
             game_mode: GameMode::Survival,
             allow_cheats: true,
             config: Default::default(),
+            world_kind: Default::default(),
         })),
     });
 }

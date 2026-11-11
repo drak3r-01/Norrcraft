@@ -3,11 +3,11 @@
 
 Écrit (sans aucune dépendance, Python 3 pur) :
 
-* assets/items_survival.json    : objets purs (outils, armures, nourriture, matériaux…)
-* assets/blocks_survival.json   : stades de culture (blé, pomme de terre, carotte)
-* assets/survival.json          : propriétés (outils, nourriture, armures, dureté des blocs,
+* assets/vanilla/items_survival.json    : objets purs (outils, armures, nourriture, matériaux…)
+* assets/vanilla/blocks_survival.json   : stades de culture (blé, pomme de terre, carotte)
+* assets/vanilla/survival.json          : propriétés (outils, nourriture, armures, dureté des blocs,
                                   butins des mobs, températures des biomes, cultures)
-* assets/recipes_survival.json  : recettes
+* assets/vanilla/recipes_survival.json  : recettes
 * resource_packs/Default/assets/minecraft/textures/block/item_*.png (+ stades de culture)
 
 Usage : python3 scripts/gen_survival.py
@@ -20,7 +20,8 @@ import struct
 import zlib
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-ASSETS = os.path.join(ROOT, "assets")
+ASSETS = os.path.join(ROOT, "assets/vanilla")
+COMMON = os.path.join(ROOT, "assets/common")
 TEX = os.path.join(ROOT, "resource_packs/Default/assets/minecraft/textures/block")
 S = 16
 
@@ -879,8 +880,9 @@ def crop_img(kind, stage, stages, mature, stem):
 
 def block_names():
     names = []
-    for f in ("blocks.json", "blocks_craft.json"):
-        with open(os.path.join(ASSETS, f), encoding="utf-8") as fh:
+    # Socle commun (air, water, bedrock, lava) puis blocs de vanilla.
+    for d, f in ((COMMON, "blocks.json"), (ASSETS, "blocks.json"), (ASSETS, "blocks_craft.json")):
+        with open(os.path.join(d, f), encoding="utf-8") as fh:
             names += [b["name"] for b in json.load(fh)]
     return names
 

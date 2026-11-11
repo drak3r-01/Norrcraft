@@ -8,7 +8,7 @@ broutage, regard, réaction aux dégâts, attaque, nage…), calés sur sa morph
 ## Vue d'ensemble
 
 ```
-gen_mobs.py ──► assets/mob_rigs.json ──► nb-data (MobConfig.rig) ──► nb-anim (Rig compilé)
+gen_mobs.py ──► assets/vanilla/mob_rigs.json ──► nb-data (MobConfig.rig) ──► nb-anim (Rig compilé)
  (os, clips)                                   │                          │
                                                ▼                          ▼
               nb-gfx : os de chaque boîte    nb-game : MobAnimSystem  Animator (état d'un mob)
@@ -25,7 +25,7 @@ gen_mobs.py ──► assets/mob_rigs.json ──► nb-data (MobConfig.rig) ─
 * **`scripts/mob_shapes.py`, `mob_rigs.py`, `mob_recipes.py`** : chaque boîte de la géométrie est
   étiquetée avec son os ; une *recette* par famille (quadrupèdes, oiseaux, poissons et cétacés,
   tortues, méduses, raies, calmars, crabes, scorpions, lézards, grenouilles, hérissons) écrit les
-  clips. `scripts/gen_mobs.py` écrit `assets/mob_rigs.json` en même temps que la géométrie.
+  clips. `scripts/gen_mobs.py` écrit `assets/vanilla/mob_rigs.json` en même temps que la géométrie.
 * **`crates/nb-game/src/anim.rs`** : `MobAnimSystem` déduit le mouvement des positions affichées et
   fait avancer les animateurs.
 * **`crates/nb-gfx`** : `mob.vert` (peau + instances), `vk/mobs.rs` (palettes, regroupement par
@@ -77,7 +77,7 @@ gen_mobs.py ──► assets/mob_rigs.json ──► nb-data (MobConfig.rig) ─
   de dupliquer tout le mélangeur dans un compute shader. Le format de palette actuel n'empêche pas
   d'y venir plus tard.
 
-## Format d'un rig (`assets/mob_rigs.json`)
+## Format d'un rig (`assets/vanilla/mob_rigs.json`)
 
 Un objet par identifiant de mob. Unités : degrés, pixels (16 px = 1 bloc), secondes. Le repère est
 celui du modèle : museau vers +Z, +Y en haut. Rotation X positive = vers le bas/l'arrière, Y positive

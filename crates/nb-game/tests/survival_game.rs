@@ -68,6 +68,7 @@ fn new_world(name: &str, mode: GameMode) -> UiCommand {
         game_mode: mode,
         allow_cheats: true,
         config: WorldConfig::default(),
+        world_kind: Default::default(),
     }))
 }
 

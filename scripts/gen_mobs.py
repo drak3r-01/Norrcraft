@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Génère les animaux de la phase 9 : `assets/mobs_nb.json` (réglages) et
-`assets/mob_geometry_nb.json` (géométrie en boîtes colorées, unités = pixels MC, 16 px = 1 bloc).
+"""Génère les animaux de la phase 9 : `assets/vanilla/mobs_nb.json` (réglages) et
+`assets/vanilla/mob_geometry_nb.json` (géométrie en boîtes colorées, unités = pixels MC, 16 px = 1 bloc).
 
 Les animaux n'ont pas de texture : ils sont dessinés en boîtes colorées (leurs identifiants évitent
 ceux des formes vanilla de nb-gfx — `sheep`, `wolf`, `rabbit`, `squid`… — qui auraient un damier) (comme le renne, le poisson
@@ -263,9 +263,9 @@ add("piranha", "Piranha", fish(6, 3.6, 2, "#4e6a5a", belly="#c85a3a", fin="#3a52
 # ------------------------------------------------------------------------------------------------
 def builtin_rigs():
     """Rigs des trois mobs d'origine (leur géométrie est dans `mob_geometry.json`, non générée)."""
-    with open(os.path.join(ROOT, "assets/mob_geometry.json")) as f:
+    with open(os.path.join(ROOT, "assets/vanilla/mob_geometry.json")) as f:
         geo = json.load(f)
-    with open(os.path.join(ROOT, "assets/mobs_defaults.json")) as f:
+    with open(os.path.join(ROOT, "assets/vanilla/mobs_defaults.json")) as f:
         defaults = {m["id"]: m for m in json.load(f)["mobs"]}
 
     def tag(rows, spec):
@@ -312,10 +312,10 @@ def builtin_rigs():
 def write():
     cfgs = [c for c, _ in MOBS]
     geo = {c["id"]: b for c, b in MOBS}
-    with open(os.path.join(ROOT, "assets/mobs_nb.json"), "w") as f:
+    with open(os.path.join(ROOT, "assets/vanilla/mobs_nb.json"), "w") as f:
         json.dump({"mobs": cfgs}, f, indent=2)
         f.write("\n")
-    with open(os.path.join(ROOT, "assets/mob_geometry_nb.json"), "w") as f:
+    with open(os.path.join(ROOT, "assets/vanilla/mob_geometry_nb.json"), "w") as f:
         f.write("{\n")
         items = list(geo.items())
         for i, (k, boxes) in enumerate(items):
@@ -325,7 +325,7 @@ def write():
         f.write("}\n")
     rigs = builtin_rigs()
     rigs.update(RIGS)
-    with open(os.path.join(ROOT, "assets/mob_rigs.json"), "w") as f:
+    with open(os.path.join(ROOT, "assets/vanilla/mob_rigs.json"), "w") as f:
         f.write("{\n")
         items = list(rigs.items())
         for i, (k, rig) in enumerate(items):

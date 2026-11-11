@@ -12,15 +12,17 @@ use nb_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::universe::WorldKind;
+
 /// Valeurs par défaut des mobs intégrés (même format que `mobs.json`).
-const DEFAULTS_JSON: &str = include_str!("../../../assets/mobs_defaults.json");
+const DEFAULTS_JSON: &str = include_str!("../../../assets/vanilla/mobs_defaults.json");
 /// Boîtes colorées des mobs intégrés : `[x, y, z, w, h, d, r, g, b, a]` en pixels MC (÷16).
-const GEOMETRY_JSON: &str = include_str!("../../../assets/mob_geometry.json");
+const GEOMETRY_JSON: &str = include_str!("../../../assets/vanilla/mob_geometry.json");
 /// Animaux de la phase 9 : réglages et géométrie (même formats).
-const NB_DEFAULTS_JSON: &str = include_str!("../../../assets/mobs_nb.json");
-const NB_GEOMETRY_JSON: &str = include_str!("../../../assets/mob_geometry_nb.json");
+const NB_DEFAULTS_JSON: &str = include_str!("../../../assets/vanilla/mobs_nb.json");
+const NB_GEOMETRY_JSON: &str = include_str!("../../../assets/vanilla/mob_geometry_nb.json");
 /// Rigs d'animation (os, clips, démarches) de tous les mobs intégrés, générés par `scripts/gen_mobs.py`.
-const RIGS_JSON: &str = include_str!("../../../assets/mob_rigs.json");
+const RIGS_JSON: &str = include_str!("../../../assets/vanilla/mob_rigs.json");
 
 /// Identifiants des trois mobs d'origine, dans l'ordre de l'enum Java `MobType`.
 pub const BUILTIN_MOB_IDS: [&str; 3] = ["reindeer", "fish", "orca"];
@@ -207,6 +209,7 @@ impl MobConfig {
 #[derive(Debug, Clone)]
 pub struct MobRegistry {
     configs: Vec<MobConfig>,
+    kind: WorldKind,
 }
 
 impl MobRegistry {
@@ -214,13 +217,36 @@ impl MobRegistry {
     pub fn builtin() -> Self {
         Self {
             configs: builtin_configs().expect("données de mobs intégrées invalides"),
+            kind: WorldKind::Vanilla,
         }
+    }
+
+    /// Mobs intégrés d'un univers : les 48 de vanilla, aucun pour Norrcraft pour l'instant
+    /// (son bestiaire arrive en phase 5 du plan).
+    pub fn builtin_for(kind: WorldKind) -> Self {
+        match kind {
+            WorldKind::Vanilla => Self::builtin(),
+            WorldKind::Norrcraft => Self {
+                configs: Vec::new(),
+                kind,
+            },
+        }
+    }
+
+    /// Univers auquel appartient ce registre.
+    pub fn kind(&self) -> WorldKind {
+        self.kind
     }
 
     /// `MobRegistry.load()` : intégrés puis surcharges de `mobs.json` (si fourni).
     /// Un JSON invalide est ignoré comme en Java (le message part sur stderr).
     pub fn load(mobs_json: Option<&str>) -> Self {
-        let mut reg = Self::builtin();
+        Self::load_for(WorldKind::Vanilla, mobs_json)
+    }
+
+    /// Comme [`MobRegistry::load`] pour l'univers `kind`.
+    pub fn load_for(kind: WorldKind, mobs_json: Option<&str>) -> Self {
+        let mut reg = Self::builtin_for(kind);
         if let Some(json) = mobs_json {
             if let Err(e) = reg.apply_overrides(json) {
                 eprintln!("Could not load mobs.json: {e}");
@@ -279,7 +305,7 @@ impl MobRegistry {
 
     /// `resetToDefaults()` : retire les mobs personnalisés et restaure les valeurs intégrées.
     pub fn reset_to_defaults(&mut self) {
-        *self = Self::builtin();
+        *self = Self::builtin_for(self.kind);
     }
 
     /// Sérialise comme `MobRegistry.save()` : `{ "mobs": [ ... ] }`.

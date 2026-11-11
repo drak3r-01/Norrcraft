@@ -204,7 +204,7 @@ Un pack est un dossier de `resource_packs/`, choisi dans **Settings → Resource
 ```
 resource_packs/MonPack/
   pack.mcmeta                                   { "pack": { "pack_format": 15, "description": "…" } }
-  assets/minecraft/textures/block/*.png         textures de blocs (noms de assets/blocks.json)
+  assets/minecraft/textures/block/*.png         textures de blocs (noms de assets/vanilla/blocks.json)
   assets/minecraft/textures/entity/<id>/<id>.png  textures des mobs (optionnel)
   assets/minecraft/optifine/cem/<id>.jem        modèles de mobs OptiFine CEM (optionnel)
 ```
@@ -224,7 +224,7 @@ licence impose de les créditer clairement avec un lien vers leur site.
 ## Sauvegardes
 
 `saves/<nom du monde>/world.json` (graine, mode, triche, configuration du monde, joueur,
-inventaire, heure ; champ `"formatVersion": 1`) et `saves/<nom>/chunks/c_<cx>_<cz>.nbc`
+inventaire, heure ; champ `"formatVersion": 2`, voir [`UNIVERS.md`](UNIVERS.md)) et `saves/<nom>/chunks/c_<cx>_<cz>.nbc`
 (chunks modifiés ou visités). Le monde est sauvegardé en revenant au menu principal et à la
 fermeture du jeu. Les mondes du jeu Java ne sont pas lisibles (nouveau format, sans
 compatibilité). Pour sauvegarder ou déplacer un monde, copier son dossier.
@@ -269,8 +269,8 @@ supplémentaires (`docs/FAUNE.md`, `scripts/gen_mobs.py`) et une flore étendue 
 
 Grille de craft 2×2 dans l'inventaire (E), établi 3×3 et fonderie (clic droit sur les blocs
 `workbench` et `forge`), clic droit / Maj dans les cases, 8 objets, 9 blocs exclusifs et 46
-recettes. Tout est décrit et modifiable dans `docs/CRAFT.md` (données : `assets/items.json`,
-`assets/recipes.json`, `assets/blocks_craft.json` ; textures provisoires :
+recettes. Tout est décrit et modifiable dans `docs/CRAFT.md` (données : `assets/vanilla/items.json`,
+`assets/vanilla/recipes.json`, `assets/vanilla/blocks_craft.json` ; textures provisoires :
 `scripts/gen_craft_textures.py`, `scripts/gen_craft_hud.py`).
 
 ## Phase 11 : jeu en réseau local

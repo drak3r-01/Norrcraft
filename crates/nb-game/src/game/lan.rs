@@ -175,6 +175,22 @@ impl Game {
             _ => return,
         };
         let cfg = serde_json::from_str::<WorldConfig>(&w.config_json).unwrap_or_default();
+        // Univers et palette de blocs de l'hôte : les chunks reçus sont dans ses identifiants.
+        let Some(kind) = nb_data::WorldKind::parse(&w.world_kind) else {
+            let why = format!(
+                "The host's world uses the \"{}\" universe, which your version of Norrblock does not have: update Norrblock",
+                w.world_kind
+            );
+            return self.leave_client(Some((why, true)));
+        };
+        let palette = nb_data::BlockPalette::new(w.block_palette.clone());
+        let unknown = match self.use_registries(kind, &palette) {
+            Ok(report) => report.unknown,
+            Err(e) => {
+                let why = format!("Could not use the host's blocks: {e}");
+                return self.leave_client(Some((why, true)));
+            }
+        };
         self.release_session_core();
         let fov = self.session.camera().fov;
         let rngs = ecs_rngs(&self.opts, &mut self.rng);
@@ -208,6 +224,15 @@ impl Game {
             format!("Joined {}'s world \"{}\"", w.host_name, w.world_name),
             ChatColor::Yellow,
         );
+        if !unknown.is_empty() {
+            self.chat.push(
+                format!(
+                    "Blocks unknown to this version (shown as missing): {}",
+                    unknown.join(", ")
+                ),
+                ChatColor::Yellow,
+            );
+        }
         self.chat.push(
             "Press T to chat, Tab for the player list",
             ChatColor::Yellow,

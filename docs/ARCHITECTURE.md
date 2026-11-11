@@ -45,7 +45,7 @@ Règles (sens unique, vérifiées par les `Cargo.toml`) :
   ciel, `FrameInput`) sans la feature `window`.
 * `nb-ui` est pur CPU : chaque écran produit une `DrawList` (sommets + lots texture/scissor)
   rendue par `nb_gfx::ui_pass`.
-* Données embarquées dans l'exécutable : `assets/blocks.json`, `particles.json`,
+* Données embarquées dans l'exécutable : `assets/vanilla/blocks.json`, `particles.json`,
   `mobs_defaults.json`, `mob_geometry.json`, textures de l'interface, nuages, particules,
   icône, shaders SPIR-V précompilés (`crates/nb-gfx/shaders/spv`, `ui/`). Lus à l'exécution :
   `resource_packs/` et `saves/`.

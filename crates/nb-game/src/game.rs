@@ -42,6 +42,11 @@ pub enum PlatformRequest {
     /// `assetManager.reloadBlockTextures(nom)` + icônes ; la plateforme rappelle ensuite
     /// [`Game::set_block_table`] (le maillage est suspendu jusque-là).
     ReloadResourcePack(String),
+    /// Les registres ont changé (monde d'un autre univers ou d'une autre palette) alors que
+    /// l'atlas reste le même : la plateforme reconstruit la table de maillage et les icônes
+    /// d'après [`Game::regs`], rappelle [`Game::set_block_table`] et [`Game::set_block_atlas`]
+    /// (le maillage est suspendu jusque-là).
+    RebuildBlockTable,
     /// Sortie de l'écran des mobs (`applyAndLeave`) : `reloadMobModel` de chaque mob du
     /// registre dont le modèle n'est pas chargé.
     ReloadMobModels,
@@ -222,10 +227,8 @@ impl Game {
             GameSettings::default()
         };
         let mut regs = regs;
-        if opts.persist_settings {
-            if let Ok(json) = std::fs::read_to_string(opts.saves_root.join("mobs.json")) {
-                regs.mobs = nb_data::MobRegistry::load(Some(&json));
-            }
+        if let Some(json) = read_mobs_json(&opts, regs.kind) {
+            regs.mobs = nb_data::MobRegistry::load_for(regs.kind, Some(&json));
         }
         let mut rng = match opts.rng_seed {
             Some(s) => JavaRandom::new(s),
@@ -1293,9 +1296,9 @@ impl Game {
                 self.regs.mobs = *reg;
                 self.mobs_dirty = true;
                 if self.opts.persist_settings {
-                    let path = self.opts.saves_root.join("mobs.json");
+                    let path = self.opts.saves_root.join(mobs_file(self.regs.kind));
                     if let Err(e) = write_file(&path, &self.regs.mobs.to_json()) {
-                        self.fail("écriture de mobs.json", e);
+                        self.fail("écriture du fichier des mobs", e);
                     }
                 }
             }
@@ -1434,6 +1437,9 @@ impl Game {
         let mut meta = WorldMetadata::new(name, seed, nw.game_mode.java_name());
         meta.allow_cheats = nw.allow_cheats;
         meta.world_config = nw.config;
+        // L'univers et la palette de blocs sont figés dès la création.
+        meta.world_kind = nw.world_kind;
+        meta.block_palette = nb_data::BlockRegistry::for_kind(nw.world_kind).palette();
         if let Err(e) = save::create_world_directory(&self.opts.saves_root, &mut meta) {
             return self.fail("création du monde", e);
         }
@@ -1453,6 +1459,14 @@ impl Game {
         let dir = save::world_dir(&self.opts.saves_root, &meta.name);
         let storage = FileChunkStorage::new(&dir)?;
         self.release_session();
+        let report = self.use_registries(meta.world_kind, &meta.block_palette)?;
+        if !report.unknown.is_empty() {
+            eprintln!(
+                "monde {} : blocs inconnus de cette version (affichés comme manquants) : {}",
+                meta.name,
+                report.unknown.join(", ")
+            );
+        }
         let camera = self.session.camera();
         let mode = GameMode::from_java_name(&meta.game_mode);
         let rngs = ecs_rngs(&self.opts, &mut self.rng);
@@ -1506,8 +1520,41 @@ impl Game {
         self.install_menu_world();
     }
 
+    /// Passe aux registres de l'univers `kind` et de la palette `palette` (vide = palette par
+    /// défaut) s'ils diffèrent des registres courants ; sans effet sinon. À appeler avec la
+    /// session courante déjà libérée. Quand les blocs changent, le maillage attend la nouvelle
+    /// table que la plateforme construit sur demande ([`PlatformRequest::RebuildBlockTable`]).
+    pub(crate) fn use_registries(
+        &mut self,
+        kind: nb_data::WorldKind,
+        palette: &nb_data::BlockPalette,
+    ) -> nb_core::Result<nb_data::PaletteReport> {
+        let (mut regs, report) = Registries::for_world(kind, palette)?;
+        let same = kind == self.regs.kind
+            && regs.blocks.palette() == self.regs.blocks.palette();
+        if same {
+            // Les registres courants sont déjà les bons (mobs modifiés compris).
+            return Ok(report);
+        }
+        if let Some(json) = read_mobs_json(&self.opts, kind) {
+            regs.mobs = nb_data::MobRegistry::load_for(kind, Some(&json));
+        }
+        self.regs = regs;
+        self.fx = Fx::new(&self.regs.blocks);
+        self.awaiting_block_table = true;
+        self.requests.push(PlatformRequest::RebuildBlockTable);
+        Ok(report)
+    }
+
     /// Monde du menu neuf à la place de la session courante (déjà libérée).
     fn install_menu_world(&mut self) {
+        // Le monde du menu est toujours de vanilla, avec les identifiants d'origine.
+        if let Err(e) = self.use_registries(
+            nb_data::WorldKind::Vanilla,
+            &nb_data::BlockPalette::default(),
+        ) {
+            self.fail("registres du menu", e);
+        }
         let fov = self.session.camera().fov;
         let seed = self
             .opts
@@ -1569,6 +1616,27 @@ fn load_settings(root: &Path) -> GameSettings {
         }),
         Err(_) => GameSettings::default(),
     }
+}
+
+/// Fichier des surcharges de mobs d'un univers, dans `saves/`.
+fn mobs_file(kind: nb_data::WorldKind) -> &'static str {
+    match kind {
+        nb_data::WorldKind::Vanilla => "mobs_vanilla.json",
+        nb_data::WorldKind::Norrcraft => "mobs_norrcraft.json",
+    }
+}
+
+/// Surcharges de mobs de l'univers `kind` (vanilla lit aussi l'ancien `mobs.json`).
+fn read_mobs_json(opts: &GameOptions, kind: nb_data::WorldKind) -> Option<String> {
+    if !opts.persist_settings {
+        return None;
+    }
+    let read = |name: &str| std::fs::read_to_string(opts.saves_root.join(name)).ok();
+    read(mobs_file(kind)).or_else(|| {
+        (kind == nb_data::WorldKind::Vanilla)
+            .then(|| read("mobs.json"))
+            .flatten()
+    })
 }
 
 fn write_file(path: &Path, text: &str) -> std::io::Result<()> {

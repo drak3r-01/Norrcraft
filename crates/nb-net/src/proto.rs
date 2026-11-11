@@ -4,7 +4,11 @@
 use crate::wire::{Reader, WireError, Writer};
 
 /// Version du protocole : refusée si elle diffère entre hôte et client.
-pub const PROTOCOL_VERSION: u16 = 2;
+///
+/// 3 (plan Norrcraft, session 0.3) : `Hello` annonce le contenu du jeu de l'invité (empreinte de
+/// la palette de blocs de chaque univers) ; `Welcome` donne l'univers et la palette de blocs du
+/// monde de l'hôte.
+pub const PROTOCOL_VERSION: u16 = 3;
 /// Port TCP de jeu par défaut.
 pub const DEFAULT_GAME_PORT: u16 = 25570;
 /// Nombre maximal de joueurs (hôte compris).
@@ -50,6 +54,11 @@ pub struct Welcome {
     pub day_length: f32,
     /// Table des types de mobs (index → identifiant).
     pub mob_types: Vec<String>,
+    /// Univers du monde de l'hôte (`vanilla`, `norrcraft`).
+    pub world_kind: String,
+    /// Palette de blocs du monde de l'hôte : nom de chaque identifiant (`""` = libre). Les
+    /// chunks échangés sont en identifiants de cette palette.
+    pub block_palette: Vec<String>,
 }
 
 /// Client → serveur.
@@ -59,6 +68,10 @@ pub enum ClientMsg {
         version: u16,
         name: String,
         render_distance: u8,
+        /// Contenu de la version du jeu de l'invité : `(univers, empreinte de la palette par
+        /// défaut)` pour chaque univers qu'elle connaît. L'hôte refuse l'invité dont la version
+        /// ne connaît pas son univers ou en a une palette différente.
+        content: Vec<(String, u64)>,
     },
     /// Position (pieds), orientation et santé du joueur, envoyées ~20 fois par seconde.
     State {
@@ -167,9 +180,14 @@ impl ClientMsg {
                 version,
                 name,
                 render_distance,
+                content,
             } => {
                 let mut w = Writer::new(tag::C_HELLO);
                 w.u16(*version).str(name).u8(*render_distance);
+                w.u32(content.len() as u32);
+                for (kind, fp) in content {
+                    w.str(kind).i64(*fp as i64);
+                }
                 w.buf
             }
             ClientMsg::State {
@@ -212,11 +230,22 @@ impl ClientMsg {
     pub fn decode(data: &[u8]) -> Result<Self, WireError> {
         let mut r = Reader::new(data);
         Ok(match r.u8()? {
-            tag::C_HELLO => ClientMsg::Hello {
-                version: r.u16()?,
-                name: r.str()?,
-                render_distance: r.u8()?,
-            },
+            tag::C_HELLO => {
+                let version = r.u16()?;
+                let name = r.str()?;
+                let render_distance = r.u8()?;
+                let n = r.len(12)?;
+                let mut content = Vec::with_capacity(n);
+                for _ in 0..n {
+                    content.push((r.str()?, r.i64()? as u64));
+                }
+                ClientMsg::Hello {
+                    version,
+                    name,
+                    render_distance,
+                    content,
+                }
+            }
             tag::C_STATE => ClientMsg::State {
                 pos: vec3_f64(&mut r)?,
                 yaw: r.f32()?,
@@ -259,6 +288,11 @@ impl ServerMsg {
                 w.u32(m.mob_types.len() as u32);
                 for t in &m.mob_types {
                     w.str(t);
+                }
+                w.str(&m.world_kind);
+                w.u32(m.block_palette.len() as u32);
+                for n in &m.block_palette {
+                    w.str(n);
                 }
                 w.buf
             }
@@ -358,6 +392,12 @@ impl ServerMsg {
                 for _ in 0..n {
                     mob_types.push(r.str()?);
                 }
+                let world_kind = r.str()?;
+                let n = r.len(4)?;
+                let mut block_palette = Vec::with_capacity(n);
+                for _ in 0..n {
+                    block_palette.push(r.str()?);
+                }
                 ServerMsg::Welcome(Box::new(Welcome {
                     player_id,
                     name,
@@ -371,6 +411,8 @@ impl ServerMsg {
                     time_of_day,
                     day_length,
                     mob_types,
+                    world_kind,
+                    block_palette,
                 }))
             }
             tag::S_REFUSE => ServerMsg::Refuse(r.str()?),
@@ -448,6 +490,8 @@ mod tests {
             time_of_day: 0.25,
             day_length: 600.0,
             mob_types: vec!["wild_boar".into(), "elk".into()],
+            world_kind: "norrcraft".into(),
+            block_palette: vec!["air".into(), "granit".into(), String::new(), "grus".into()],
         }
     }
 
@@ -458,6 +502,7 @@ mod tests {
                 version: PROTOCOL_VERSION,
                 name: "Gab".into(),
                 render_distance: 8,
+                content: vec![("vanilla".into(), u64::MAX - 7), ("norrcraft".into(), 42)],
             },
             ClientMsg::State {
                 pos: [1.0, 2.0, 3.0],

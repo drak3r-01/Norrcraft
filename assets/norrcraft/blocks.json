@@ -1,0 +1,5 @@
+[
+  {"id": 1, "name": "granit", "textures": ["stone", "stone", "stone", "stone", "stone", "stone"], "transparent": false, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": true, "lightAttenuation": 15, "lightEmission": 0},
+  {"id": 2, "name": "moran", "textures": ["dirt", "dirt", "dirt", "dirt", "dirt", "dirt"], "transparent": false, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": true, "lightAttenuation": 15, "lightEmission": 0},
+  {"id": 3, "name": "grus", "textures": ["gravel", "gravel", "gravel", "gravel", "gravel", "gravel"], "transparent": false, "crossShaped": false, "grassTinted": false, "leavesTinted": false, "solid": true, "lightAttenuation": 15, "lightEmission": 0}
+]

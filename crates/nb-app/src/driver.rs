@@ -218,6 +218,14 @@ impl Driver {
                     let icons = item_icons(b.scene(), &self.game.regs);
                     self.game.set_item_icons(icons);
                 }
+                PlatformRequest::RebuildBlockTable => {
+                    // Autre univers ou autre palette : même atlas, nouvelle table et icônes.
+                    let table = block_table(b.scene(), &self.game.regs);
+                    self.game.set_block_table(table);
+                    self.game.set_block_atlas(b.scene().block_atlas());
+                    let icons = item_icons(b.scene(), &self.game.regs);
+                    self.game.set_item_icons(icons);
+                }
                 PlatformRequest::ReloadMobModels => {
                     // `applyAndLeave` : modèle rechargé pour chaque mob qui n'en a pas.
                     for cfg in self.game.regs.mobs.all() {
@@ -414,6 +422,7 @@ mod tests {
             game_mode: GameMode::Survival,
             allow_cheats: false,
             config: Default::default(),
+            world_kind: Default::default(),
         })));
         assert_eq!(d.game.state(), GameState::Playing);
         let cam = d.game.camera();

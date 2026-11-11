@@ -212,6 +212,7 @@ impl ClientNet {
                         version: PROTOCOL_VERSION,
                         name: self.name.clone(),
                         render_distance: self.render_distance as u8,
+                        content: crate::session::content_fingerprints(),
                     });
                 }
                 ClientEvent::Disconnected(reason) => out.push(ClientNotice::Closed {

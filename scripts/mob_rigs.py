@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rigs et animations des mobs (utilisé par `gen_mobs.py`, écrit `assets/mob_rigs.json`).
+"""Rigs et animations des mobs (utilisé par `gen_mobs.py`, écrit `assets/vanilla/mob_rigs.json`).
 
 Chaque archétype de `gen_mobs.py` étiquette ses boîtes avec un os (`B(..., bone="head")`) et décrit
 sa structure dans un `Boxes` (genre + dimensions). Ici :

@@ -29,6 +29,8 @@ pub struct NewWorld {
     pub game_mode: GameMode,
     pub allow_cheats: bool,
     pub config: WorldConfig,
+    /// Univers du monde (vanilla par défaut ; le sélecteur arrive avec la session 0.4).
+    pub world_kind: nb_data::WorldKind,
 }
 
 /// Actions déclenchées par l'interface.
@@ -310,6 +312,7 @@ impl Ui for StubUi {
                                 game_mode: GameMode::Survival,
                                 allow_cheats: false,
                                 config: WorldConfig::default(),
+                                world_kind: Default::default(),
                             })),
                         });
                     } else if esc {

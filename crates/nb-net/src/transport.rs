@@ -494,6 +494,7 @@ mod tests {
             version: 1,
             name: "Léa".into(),
             render_distance: 6,
+            content: Vec::new(),
         });
         let conn = wait(|| {
             server.poll().into_iter().find_map(|e| match e {

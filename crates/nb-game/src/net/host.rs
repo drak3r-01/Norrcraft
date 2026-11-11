@@ -133,6 +133,12 @@ pub struct HostNet {
     mob_types: Vec<String>,
     mob_index: HashMap<String, u16>,
     valid_blocks: Box<[bool; 256]>,
+    /// Univers et palette de blocs du monde hébergé (annoncés dans `Welcome`).
+    kind: nb_data::WorldKind,
+    block_palette: Vec<String>,
+    /// Empreinte de la palette par défaut de cet univers dans cette version du jeu : celle que
+    /// l'invité annonce dans `Hello` doit être la même.
+    content_fp: u64,
     conns: BTreeMap<ConnId, Conn>,
     next_player_id: u16,
     snapshot_timer: f32,
@@ -174,6 +180,11 @@ impl HostNet {
             mob_types,
             mob_index,
             valid_blocks: valid,
+            kind: regs.kind,
+            block_palette: regs.block_palette().names().to_vec(),
+            content_fp: nb_data::BlockRegistry::for_kind(regs.kind)
+                .palette()
+                .fingerprint(),
             conns: BTreeMap::new(),
             next_player_id: 1,
             snapshot_timer: 0.0,
@@ -356,7 +367,8 @@ impl HostNet {
                 version,
                 name,
                 render_distance,
-            } => self.on_hello(cx, id, version, &name, render_distance),
+                content,
+            } => self.on_hello(cx, id, version, &name, render_distance, &content),
             ClientMsg::Ping(n) => self.server.send(id, &ServerMsg::Pong(n)),
             ClientMsg::Bye => self.remove_conn(cx, id, "left the game", true),
             _ if !conn.playing() => {} // rien avant « Hello »
@@ -374,7 +386,15 @@ impl HostNet {
         }
     }
 
-    fn on_hello(&mut self, cx: &mut HostCtx<'_>, id: ConnId, version: u16, name: &str, rd: u8) {
+    fn on_hello(
+        &mut self,
+        cx: &mut HostCtx<'_>,
+        id: ConnId,
+        version: u16,
+        name: &str,
+        rd: u8,
+        content: &[(String, u64)],
+    ) {
         if self.conns.get(&id).is_none_or(|c| c.playing()) {
             return;
         }
@@ -390,6 +410,26 @@ impl HostNet {
                     "Incompatible versions (host {PROTOCOL_VERSION}, you {version}): both players need the same Norrblock build"
                 ),
             );
+        }
+        let kind = self.kind.as_str();
+        match content.iter().find(|(k, _)| k == kind) {
+            None => {
+                return refuse(
+                    self,
+                    format!(
+                        "This game uses the \"{kind}\" universe, which your version of Norrblock does not have: update Norrblock"
+                    ),
+                );
+            }
+            Some((_, fp)) if *fp != self.content_fp => {
+                return refuse(
+                    self,
+                    format!(
+                        "Your version of Norrblock has other \"{kind}\" blocks than the host's: both players need the same Norrblock build"
+                    ),
+                );
+            }
+            Some(_) => {}
         }
         if self.player_count() >= MAX_PLAYERS {
             return refuse(self, format!("The game is full ({MAX_PLAYERS} players)"));
@@ -453,6 +493,8 @@ impl HostNet {
             time_of_day: cx.sky.time_of_day,
             day_length: cx.sky.day_length_seconds,
             mob_types: self.mob_types.clone(),
+            world_kind: self.kind.as_str().to_owned(),
+            block_palette: self.block_palette.clone(),
         };
         let others: Vec<(u16, String)> = std::iter::once((HOST_ID, self.host_name.clone()))
             .chain(

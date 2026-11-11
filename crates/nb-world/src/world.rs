@@ -7,7 +7,7 @@ use nb_data::{BlockId, BlockRegistry};
 
 use crate::config::WorldConfig;
 use crate::manager::ChunkManager;
-use crate::profile::{BiomeId, BiomeInfo, WorldProfile};
+use crate::profile::{BiomeId, BiomeInfo, WorldKind, WorldProfile};
 use crate::storage::ChunkStorage;
 
 /// Monde de jeu sans ECS.
@@ -46,6 +46,26 @@ impl World {
             registry.ids(),
         ));
         Self::with_profile(seed, storage, cfg, registry, profile)
+    }
+
+    /// Monde de l'univers `kind` avec le registre de blocs (palette) du monde.
+    pub fn for_kind(
+        kind: WorldKind,
+        seed: i64,
+        storage: Arc<dyn ChunkStorage>,
+        cfg: WorldConfig,
+        registry: Arc<BlockRegistry>,
+    ) -> Self {
+        match kind {
+            WorldKind::Vanilla => Self::new(seed, storage, cfg, registry),
+            WorldKind::Norrcraft => Self::with_profile(
+                seed,
+                storage,
+                cfg,
+                registry,
+                Arc::new(WorldProfile::norrcraft_empty()),
+            ),
+        }
     }
 
     /// Monde d'un univers quelconque : le générateur et les biomes viennent du profil.

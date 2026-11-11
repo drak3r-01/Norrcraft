@@ -31,7 +31,7 @@ chmod +x "$DEST/$NAME" 2>/dev/null || true
 cp -R "$ROOT/assets" "$DEST/assets"
 cp -R "$ROOT/resource_packs/Default" "$DEST/resource_packs/Default"
 cp "$ROOT/assets/settings_defaults.json" "$DEST/saves/settings.json"
-cp "$ROOT/assets/mobs_defaults.json" "$DEST/saves/mobs_defaults.json"
+cp "$ROOT/assets/vanilla/mobs_defaults.json" "$DEST/saves/mobs_defaults.json"
 cp "$ROOT/LICENSE" "$DEST/LICENSE"
 cp "$ROOT/docs/AUDIO.md" "$DEST/sounds/LISEZMOI-SONS.md"
 cp "$ROOT/scripts/LISEZMOI.txt" "$DEST/LISEZMOI.txt"

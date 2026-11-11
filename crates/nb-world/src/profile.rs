@@ -7,8 +7,6 @@
 use std::fmt;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use crate::chunk::Chunk;
 use crate::world::find_spawn_location;
 
@@ -17,41 +15,8 @@ use crate::world::find_spawn_location;
 /// Même type que `nb_mesh::BiomeId`. Pour vanilla, c'est l'ordinal de l'enum interne.
 pub type BiomeId = u8;
 
-/// Univers de contenu : ensemble étanche de contenu et de règles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WorldKind {
-    /// Tout ce qui existait avant Norrcraft (générateurs Classic et Norrblock).
-    #[default]
-    Vanilla,
-    /// Le nouveau monde nordique.
-    Norrcraft,
-}
-
-impl WorldKind {
-    pub const ALL: [WorldKind; 2] = [WorldKind::Vanilla, WorldKind::Norrcraft];
-
-    /// Nom stable (écrit dans `world.json`, échangé par le LAN).
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            WorldKind::Vanilla => "vanilla",
-            WorldKind::Norrcraft => "norrcraft",
-        }
-    }
-
-    /// Inverse de [`WorldKind::as_str`] (insensible à la casse).
-    pub fn parse(s: &str) -> Option<WorldKind> {
-        WorldKind::ALL
-            .into_iter()
-            .find(|k| k.as_str().eq_ignore_ascii_case(s.trim()))
-    }
-}
-
-impl fmt::Display for WorldKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
+/// Univers de contenu : défini dans `nb-data` (qui range les données par univers), réexporté ici.
+pub use nb_data::WorldKind;
 
 /// Précipitations d'un biome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

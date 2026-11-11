@@ -7,7 +7,8 @@ use std::sync::Arc;
 use nb_core::glam::Vec3;
 use nb_core::Result;
 use nb_data::{
-    BlockRegistry, ItemRegistry, MobRegistry, ParticleRegistry, RecipeBook, SurvivalData,
+    BlockPalette, BlockRegistry, ItemRegistry, MobRegistry, PaletteReport, ParticleRegistry,
+    RecipeBook, SurvivalData, WorldKind,
 };
 use nb_ecs::player::EYE_OFFSET;
 use nb_ecs::{
@@ -22,8 +23,12 @@ use nb_world::{ChunkStorage, World, WorldConfig};
 use crate::chunks::WorldBiomes;
 
 /// Registres immuables partagés (le registre de mobs est éditable : écran des mobs).
+///
+/// Ils dépendent de l'univers du monde et de sa palette de blocs : [`Registries::for_world`].
 #[derive(Clone, Debug)]
 pub struct Registries {
+    /// Univers auquel appartiennent ces registres.
+    pub kind: WorldKind,
     pub blocks: Arc<BlockRegistry>,
     /// Objets : blocs + objets purs (inventaire, craft).
     pub items: Arc<ItemRegistry>,
@@ -36,12 +41,26 @@ pub struct Registries {
 }
 
 impl Registries {
-    /// Données intégrées (`blocks.json`, mobs et particules par défaut).
+    /// Données intégrées de vanilla (monde du menu, tests) avec les identifiants d'origine.
     pub fn builtin() -> Self {
-        let blocks = Arc::new(BlockRegistry::builtin_with_craft());
-        let items = Arc::new(ItemRegistry::builtin(&blocks));
-        let recipes = Arc::new(RecipeBook::builtin(&items));
-        let survival = Arc::new(SurvivalData::builtin(&blocks, &items));
+        Self::for_world(WorldKind::Vanilla, &BlockPalette::default())
+            .expect("registres intégrés invalides")
+            .0
+    }
+
+    /// Registres de l'univers `kind` pour un monde de palette `palette` (vide = palette par
+    /// défaut de l'univers : identifiants des fichiers de données). Le rapport dit ce que la
+    /// palette a eu de décalé avec le contenu du jeu (noms inconnus, blocs ajoutés).
+    pub fn for_world(kind: WorldKind, palette: &BlockPalette) -> Result<(Self, PaletteReport)> {
+        let (blocks, report) = if palette.is_empty() {
+            (BlockRegistry::for_kind(kind), PaletteReport::default())
+        } else {
+            BlockRegistry::from_palette(kind, palette)?
+        };
+        let blocks = Arc::new(blocks);
+        let items = Arc::new(ItemRegistry::for_kind(kind, &blocks));
+        let recipes = Arc::new(RecipeBook::for_kind(kind, &items));
+        let survival = Arc::new(SurvivalData::for_kind(kind, &blocks, &items));
         // Outils et armures s'usent individuellement : ils ne s'empilent pas.
         nb_ecs::inventory::set_unstackable(
             items
@@ -49,15 +68,38 @@ impl Registries {
                 .filter(|i| survival.max_durability(i.id) > 0)
                 .map(|i| i.id),
         );
-        Self {
-            blocks,
-            items,
-            recipes,
-            survival,
-            mobs: MobRegistry::builtin(),
-            particles: ParticleRegistry::builtin(),
-        }
+        Ok((
+            Self {
+                kind,
+                blocks,
+                items,
+                recipes,
+                survival,
+                mobs: MobRegistry::builtin_for(kind),
+                particles: ParticleRegistry::builtin(),
+            },
+            report,
+        ))
     }
+
+    /// Palette de blocs de ces registres (écrite dans `world.json`, échangée par le LAN).
+    pub fn block_palette(&self) -> BlockPalette {
+        self.blocks.palette()
+    }
+}
+
+/// Empreinte, par univers, de la palette par défaut de cette version du jeu : deux joueurs en
+/// réseau local doivent avoir les mêmes (poignée de main, voir `nb_net::Welcome`).
+pub fn content_fingerprints() -> Vec<(String, u64)> {
+    WorldKind::ALL
+        .into_iter()
+        .map(|k| {
+            (
+                k.as_str().to_owned(),
+                BlockRegistry::for_kind(k).palette().fingerprint(),
+            )
+        })
+        .collect()
 }
 
 /// Horloge jour/nuit vue par `/time` (`MasterRenderer.setTime/setDayLengthSeconds`).
@@ -103,7 +145,7 @@ impl WorldSession {
         mode: GameMode,
         rngs: EcsRngs,
     ) -> Self {
-        let world = World::new(seed, storage, cfg, regs.blocks.clone());
+        let world = World::for_kind(regs.kind, seed, storage, cfg, regs.blocks.clone());
         let biomes: Arc<dyn BiomeSource> = Arc::new(WorldBiomes::new(world.profile().clone()));
         let mut sim = Simulation::new();
         // Survie : faim / froid / pêche juste après l'entrée du joueur, cultures après la santé.
@@ -239,6 +281,16 @@ impl WorldSession {
             )
         });
         meta.last_played_at = save::now_millis();
+        // Univers, palette de blocs et table de biomes : figés avec le monde (world.json v2).
+        meta.world_kind = regs.kind;
+        meta.block_palette = regs.block_palette();
+        meta.biome_palette = self
+            .world
+            .profile()
+            .biomes
+            .iter()
+            .map(|b| b.name.clone())
+            .collect();
         {
             let mut wc = self.world.config_mut();
             wc.day_length_seconds = sky.day_length_seconds;
