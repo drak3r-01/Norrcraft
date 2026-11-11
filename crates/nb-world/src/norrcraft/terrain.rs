@@ -36,6 +36,7 @@ use super::hydro::{seal, Hydrography, WaterColumn, WaterKind};
 use super::landforms::Coast;
 use super::math::GradField;
 use super::subsoil::{ColumnIn, DepositInfo, Region, SiteProbe, Sites, Subsoil, SubsoilBlocks};
+use super::trees::{TreeBlocks, TreeColumn, TreeProbe, Trees};
 use crate::chunk::{Chunk, AIR, CHUNK_SIZE_X, CHUNK_SIZE_Z};
 use crate::profile::{BiomeId, Climate, TerrainGenerator};
 use crate::world::find_spawn_location;
@@ -61,6 +62,8 @@ pub struct NorrBlocks {
     pub sub: SubsoilBlocks,
     /// Plantes de la strate basse (session 2.4).
     pub flora: FloraBlocks,
+    /// Troncs et feuillages des arbres (session 2.3).
+    pub trees: TreeBlocks,
     /// Sols des biomes, par identifiant de biome.
     pub soils: [BiomeSoil; NorrBiome::COUNT],
 }
@@ -84,6 +87,7 @@ impl NorrBlocks {
             sea_ice: registry.get("havsis").id,
             sub: SubsoilBlocks::from_registry(registry),
             flora: FloraBlocks::from_registry(registry),
+            trees: TreeBlocks::from_registry(registry),
             soils: BiomeSoil::table(registry),
         }
     }
@@ -205,6 +209,21 @@ const LEADS_SEED: u64 = 0x4E52_5743_0000_0403;
 const LEADS_WAVELENGTH: f64 = 70.0;
 /// Demi-largeur des chenaux (écart à 0,5 du bruit de gradient).
 const LEADS_WIDTH: f64 = 0.025;
+/// Voisines testées pour la proximité de l'eau (aulne : à moins de 4 blocs).
+const WET_RING: [(i32, i32); 12] = [
+    (2, 0),
+    (-2, 0),
+    (0, 2),
+    (0, -2),
+    (4, 0),
+    (-4, 0),
+    (0, 4),
+    (0, -4),
+    (3, 3),
+    (-3, 3),
+    (3, -3),
+    (-3, -3),
+];
 /// Chunks dont les biomes restent en cache (vidé d'un coup au-delà).
 const BIOME_CACHE_MAX: usize = 4096;
 
@@ -229,6 +248,7 @@ pub struct NorrcraftTerrain {
     selector: BiomeSelector,
     subsoil: Subsoil,
     understory: Understory,
+    trees: Trees,
     leads: GradField,
     /// Biomes des chunks déjà analysés, partagés par toutes les copies du générateur (le maillage
     /// relit les biomes des chunks que la génération vient de calculer).
@@ -243,6 +263,7 @@ impl NorrcraftTerrain {
             selector: BiomeSelector::new(seed, cfg.sea_level),
             subsoil: Subsoil::new(seed, cfg, blocks.sub),
             understory: Understory::new(seed, blocks.flora),
+            trees: Trees::new(seed, cfg.sea_level, blocks.trees),
             leads: GradField::new(seed, LEADS_SEED),
             biome_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -382,6 +403,62 @@ impl NorrcraftTerrain {
 
     pub fn subsoil(&self) -> &Subsoil {
         &self.subsoil
+    }
+
+    /// Placement des arbres (session 2.3).
+    pub fn trees(&self) -> &Trees {
+        &self.trees
+    }
+
+    /// Sondes de colonne isolée utilisées par le placement des arbres.
+    pub fn with_tree_probe<R>(&self, f: impl FnOnce(&TreeProbe) -> R) -> R {
+        let column = |x: i32, z: i32| self.tree_column(x, z);
+        let water = |x: i32, z: i32| self.hydro.column(x, z);
+        let wet_near = |x: i32, z: i32| {
+            let lakes = self.hydro.lakes(x - 4, z - 4, x + 4, z + 4);
+            WET_RING
+                .iter()
+                .any(|&(dx, dz)| self.hydro.raw_column(x + dx, z + dz, &lakes).is_wet())
+        };
+        f(&TreeProbe {
+            column: &column,
+            water: &water,
+            wet_near: &wet_near,
+        })
+    }
+
+    /// Colonne isolée vue par le placement des arbres : champs, relief, eau scellée et biome
+    /// calculés une fois (même résultat que [`Self::column_biome`] et l'eau du chunk généré).
+    fn tree_column(&self, wx: i32, wz: i32) -> TreeColumn {
+        let heights = self.heights();
+        let grid = FieldGrid::new(heights.macro_fields(), wx - 1, wz - 1, wx + 1, wz + 1);
+        let macros = NEIGHBOURHOOD.map(|(dx, dz)| grid.at(wx + dx, wz + dz));
+        let reliefs: [Relief; 5] = std::array::from_fn(|k| {
+            let (dx, dz) = NEIGHBOURHOOD[k];
+            heights.relief(f64::from(wx + dx), f64::from(wz + dz), &macros[k])
+        });
+        let nb = Neighbourhood {
+            m: std::array::from_fn(|k| &macros[k]),
+            r: std::array::from_fn(|k| &reliefs[k]),
+        };
+        let water = self.hydro.column(wx, wz);
+        let sel = self
+            .selector
+            .select(wx, wz, &nb, &water, heights.macro_fields());
+        let hmax = self.world_height();
+        let h0 = reliefs[0].ground_top(hmax);
+        let slope = reliefs[1..]
+            .iter()
+            .map(|r| (r.ground_top(hmax) - h0).abs())
+            .max()
+            .unwrap_or(0);
+        TreeColumn {
+            water,
+            sel,
+            m: macros[0],
+            r: reliefs[0],
+            slope,
+        }
     }
 
     /// Corps du sous-sol (Malmberg, cuivre, poches, grottes marines, salles) qui touchent le chunk
@@ -589,6 +666,9 @@ impl TerrainGenerator for NorrcraftTerrain {
                 }
             }
         }
+        // Arbres (session 2.3) : en dernier, les passes de décor suivantes traitent tout bloc
+        // non-air comme occupé.
+        self.with_tree_probe(|probe| self.trees.pass(chunk, probe));
         self.place_understory(chunk, &cols, x0, z0);
     }
 
