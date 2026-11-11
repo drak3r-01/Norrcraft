@@ -676,8 +676,14 @@ impl TerrainGenerator for NorrcraftTerrain {
     /// mer **du monde Norrcraft** (la configuration vanilla du monde porte encore son propre
     /// niveau) : jamais dans un lac ni une rivière.
     fn find_spawn(&self, _sea_level: i32) -> [f64; 3] {
-        find_spawn_location(self.sea(), |x, z| {
-            self.dry_surface(x, z).unwrap_or(i32::MIN)
+        // Ni sous un houppier ni dans un tronc : aucune plante à moins de 6 blocs.
+        self.with_tree_probe(|probe| {
+            find_spawn_location(self.sea(), |x, z| {
+                match self.dry_surface(x, z) {
+                    Some(h) if !self.trees.plant_within(probe, x, z, 6) => h,
+                    _ => i32::MIN,
+                }
+            })
         })
     }
 

@@ -209,7 +209,8 @@ mod tests {
         let gen = p.new_generator();
         let (water, bedrock) = (reg.get("water").id, reg.get("bedrock").id);
         // La strate basse (session 2.4) occupe la cellule au-dessus du sol.
-        let plant = |id| reg.from_id(id).cross_shaped;
+        let trees = TreeBlocks::from_registry(&reg);
+        let plant = |id| reg.from_id(id).cross_shaped || trees.is_tree_block(id);
         let hydro = Hydrography::new(12345, NorrConfig::default());
         for (cx, cz) in [(0, 0), (-3, 5), (40, -17), (-250, 90)] {
             let mut chunk = Chunk::new(nb_core::ChunkPos::new(cx, cz));
@@ -231,7 +232,8 @@ mod tests {
                         assert!(above == water || plant(above), "eau ou plante au fond");
                         let top = chunk.block(x, c.level - 1, z);
                         assert!(top == water || plant(top), "eau ou nénuphar en surface");
-                        assert_eq!(chunk.block(x, c.level, z), 0);
+                        let sky = chunk.block(x, c.level, z);
+                        assert!(sky == 0 || trees.is_tree_block(sky));
                     } else {
                         assert!(above == 0 || plant(above), "air ou plante");
                     }

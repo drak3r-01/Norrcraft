@@ -263,9 +263,12 @@ fn isolated_columns_match_generated_chunks() {
     let p = profile(12345, NorrPreset::Norrland);
     let hy = Hydrography::new(12345, NorrConfig::default());
     let gen = p.new_generator();
-    let water = BlockRegistry::for_kind(WorldKind::Norrcraft)
-        .get("water")
-        .id;
+    let reg = BlockRegistry::for_kind(WorldKind::Norrcraft);
+    let water = reg.get("water").id;
+    // La strate basse (2.4) et les arbres (2.3) peuvent occuper la cellule au-dessus du sol ou de
+    // l'eau (nénuphar, plante, houppier).
+    let trees = nb_world::norrcraft::TreeBlocks::from_registry(&reg);
+    let decor = |id| reg.from_id(id).cross_shaped || trees.is_tree_block(id);
     for (cx, cz) in [(0, 0), (-3, 2), (5, 7)] {
         let mut chunk = Chunk::new(ChunkPos::new(cx, cz));
         gen.generate_chunk(&mut chunk);
@@ -280,7 +283,8 @@ fn isolated_columns_match_generated_chunks() {
                 for y in c.top..c.level {
                     assert_eq!(chunk.block(x, y, z), water);
                 }
-                assert_eq!(chunk.block(x, c.surface(), z), 0);
+                let above = chunk.block(x, c.surface(), z);
+                assert!(above == 0 || decor(above), "bloc {above} au-dessus de l'eau");
             }
         }
     }

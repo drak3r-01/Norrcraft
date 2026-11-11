@@ -36,9 +36,9 @@ fn chunk_fingerprint(seed: i64) -> u64 {
 /// fonction de hauteur, des champs ou du remplissage les change : à mettre à jour consciemment,
 /// avec une ligne dans le compte rendu de session.
 const FINGERPRINTS: [(i64, u64); 3] = [
-    (12345, 0x18f4e1904092eacd),
-    (-98765, 0x946a7626dc31e3ce),
-    (20261111, 0x4ef98130c9bd243f),
+    (12345, 0x584bf48a03d6ce68),
+    (-98765, 0xcddcf701dec1b36e),
+    (20261111, 0x6cdc82851f26a9b5),
 ];
 
 #[test]
@@ -236,9 +236,10 @@ fn sea_water_is_sealed_across_chunks() {
 fn surface_height_matches_generated_chunks_everywhere() {
     let p = profile(-98765, NorrPreset::Hogfjall);
     let gen = p.new_generator();
-    let water = BlockRegistry::for_kind(WorldKind::Norrcraft)
-        .get("water")
-        .id;
+    let reg = BlockRegistry::for_kind(WorldKind::Norrcraft);
+    let water = reg.get("water").id;
+    // Strate basse (2.4) et arbres (2.3) occupent parfois la cellule au-dessus du sol.
+    let trees = nb_world::norrcraft::TreeBlocks::from_registry(&reg);
     for (cx, cz) in [(-1, -1), (17, -230), (-311, 64)] {
         let mut chunk = Chunk::new(ChunkPos::new(cx, cz));
         gen.generate_chunk(&mut chunk);
@@ -248,7 +249,12 @@ fn surface_height_matches_generated_chunks_everywhere() {
                 assert_ne!(chunk.block(x, h - 1, z), 0);
                 // Au-dessus du fond : de l'air, ou de l'eau (mer, lac, rivière : session 1.4).
                 let above = chunk.block(x, h, z);
-                assert!(above == 0 || above == water);
+                assert!(
+                    above == 0
+                    || above == water
+                    || reg.from_id(above).cross_shaped
+                    || trees.is_tree_block(above)
+                );
             }
         }
     }

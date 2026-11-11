@@ -1,4 +1,4 @@
-# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1), sous-sol (2.2)
+# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1), sous-sol (2.2), arbres (2.3)
 
 Le vrai relief Norrcraft (GDD doc 02 §3 à §7 et §12 ; plan 06, sessions 1.1 à 1.4 et 2.1). La 1.1
 a posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de
@@ -21,6 +21,7 @@ Tout vit dans `crates/nb-world/src/norrcraft/`.
 | `terrain.rs` (1.2 à 2.1) | `NorrcraftTerrain` (`TerrainGenerator` ; `column_biome`, cache de biomes par chunk) et `NorrBlocks` (blocs des formes de la 1.3, sols des biomes, peau, neige éternelle, banquise ; glace posée au-dessus du sol et de l'eau) ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)` (25 biomes, teintes moyennées 5 × 5), utilisé par `World::for_kind` |
 | `biomes.rs` (2.1) | `NorrBiome` (25 biomes), `biome_defs`/`biome_infos` (`assets/norrcraft/biomes.json`), `BiomeSoil`, `BiomeSelector::select` (règles du §7.2, étagement, frontières tramées) → `Selection { biome, fresh_water, snow, dither }`, `DISTRIBUTION_TARGETS` (§7.5) |
 | `subsoil.rs` (2.2) | `Subsoil` (provinces au treillis 4, filons de diabase, minerais, cavités, corps de la grille : `sites`, `deposits`), `SubColumn` (tirages par colonne), `SubsoilBlocks`, `Region`, `SiteProbe` ; `math.rs` gagne `GradField3` (bruit 3D) |
+| `trees.rs` (2.3) | `Species` (12 essences), `Kind`/`Style`, `Plant`, `TreeBlocks`, formes pures (`draw` via le trait `Put`), `Trees` (placement en grille de pas 5, cache de cellules, `plants_near`, `stamp`, `pass`, `plant_within`), `TreeProbe`/`TreeColumn` |
 | `flora.rs` (2.4) | `Understory::pick(&Column)` (strate basse : 37 plantes, fiches `SPECS`), `FloraBlocks`, `Ground`, `Water` |
 | `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
@@ -509,6 +510,91 @@ biome). Textures procédurales `norr_*` par `scripts/gen_norr_flora.py` (sprites
 
 Seed `0x…0701` (la 2.3 prend `0x…06xx`, la 2.2 `0x…05xx`). Coût mesuré (release, graine 12345, 40 × 40 chunks, `time_per_chunk` ignoré) : 0,8 ms par chunk, strate basse comprise.
 
+## Arbres (session 2.3, doc 02 §9.1 et §9.2)
+
+Tout est dans `trees.rs` ; `terrain.rs` n'ajoute qu'un champ (`trees: Trees`), `tree_column`
+(la colonne isolée vue par le placement) et un appel en fin de `generate_chunk`, **avant**
+`place_understory` de la 2.4 (la strate basse traite tout bloc non-air comme occupé).
+
+### Blocs (ids 54 à 75 ; 76 à 79 réservés, 80 et plus = strate basse)
+
+11 bois (`gran_stam`, `tall_stam`, `tall_ovre` = haut orangé du pin, `bjork_stam`, `bok_stam`,
+`ek_stam`, `asp_stam`, `al_stam`, `ronn_stam`, `dod_stam` = chicot, `mossig_stam` = souche et tronc
+couché) et 11 feuillages teintés par le biome (`gran_barr`, `tall_barr`, `bjork_lov`, `bok_lov`,
+`ek_lov`, `asp_lov`, `al_lov`, `ronn_lov`, `salg_lov`, `en_barr`, `hassel_lov`). Textures `norr_*`
+provisoires : `scripts/gen_norr_trees.py` (écorce verticale, tirets du bouleau, cernes, feuillages
+en gris teinté de luminosité propre à l'essence). Les noms diffèrent de ceux du doc 04 §9
+(`gran` pour le tronc et le feuillage) : un suffixe `_stam` (tronc), `_lov` (feuille), `_barr`
+(aiguille) lève l'ambiguïté. Le fjällbjörk réutilise `bjork_*` ; le saule, le genévrier et le
+noisetier n'ont que du feuillage (+ `ronn_stam` pour les tiges). Le pin gagne `tall_ovre`, le
+tilleul prend `bok_stam` + `hassel_lov`.
+
+### Essences (§9.1)
+
+`Species` : Gran, Tall, Bjork, Fjallbjork, Bok, Ek, Ronn, Asp, Al, Salg, En, Lind (tilleul 40 %,
+noisetier 60 %). Chaque forme est une fonction pure du `seed` de la plante (hachage de
+`(graine, cellule)`), dessinée en coordonnées relatives au pied par le trait `Put` (`wood` remplace
+l'air et les feuilles, `leaf` ne se pose que sur l'air, `supported` pour les troncs couchés).
+
+| Essence | Forme |
+|---|---|
+| Gran | cône `r = R · (1 − v)^0,8` (approché par `x^0,75`, pas de `powf`), verticilles tous les 2 blocs, branches tombantes ; hauteur 9 à 22 (biais vers les petits) ; géants de 19 à 25 sur 2 × 2 (5 % des épicéas d'Urskog) |
+| Tall | fût nu 60 %, haut en `tall_ovre`, 2 ou 3 plateaux décalés avec branches ; **Twisted** (Skärgård, Klintkust, Fjord) : 5 à 9 blocs, tronc penché, 1 ou 2 plateaux ; **Dwarf** (Myr) : 3 à 5 |
+| Bjork | tronc blanc fin, ellipsoïde allongé, rameaux pendants ; Dwarf (Brännfält, jeunes bouleaux) 3 à 5 |
+| Fjallbjork | 2 à 4 tiges, marche biaisée vers le haut et dans le sens de θ (signe de θ, seuil 0,38), touffes ; Dwarf (toundra) 1 à 2 |
+| Bok | fût lisse, 5 à 6 branches en éventail (16 directions en constantes), deux couches de dôme (5,8 et 4,2 de rayon) |
+| Ek | colonisation d'espace simplifiée : 6 à 9 points d'attraction dans un ellipsoïde (5,5 × 2,6), branche au nœud le plus proche, boule de feuilles à chaque point ; vénérable 2 × 2 (10 % en Hagmark et Bokskog) |
+| Ronn, Asp, Al, Salg, En | sphère de 2,3 ; colonne étroite (1,9 × 4,6) ; cône arrondi `3 · (1 − v)^0,75` ; boule (Dwarf 1,2) ; colonne de 2 à 4 ou coussin |
+
+Bois mort : chicot (4 à 12 blocs de `dod_stam` avec chicots de branches), souche, tronc couché
+moussu (4 à 9 blocs le long de x ou z, un bloc seulement là où le sol porte).
+
+### Placement (§9.2)
+
+Grille jitterée de pas `CELL = 5` : la position de la cellule `(i, j)` est `5i + 1 + ⌊3 h⌋` (donc
+au moins 3 blocs entre deux pieds). Une cellule porte une plante si
+`h < densité_biome × bosquet × limite_arbres × (1 − masque_tourbière)`, avec
+`bosquet = 0,4 + 1,2 · F(p/90 ; 2)` et `limite_arbres = sm(y_a, y_a − 10, y)` (sauf pour Fjord,
+Skärgård, Klintkust, Strandäng, Alvar, Myr, Fjällhed, Palsmyr, Lavafält : arbustes et toundra).
+Densités et mélanges par biome : `profile()` (Urskog 0,56, Bokskog 0,46, Bergslag 0,40, Älv 0,42,
+Sjöland 0,36, Högkust 0,32, Tallhed 0,30, Brännfält 0,30, Fjällbjörkskog 0,30, Skärgård 0,20,
+Hagmark 0,13…). **Peuplements purs** : une cellule de Worley de 40 blocs favorise une essence du
+mélange, avec un poids multiplié par `1 + 5·Vr`. **Bosquets clonaux** de trembles (Urskog, Älv) :
+5 à 12 troncs dans un disque de 3,5 blocs. L'aulne exige de l'eau à moins de 4 blocs (12 sondes
+brutes). Bois mort : part par biome (Urskog 8 %, Brännfält 62 %…).
+
+Rejets : eau, barrage, niveau de la mer + 1, plage de dunes, glace, neige éternelle, pente ≥ 3
+(différence de sol maximale avec les 4 voisines, lue sur le relief), biomes sans arbres (mers,
+Kalfjäll, Glaciär).
+
+### Indépendance de l'ordre des chunks
+
+Un chunk évalue toutes les cellules dont une plante peut le toucher (`MAX_REACH = 9` blocs ; tout
+bloc dessiné au-delà est ignoré par construction) dans l'ordre global (z puis x croissants) et ne
+dessine que dans son volume. Un bloc voit donc toujours la même suite d'arbres : troncs et feuilles
+se recouvrent de la même façon quel que soit le chunk généré en premier. Le résultat d'une cellule
+est **mémoïsé** dans un cache partagé par les copies du générateur (`Arc<Mutex<HashMap>>`, vidé à
+65 536 cellules), comme le cache de biomes : il ne change aucun résultat. La colonne d'une cellule
+est calculée d'un coup par `tree_column` (champs, 5 reliefs, eau scellée, biome) : 28 µs par cellule
+(118 µs avec des appels séparés). Coût total mesuré : 1,4 ms par chunk à froid avec la strate
+basse (2,5 ms budgétés).
+
+Le départ du joueur (`find_spawn`) évite les colonnes à moins de 6 blocs d'une plante.
+
+### Écarts au doc 02 §9
+
+* **Une seule grille** de pas 5 au lieu d'un pas par essence (5 et 9) : la rareté du bocage vient
+  de la densité (0,13), pas du pas. Un biome ne change donc jamais de grille à la frontière.
+* **Géants de 2 × 2** et chênes vénérables : tirés à 5 % et 10 % des cellules d'Urskog, Hagmark et
+  Bokskog. Les « vitesses » de croissance, baies de sorbier en automne et or du tremble sont du
+  ressort de la phase 3 (saisons).
+* **Chaos de blocs** (Urskog, Högkust) et structures : phase 4. Le rejet « structure » du §9.2
+  n'a rien à tester pour l'instant.
+* Les membres d'un bosquet de trembles ne sont pas testés pour la pente individuellement (écart de
+  sol ≤ 2 avec le centre).
+* Le pin « tordu » se penche dans une direction tirée au hasard, pas encore sous le vent.
+* Aperçus : `apercu-norr/2.3/` (hêtraie, forêt primaire, pinède, bocage, boulaie de montagne).
+
 ## Outil `worldmap`
 
 ```
@@ -600,3 +686,15 @@ zone hémiboréale (T₀ = 0,60).
   seulement dans leurs biomes, chaque plante vue sur la grille ±1600 blocs pour 3 graines (hors
   quelques plantes de biomes rares près de l'origine) ; unitaires dans `flora.rs` (blocs
   enregistrés, en croix, non solides ; toutes les fiches atteignables).
+* `nb-world/tests/norrcraft_trees.rs` (2.3) : chunks identiques quel que soit l'ordre de génération
+  (avant, arrière), le cache (instance neuve) et la copie du générateur (3 graines) ; **couronnes
+  entières** : aucun bloc de tronc ou de feuille dessiné par une plante ne manque dans le monde
+  (plus de 250 000 blocs, 950 plantes à cheval sur une bordure de chunk) ; règles du sol (plantes sur
+  terre sèche au-dessus de la mer, sans pente raide, hors neige, sous la limite des arbres, jamais
+  en mer, sur le Kalfjäll ni sur la glace) ; essences par biome (épicéa dominant en Urskog avec bois
+  mort 4 à 13 %, pin seul en Tallhed, hêtre en Bokskog, rien en toundra que saules et bouleaux
+  nains, les 12 essences présentes) ; densités ordonnées ; coût (< 5 ms, mesuré 1,5). Unitaires
+  dans `trees.rs` (formes dans la portée et déterministes, tailles par essence, cône de l'épicéa,
+  troncs 2 × 2). Les empreintes de `norrcraft_relief.rs` changent (arbres et strate basse) ;
+  `norrcraft_relief.rs`, `norrcraft_hydro.rs` et `mod.rs` acceptent un tronc, une feuille ou une
+  plante au-dessus du sol.

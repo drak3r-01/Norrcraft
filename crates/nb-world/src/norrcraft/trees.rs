@@ -409,6 +409,32 @@ fn foot<P: Put + ?Sized>(p: &mut P, x: i32, z: i32, w: Wood) {
     p.wood(x, -1, z, w);
 }
 
+/// `x^0,75` sans fonction transcendante (`sqrt(x) · sqrt(sqrt(x))`) : exposant approchant 0,8.
+fn pow075(x: f64) -> f64 {
+    let s = x.max(0.0).sqrt();
+    s * s.sqrt()
+}
+
+/// Seize directions (cos, sin) de pas 22,5°, en constantes : pas de trigonométrie à l'exécution.
+const DIRS: [(f64, f64); 16] = [
+    (1.0, 0.0),
+    (0.9239, 0.3827),
+    (0.7071, 0.7071),
+    (0.3827, 0.9239),
+    (0.0, 1.0),
+    (-0.3827, 0.9239),
+    (-0.7071, 0.7071),
+    (-0.9239, 0.3827),
+    (-1.0, 0.0),
+    (-0.9239, -0.3827),
+    (-0.7071, -0.7071),
+    (-0.3827, -0.9239),
+    (0.0, -1.0),
+    (0.3827, -0.9239),
+    (0.7071, -0.7071),
+    (0.9239, -0.3827),
+];
+
 /// Épicéa : cône à verticilles tous les 2 blocs, branches tombantes, géants de 2 × 2.
 fn gran<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let mut r = Rng::new(pl.seed);
@@ -416,7 +442,10 @@ fn gran<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let h = if giant {
         r.int(19, 25)
     } else {
-        (9 + (13.0 * r.f().powf(1.5)) as i32).min(22)
+        {
+            let u = r.f();
+            (9 + (13.0 * u * u.sqrt()) as i32).min(22)
+        }
     };
     let mut big = (0.26 * f64::from(h)).clamp(2.4, 5.2);
     if giant {
@@ -442,7 +471,7 @@ fn gran<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     }
     for y in start..=h {
         let v = f64::from(y - start) / f64::from((h - start).max(1));
-        let rr = big * (1.0 - v).powf(0.8);
+        let rr = big * pow075(1.0 - v);
         let whorl = (y - start) % 2 == 0;
         let rd = if whorl { rr } else { (rr - 1.0).max(0.0) };
         disc(p, pl.seed, c, y, rd + 0.35, Leaf::Gran, 0.35);
@@ -565,7 +594,8 @@ fn bjork<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let n = if dwarf { -1 } else { rx.ceil() as i32 };
     for z in -n..=n {
         for x in -n..=n {
-            let d = (f64::from(x) / rx).powi(2) + (f64::from(z) / rz).powi(2);
+            let (tx, tz) = (f64::from(x) / rx, f64::from(z) / rz);
+            let d = tx * tx + tz * tz;
             if d >= 0.85 {
                 continue;
             }
@@ -637,16 +667,16 @@ fn bok<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
         p.wood(0, y, 0, Wood::Bok);
     }
     let n = r.int(5, 6);
-    let a0 = r.f() * std::f64::consts::TAU;
+    let a0 = r.int(0, 15);
     for k in 0..n {
-        let a = a0 + std::f64::consts::TAU * (f64::from(k) + 0.3 * r.f()) / f64::from(n);
+        let (ca, sa) = DIRS[((a0 + (16 * k + r.int(0, 2)) / n) % 16) as usize];
         let len = r.int(3, 5);
         let y0 = h - 9 + r.int(0, 2);
         for i in 1..=len {
             p.wood(
-                (a.cos() * f64::from(i)).round() as i32,
+                (ca * f64::from(i)).round() as i32,
                 y0 + i / 2,
-                (a.sin() * f64::from(i)).round() as i32,
+                (sa * f64::from(i)).round() as i32,
                 Wood::Bok,
             );
         }
@@ -696,7 +726,10 @@ fn ek<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
             .copied()
             .min_by(|n, m| {
                 let d = |q: &(f64, f64, f64)| {
-                    (q.0 - a.0).powi(2) + (q.1 - a.1).powi(2) + (q.2 - a.2).powi(2)
+                    {
+                    let (dx, dy, dz) = (q.0 - a.0, q.1 - a.1, q.2 - a.2);
+                    dx * dx + dy * dy + dz * dz
+                }
                 };
                 d(n).total_cmp(&d(m))
             })
@@ -760,7 +793,7 @@ fn al<P: Put + ?Sized>(pl: &Plant, p: &mut P) {
     let start = (f64::from(h) * 0.4).round() as i32;
     for y in start..=h {
         let v = f64::from(y - start) / f64::from((h - start).max(1));
-        disc(p, pl.seed, (0.0, 0.0), y, 3.0 * (1.0 - v).powf(0.7) + 0.3, Leaf::Al, 0.4);
+        disc(p, pl.seed, (0.0, 0.0), y, 3.0 * pow075(1.0 - v) + 0.3, Leaf::Al, 0.4);
     }
 }
 
@@ -1302,9 +1335,17 @@ impl Trees {
                 let (mx, mz) = if k == 0 {
                     (x, z)
                 } else {
-                    let a = hash01(self.seed, i, j, 100 + 2 * k) * std::f64::consts::TAU;
-                    let d = 3.5 * hash01(self.seed, i, j, 101 + 2 * k).sqrt();
-                    (x + (a.cos() * d).round() as i32, z + (a.sin() * d).round() as i32)
+                    // Point tiré dans le disque de rayon 3,5 par rejet.
+                    let mut off = (0, 0);
+                    for t in 0..8 {
+                        let u = 7.0 * hash01(self.seed, i, j, 100 + 16 * k + 2 * t) - 3.5;
+                        let v = 7.0 * hash01(self.seed, i, j, 101 + 16 * k + 2 * t) - 3.5;
+                        if u * u + v * v <= 12.25 {
+                            off = (u.round() as i32, v.round() as i32);
+                            break;
+                        }
+                    }
+                    (x + off.0, z + off.1)
                 };
                 let mw = if k == 0 { w } else { (probe.water)(mx, mz) };
                 if mw.is_wet() || (mw.top - w.top).abs() > 2 || mw.top <= self.sea + 1 {
@@ -1320,6 +1361,24 @@ impl Trees {
         }
         out.push(plant(Kind::Living(species), style, x, z, w.top, seed));
         out
+    }
+
+    /// Une plante pousse-t-elle à moins de `r` blocs (en x et en z) de la colonne `(x, z)` ?
+    pub fn plant_within(&self, probe: &TreeProbe, x: i32, z: i32, r: i32) -> bool {
+        // Les membres d'un bosquet s'écartent jusqu'à 4 blocs de la position de leur cellule.
+        let m = r + 4;
+        for j in (z - m - 3 + CELL - 1).div_euclid(CELL)..=(z + m - 1).div_euclid(CELL) {
+            for i in (x - m - 3 + CELL - 1).div_euclid(CELL)..=(x + m - 1).div_euclid(CELL) {
+                if self
+                    .cell_plants(probe, i, j)
+                    .iter()
+                    .any(|p| (p.x - x).abs() <= r && (p.z - z).abs() <= r)
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// Plantes de toutes les cellules qui peuvent toucher le chunk d'origine `(x0, z0)`, dans
