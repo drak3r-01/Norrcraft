@@ -17,7 +17,7 @@ use nb_core::glam::{DVec3, IVec3, Vec3};
 use nb_data::{GameSettings, MobBehaviorType, MobMedium};
 use nb_ecs::{EcsEvent, EntityId, GameMode, Health, MobType, Player, Transform, Velocity};
 use nb_gfx::SkyClock;
-use nb_world::Biome;
+use nb_world::{BiomeAmbience, BiomeInfo};
 
 use crate::net::Avatar;
 use crate::session::{Registries, WorldSession};
@@ -85,7 +85,8 @@ pub struct AudioDirector {
 /// Résultat du dernier sondage de l'environnement.
 #[derive(Clone, Copy, Debug)]
 struct Probe {
-    biome: Biome,
+    theme: Theme,
+    ambience: BiomeAmbience,
     underwater: bool,
     cave: f32,
     roof: bool,
@@ -95,7 +96,8 @@ struct Probe {
 impl Default for Probe {
     fn default() -> Self {
         Self {
-            biome: Biome::Plains,
+            theme: Theme::Meadow,
+            ambience: BiomeAmbience::default(),
             underwater: false,
             cave: 0.0,
             roof: false,
@@ -126,45 +128,42 @@ pub fn daylight(sky: &SkyClock) -> f32 {
 }
 
 /// Thème musical d'un biome (de jour, en surface).
-pub fn biome_theme(b: Biome) -> Theme {
-    use Biome::*;
-    match b {
-        Plains | FlowerMeadow | Heath | Savanna | Hills | Beach | River => Theme::Meadow,
-        Forest | BirchForest | AutumnForest | Taiga | MegaTaiga => Theme::Forest,
-        DarkForest | CherryGrove | MushroomFields => Theme::Mystic,
-        Jungle => Theme::Jungle,
-        Desert | Badlands => Theme::Desert,
-        Swamp => Theme::Swamp,
-        SnowyPlains | SnowyTaiga | IceSpikes | FrozenOcean => Theme::Snow,
-        Mountains | SnowyPeaks | StonyShore => Theme::Mountain,
-        Ocean | DeepOcean | WarmOcean => Theme::Ocean,
-        Volcano => Theme::Volcano,
+pub fn biome_theme(b: &BiomeInfo) -> Theme {
+    theme_from_key(&b.music)
+}
+
+/// Thème musical désigné par la clé d'un [`BiomeInfo`] ; clé inconnue : prairie.
+fn theme_from_key(key: &str) -> Theme {
+    match key {
+        "forest" => Theme::Forest,
+        "jungle" => Theme::Jungle,
+        "desert" => Theme::Desert,
+        "snow" => Theme::Snow,
+        "mountain" => Theme::Mountain,
+        "ocean" => Theme::Ocean,
+        "swamp" => Theme::Swamp,
+        "volcano" => Theme::Volcano,
+        "mystic" => Theme::Mystic,
+        _ => Theme::Meadow,
     }
 }
 
 /// Intensité des ambiances d'un biome (hors grotte et eau libre).
-pub fn biome_ambience(b: Biome, daylight: f32, altitude: f32) -> AmbienceTargets {
-    use Biome::*;
+pub fn biome_ambience(b: &BiomeInfo, daylight: f32, altitude: f32) -> AmbienceTargets {
+    ambience_targets(b.ambience, daylight, altitude)
+}
+
+fn ambience_targets(a: BiomeAmbience, daylight: f32, altitude: f32) -> AmbienceTargets {
     let day = smooth(0.35, 0.65, daylight);
     let night = 1.0 - smooth(0.2, 0.5, daylight);
-    let (wind, birds, crickets, frogs, water, lava) = match b {
-        Plains | Savanna | Heath | Hills => (0.3, 0.6, 0.7, 0.0, 0.0, 0.0),
-        FlowerMeadow | CherryGrove => (0.2, 1.0, 0.6, 0.0, 0.0, 0.0),
-        Forest | BirchForest | AutumnForest | MegaTaiga => (0.2, 1.0, 0.6, 0.0, 0.0, 0.0),
-        DarkForest => (0.25, 0.3, 0.5, 0.0, 0.0, 0.0),
-        Taiga => (0.4, 0.4, 0.2, 0.0, 0.0, 0.0),
-        Jungle => (0.1, 1.0, 1.0, 0.5, 0.0, 0.0),
-        Swamp => (0.15, 0.3, 0.8, 1.0, 0.0, 0.0),
-        Desert | Badlands => (0.6, 0.0, 0.3, 0.0, 0.0, 0.0),
-        SnowyPlains | SnowyTaiga | IceSpikes => (0.7, 0.0, 0.0, 0.0, 0.0, 0.0),
-        Mountains | SnowyPeaks => (0.8, 0.0, 0.0, 0.0, 0.0, 0.0),
-        Ocean | DeepOcean | WarmOcean | FrozenOcean => (0.35, 0.0, 0.0, 0.0, 1.0, 0.0),
-        River => (0.15, 0.4, 0.4, 0.0, 0.45, 0.0),
-        Beach => (0.3, 0.2, 0.0, 0.0, 0.7, 0.0),
-        StonyShore => (0.5, 0.0, 0.0, 0.0, 0.7, 0.0),
-        Volcano => (0.5, 0.0, 0.0, 0.0, 0.0, 0.7),
-        MushroomFields => (0.15, 0.2, 0.7, 0.0, 0.0, 0.0),
-    };
+    let BiomeAmbience {
+        wind,
+        birds,
+        crickets,
+        frogs,
+        water,
+        lava,
+    } = a;
     let high = smooth(90.0, 150.0, altitude) * 0.6;
     AmbienceTargets {
         wind: (wind + high).min(1.0),
@@ -651,7 +650,7 @@ impl AudioDirector {
                 p.cave.max(if p.roof { 0.2 } else { 0.0 })
             },
         });
-        let mut amb = biome_ambience(p.biome, day, p.y);
+        let mut amb = ambience_targets(p.ambience, day, p.y);
         let open = 1.0 - p.cave;
         amb.wind *= open;
         amb.birds *= open;
@@ -672,10 +671,10 @@ impl AudioDirector {
             Theme::Ocean
         } else if p.cave > 0.5 {
             Theme::Cave
-        } else if day < 0.25 && !matches!(biome_theme(p.biome), Theme::Desert | Theme::Volcano) {
+        } else if day < 0.25 && !matches!(p.theme, Theme::Desert | Theme::Volcano) {
             Theme::Night
         } else {
-            biome_theme(p.biome)
+            p.theme
         };
         self.set_theme(theme, PROBE_PERIOD, false);
     }
@@ -720,13 +719,10 @@ impl AudioDirector {
         }
         let frac = solid as f32 / 24.0;
         let cave = smooth(0.3, 0.65, frac);
-        let id = ctx.session.biomes().biome_at(x, z);
-        let biome = Biome::ALL
-            .get(usize::from(id))
-            .copied()
-            .unwrap_or(Biome::Plains);
+        let info = world.biome_info_at(x, z);
         Probe {
-            biome,
+            theme: biome_theme(info),
+            ambience: info.ambience,
             underwater,
             cave,
             roof: any,
@@ -756,38 +752,55 @@ mod tests {
         assert!(daylight(&sky) < 0.05);
     }
 
+    /// Biomes vanilla (30) tels que les voit le moteur.
+    fn vanilla_biomes() -> Vec<BiomeInfo> {
+        let reg = nb_data::BlockRegistry::builtin();
+        nb_world::WorldProfile::vanilla(1, std::sync::Arc::new(nb_world::WorldConfig::default()), reg.ids())
+            .biomes
+    }
+
+    fn biome(name: &str) -> BiomeInfo {
+        vanilla_biomes()
+            .into_iter()
+            .find(|b| b.name == name)
+            .unwrap_or_else(|| panic!("biome {name}"))
+    }
+
     #[test]
     fn every_biome_has_theme_and_ambience() {
-        for b in Biome::ALL {
-            let _ = biome_theme(b);
-            let a = biome_ambience(b, 1.0, 70.0);
+        for b in vanilla_biomes() {
+            let _ = biome_theme(&b);
+            let a = biome_ambience(&b, 1.0, 70.0);
             for v in [
                 a.wind, a.birds, a.crickets, a.frogs, a.water, a.lava, a.cave,
             ] {
-                assert!((0.0..=1.0).contains(&v), "{b:?}");
+                assert!((0.0..=1.0).contains(&v), "{}", b.name);
             }
         }
     }
 
     #[test]
     fn ambience_depends_on_time_of_day() {
-        let day = biome_ambience(Biome::Forest, 1.0, 70.0);
-        let night = biome_ambience(Biome::Forest, 0.0, 70.0);
+        let forest = biome("FOREST");
+        let day = biome_ambience(&forest, 1.0, 70.0);
+        let night = biome_ambience(&forest, 0.0, 70.0);
         assert!(day.birds > 0.9 && night.birds < 0.05);
         assert!(night.crickets > 0.5 && day.crickets < 0.05);
-        assert!(biome_ambience(Biome::Ocean, 1.0, 62.0).water > 0.9);
+        assert!(biome_ambience(&biome("OCEAN"), 1.0, 62.0).water > 0.9);
+        let mountains = biome("MOUNTAINS");
         assert!(
-            biome_ambience(Biome::Mountains, 1.0, 160.0).wind
-                > biome_ambience(Biome::Mountains, 1.0, 70.0).wind
+            biome_ambience(&mountains, 1.0, 160.0).wind
+                > biome_ambience(&mountains, 1.0, 70.0).wind
         );
     }
 
     #[test]
     fn themes_match_biomes() {
-        assert_eq!(biome_theme(Biome::Desert), Theme::Desert);
-        assert_eq!(biome_theme(Biome::DeepOcean), Theme::Ocean);
-        assert_eq!(biome_theme(Biome::SnowyTaiga), Theme::Snow);
+        assert_eq!(biome_theme(&biome("DESERT")), Theme::Desert);
+        assert_eq!(biome_theme(&biome("DEEP_OCEAN")), Theme::Ocean);
+        assert_eq!(biome_theme(&biome("SNOWY_TAIGA")), Theme::Snow);
     }
+
 
     #[test]
     fn theme_changes_need_to_persist() {

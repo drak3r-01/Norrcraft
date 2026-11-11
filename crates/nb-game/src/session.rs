@@ -17,7 +17,7 @@ use nb_ecs::{
 use nb_gfx::SkyClock;
 use nb_mesh::BiomeSource;
 use nb_world::save::{self, InventorySlot, PlayerState, WorldMetadata};
-use nb_world::{BiomeSystem, ChunkStorage, Noise, World, WorldConfig};
+use nb_world::{ChunkStorage, World, WorldConfig};
 
 use crate::chunks::WorldBiomes;
 
@@ -103,12 +103,8 @@ impl WorldSession {
         mode: GameMode,
         rngs: EcsRngs,
     ) -> Self {
-        let biomes: Arc<dyn BiomeSource> = Arc::new(WorldBiomes(BiomeSystem::new(
-            Arc::new(Noise::new(seed)),
-            Arc::new(cfg.clone()),
-            regs.blocks.ids(),
-        )));
         let world = World::new(seed, storage, cfg, regs.blocks.clone());
+        let biomes: Arc<dyn BiomeSource> = Arc::new(WorldBiomes::new(world.profile().clone()));
         let mut sim = Simulation::new();
         // Survie : faim / froid / pêche juste après l'entrée du joueur, cultures après la santé.
         sim.schedule

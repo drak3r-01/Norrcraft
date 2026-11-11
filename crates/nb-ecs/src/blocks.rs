@@ -20,7 +20,7 @@ pub trait BlockAccess {
 
     /// Biome de la colonne `(x, z)` ; `None` quand le monde n'en a pas (tests) : les conditions
     /// d'apparition par biome sont alors ignorées.
-    fn biome_at(&self, _x: i32, _z: i32) -> Option<nb_world::Biome> {
+    fn biome_at(&self, _x: i32, _z: i32) -> Option<&nb_world::BiomeInfo> {
         None
     }
 
@@ -78,12 +78,11 @@ impl BlockAccess for WorldBlocks<'_> {
     }
 
     fn leaves_tint(&self, x: i32, z: i32) -> [f64; 3] {
-        let biomes = self.0.biome_system();
-        biomes.config(biomes.biome_at(x, z)).leaves_tint
+        self.0.biome_info_at(x, z).leaves_tint
     }
 
-    fn biome_at(&self, x: i32, z: i32) -> Option<nb_world::Biome> {
-        Some(self.0.biome_system().biome_at(x, z))
+    fn biome_at(&self, x: i32, z: i32) -> Option<&nb_world::BiomeInfo> {
+        Some(self.0.biome_info_at(x, z))
     }
 }
 
@@ -97,7 +96,7 @@ pub struct MemoryBlocks {
     loaded: Option<HashSet<(i32, i32)>>,
     air: BlockId,
     tint: [f64; 3],
-    biome: Option<nb_world::Biome>,
+    biome: Option<nb_world::BiomeInfo>,
 }
 
 impl MemoryBlocks {
@@ -126,7 +125,7 @@ impl MemoryBlocks {
     }
 
     /// Biome renvoyé partout (`None` : le monde n'a pas de biomes, conditions d'apparition ignorées).
-    pub fn set_biome(&mut self, biome: Option<nb_world::Biome>) {
+    pub fn set_biome(&mut self, biome: Option<nb_world::BiomeInfo>) {
         self.biome = biome;
     }
 
@@ -183,8 +182,8 @@ impl BlockAccess for MemoryBlocks {
         self.tint
     }
 
-    fn biome_at(&self, _x: i32, _z: i32) -> Option<nb_world::Biome> {
-        self.biome
+    fn biome_at(&self, _x: i32, _z: i32) -> Option<&nb_world::BiomeInfo> {
+        self.biome.as_ref()
     }
 }
 

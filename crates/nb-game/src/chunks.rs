@@ -1,11 +1,11 @@
 //! Raccord nb-world → nb-mesh : [`ChunkSource`] sur le `ChunkManager` et [`BiomeSource`] sur
-//! un `BiomeSystem` (types enveloppes, aucun des deux crates ne connaît l'autre).
+//! un profil d'univers (types enveloppes, aucun des deux crates ne connaît l'autre).
 
 use std::sync::Arc;
 
 use nb_core::ChunkPos;
 use nb_mesh::{BiomeId, BiomeSource, BiomeTints, ChunkSource, ChunkVoxels};
-use nb_world::{Biome, BiomeSystem, ChunkManager};
+use nb_world::{ChunkManager, TerrainGenerator, WorldProfile};
 
 /// Vue « maillage » des chunks actifs d'un monde.
 #[derive(Clone, Copy, Debug)]
@@ -59,24 +59,31 @@ pub fn sorted_active_positions_near(m: &ChunkManager, center: ChunkPos) -> Vec<C
     v
 }
 
-/// Biomes du monde pour le mailleur (`BiomeSystem` possédé, partageable entre threads).
+/// Biomes du monde pour le mailleur : un générateur du profil (lecture seule, partageable entre
+/// threads) et la table de teintes du profil.
 #[derive(Clone, Debug)]
-pub struct WorldBiomes(pub BiomeSystem);
+pub struct WorldBiomes {
+    terrain: Arc<dyn TerrainGenerator>,
+    profile: Arc<WorldProfile>,
+}
 
-fn biome_from_id(id: BiomeId) -> Biome {
-    Biome::ALL
-        .get(usize::from(id))
-        .copied()
-        .unwrap_or(Biome::Plains)
+impl WorldBiomes {
+    /// Biomes d'un profil : le générateur est une copie indépendante de celui du profil.
+    pub fn new(profile: Arc<WorldProfile>) -> Self {
+        Self {
+            terrain: Arc::from(profile.new_generator()),
+            profile,
+        }
+    }
 }
 
 impl BiomeSource for WorldBiomes {
     fn biome_at(&self, wx: i32, wz: i32) -> BiomeId {
-        self.0.biome_at(wx, wz) as u8
+        self.terrain.biome_at(wx, wz)
     }
 
     fn tints(&self, biome: BiomeId) -> BiomeTints {
-        let c = self.0.config(biome_from_id(biome));
+        let c = self.profile.biome(biome);
         BiomeTints {
             grass: c.grass_tint,
             leaves: c.leaves_tint,
@@ -89,7 +96,7 @@ impl BiomeSource for WorldBiomes {
 mod tests {
     use super::*;
     use nb_data::BlockRegistry;
-    use nb_world::{InMemoryChunkStorage, Noise, WorldConfig};
+    use nb_world::{InMemoryChunkStorage, WorldConfig};
     use std::time::{Duration, Instant};
 
     fn manager() -> ChunkManager {
@@ -158,12 +165,12 @@ mod tests {
         wait_loaded(&m, 25);
         let reg = BlockRegistry::builtin();
         let table = Arc::new(BlockTable::from_registry(&reg, |_| 0));
-        let cfg = WorldConfig::default();
-        let biomes: Arc<dyn BiomeSource> = Arc::new(WorldBiomes(BiomeSystem::new(
-            Arc::new(Noise::new(42)),
-            Arc::new(cfg),
+        let profile = Arc::new(WorldProfile::vanilla(
+            42,
+            Arc::new(WorldConfig::default()),
             reg.ids(),
-        )));
+        ));
+        let biomes: Arc<dyn BiomeSource> = Arc::new(WorldBiomes::new(profile));
         let mut s = MeshScheduler::new(1);
         let active = sorted_active_positions(&m);
         let t = Instant::now();
@@ -188,22 +195,22 @@ mod tests {
     }
 
     #[test]
-    fn biomes_match_world_system() {
+    fn biomes_match_world_profile() {
         let reg = BlockRegistry::builtin();
-        let sys = BiomeSystem::new(
-            Arc::new(Noise::new(7)),
+        let profile = Arc::new(WorldProfile::vanilla(
+            7,
             Arc::new(WorldConfig::default()),
             reg.ids(),
-        );
-        let b = WorldBiomes(sys.clone());
+        ));
+        let g = profile.new_generator();
+        let b = WorldBiomes::new(profile.clone());
         for (x, z) in [(0, 0), (100, -300), (-5000, 1234)] {
             let id = b.biome_at(x, z);
-            assert_eq!(id, sys.biome_at(x, z).ordinal() as u8);
-            assert_eq!(
-                b.tints(id).water,
-                sys.config(sys.biome_at(x, z)).water_color
-            );
+            assert_eq!(id, g.biome_at(x, z));
+            assert_eq!(b.tints(id).water, profile.biome(id).water_color);
         }
-        assert_eq!(b.tints(200).grass, sys.config(Biome::Plains).grass_tint);
+        // Identifiant inconnu : premier biome du profil (plaine pour vanilla).
+        assert_eq!(b.tints(200).grass, profile.biome(0).grass_tint);
+        assert_eq!(profile.biome(0).name, "PLAINS");
     }
 }

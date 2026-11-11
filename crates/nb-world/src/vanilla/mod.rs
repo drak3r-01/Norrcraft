@@ -3,6 +3,7 @@
 //! Code déplacé tel quel depuis la racine de la crate (plan Norrcraft, session 0.1) ; les noms
 //! publics sont réexportés à l'identique par `lib.rs`.
 
+pub mod adapter;
 pub mod biome;
 pub mod config;
 pub(crate) mod flora;

@@ -5,10 +5,9 @@ use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use nb_core::glam::Vec3;
 use nb_data::{BlockId, BlockRegistry};
 
-use crate::biome::BiomeSystem;
 use crate::config::WorldConfig;
 use crate::manager::ChunkManager;
-use crate::noise::Noise;
+use crate::profile::{BiomeId, BiomeInfo, WorldProfile};
 use crate::storage::ChunkStorage;
 
 /// Monde de jeu sans ECS.
@@ -19,7 +18,7 @@ use crate::storage::ChunkStorage;
 pub struct World {
     seed: i64,
     chunks: ChunkManager,
-    biomes: BiomeSystem,
+    profile: Arc<WorldProfile>,
     cfg: RwLock<WorldConfig>,
     /// Centres supplémentaires gardés chargés (joueurs distants d'une partie LAN).
     extras: Mutex<Vec<(Vec3, i32)>>,
@@ -34,15 +33,33 @@ impl std::fmt::Debug for World {
 }
 
 impl World {
+    /// Monde de l'univers vanilla (générateurs Classic / Norrblock selon `cfg`).
     pub fn new(
         seed: i64,
         storage: Arc<dyn ChunkStorage>,
         cfg: WorldConfig,
         registry: Arc<BlockRegistry>,
     ) -> Self {
-        let shared = Arc::new(cfg.clone());
-        let chunks = ChunkManager::new(storage, seed, shared.clone(), registry.clone());
-        Self::from_parts(seed, chunks, cfg, &registry)
+        let profile = Arc::new(WorldProfile::vanilla(
+            seed,
+            Arc::new(cfg.clone()),
+            registry.ids(),
+        ));
+        Self::with_profile(seed, storage, cfg, registry, profile)
+    }
+
+    /// Monde d'un univers quelconque : le générateur et les biomes viennent du profil.
+    pub fn with_profile(
+        seed: i64,
+        storage: Arc<dyn ChunkStorage>,
+        cfg: WorldConfig,
+        registry: Arc<BlockRegistry>,
+        profile: Arc<WorldProfile>,
+    ) -> Self {
+        let n = nb_core::thread::background_pool_size();
+        let chunks =
+            ChunkManager::with_terrain(storage, profile.generator().clone(), registry, n, n);
+        Self::from_parts(seed, chunks, cfg, profile)
     }
 
     /// Construit autour d'un gestionnaire existant (nombre de threads choisi, tests…).
@@ -50,18 +67,12 @@ impl World {
         seed: i64,
         chunks: ChunkManager,
         cfg: WorldConfig,
-        registry: &BlockRegistry,
+        profile: Arc<WorldProfile>,
     ) -> Self {
-        // Le Java crée un `Noise(seed)` distinct pour le BiomeSystem du monde : même permutation.
-        let biomes = BiomeSystem::new(
-            Arc::new(Noise::new(seed)),
-            Arc::new(cfg.clone()),
-            registry.ids(),
-        );
         Self {
             seed,
             chunks,
-            biomes,
+            profile,
             cfg: RwLock::new(cfg),
             extras: Mutex::new(Vec::new()),
         }
@@ -97,8 +108,19 @@ impl World {
         &self.chunks
     }
 
-    pub fn biome_system(&self) -> &BiomeSystem {
-        &self.biomes
+    /// Profil d'univers du monde (biomes, générateur, systèmes).
+    pub fn profile(&self) -> &Arc<WorldProfile> {
+        &self.profile
+    }
+
+    /// Identifiant de biome de la colonne `(wx, wz)`.
+    pub fn biome_id_at(&self, wx: i32, wz: i32) -> BiomeId {
+        self.chunks.terrain().biome_at(wx, wz)
+    }
+
+    /// Description du biome de la colonne `(wx, wz)`.
+    pub fn biome_info_at(&self, wx: i32, wz: i32) -> &BiomeInfo {
+        self.profile.biome(self.biome_id_at(wx, wz))
     }
 
     pub fn config(&self) -> RwLockReadGuard<'_, WorldConfig> {
@@ -112,7 +134,7 @@ impl World {
     /// Recherche du spawn en anneaux de 16 blocs autour de l'origine (pieds à `h + 1`).
     pub fn find_spawn_location(&self) -> [f64; 3] {
         let sea = self.config().sea_level;
-        find_spawn_location(sea, |x, z| self.chunks.compute_surface_height(x, z))
+        self.chunks.terrain().find_spawn(sea)
     }
 
     /// Position de réapparition (`World.respawnPlayer`).

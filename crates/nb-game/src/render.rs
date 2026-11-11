@@ -264,9 +264,8 @@ pub fn nearest_lava_dist_sq(world: &World, lava: u8, cam: Vec3) -> f32 {
 pub fn eye_fluid(world: &World, reg: &BlockRegistry, fluid: u8, cam: Vec3) -> EyeFluid {
     let ids = reg.ids();
     if fluid == ids.water {
-        let b = world.biome_system();
-        let c = b
-            .config(b.biome(f64::from(cam.x), f64::from(cam.z)))
+        let c = world
+            .biome_info_at(cam.x.floor() as i32, cam.z.floor() as i32)
             .water_color;
         EyeFluid::Water {
             color: Vec3::new(c[0] as f32, c[1] as f32, c[2] as f32),

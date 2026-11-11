@@ -200,7 +200,7 @@ impl Spawner<'_> {
         }
         if !cfg.spawn_biomes.is_empty() {
             if let Some(b) = self.blocks.biome_at(x, z) {
-                if !cfg.spawn_biomes.iter().any(|n| n == b.name()) {
+                if !cfg.spawn_biomes.iter().any(|n| n == &b.name) {
                     return false;
                 }
             }

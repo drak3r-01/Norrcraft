@@ -163,3 +163,23 @@ Relatifs au dossier courant (comme le Java) :
 * `scripts/test-dist-linux.sh` / `scripts/test-dist-windows-wine.sh` : même scénario lancé
   depuis le paquet distribuable (Linux, ou le vrai `norrblock.exe` sous Wine).
 * Parité fonctionnelle : `docs/PARITE.md` ; écarts : `docs/DIFFERENCES.md`.
+
+## 7. Univers et profil de monde (plan Norrcraft, session 0.2)
+
+Le moteur ne nomme ni biome, ni mob, ni structure d'un univers : il parle à un
+`TerrainGenerator` et lit une table `BiomeInfo` dans un `WorldProfile`
+(`crates/nb-world/src/profile.rs`).
+
+* `WorldKind` : `vanilla` ou `norrcraft` (nom stable, écrit dans `world.json` en session 0.3).
+* `TerrainGenerator` : `fork` (une copie par thread de génération), `surface_height`,
+  `biome_at → BiomeId`, `generate_chunk`, `find_spawn`, `climate_at` (optionnel).
+* `BiomeInfo` : nom (clé des données `spawnBiomes` / `survival.json`), teintes, température,
+  précipitations, thème musical (clé), ambiances sonores.
+* `WorldProfile` : `kind`, table des biomes, drapeaux de systèmes (`Systems`), générateur.
+  Les blocs, objets, mobs et règles rejoindront le profil avec la palette par monde (0.3).
+* Vanilla : `vanilla/adapter.rs` (`VanillaTerrain` autour de `WorldGenerator`,
+  `WorldProfile::vanilla`). L'identifiant de biome est l'ordinal de l'enum `Biome`, qui reste
+  interne à `nb-world/src/vanilla/` pour le code de production. Les empreintes de chunks
+  (`tests/fingerprints.rs`) prouvent que la génération est inchangée.
+* `World::new` construit le profil vanilla ; `World::with_profile` accepte un autre univers.
+  `World::biome_info_at` / `biome_id_at` remplacent `biome_system()`.

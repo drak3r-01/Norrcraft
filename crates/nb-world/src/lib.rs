@@ -29,14 +29,16 @@ pub mod chunk;
 pub mod light;
 pub mod manager;
 pub mod noise;
+pub mod profile;
 pub mod save;
 pub mod storage;
 pub mod vanilla;
 pub mod world;
 
 // Chemins historiques conservés : les modules vanilla restent accessibles à la racine.
-pub use vanilla::{biome, config, generator, structures, terrain};
+pub use vanilla::adapter::{biome_infos, VanillaTerrain};
 pub(crate) use vanilla::generator_nb;
+pub use vanilla::{biome, config, generator, structures, terrain};
 
 pub use biome::{
     Biome, BiomeConfig, BiomeSystem, FloraEntry, TreeType, VegetationEntry, BIOME_COUNT,
@@ -51,6 +53,10 @@ pub use generator::WorldGenerator;
 pub use light::{compute_light, LightContext, LightTable};
 pub use manager::{BlockEdit, ChunkManager, DEFAULT_RENDER_DISTANCE};
 pub use noise::{hash_position, java_string_hash, Noise};
+pub use profile::{
+    BiomeAmbience, BiomeId, BiomeInfo, Climate, Precipitation, Systems, TerrainGenerator,
+    WorldKind, WorldProfile,
+};
 pub use storage::{ChunkStorage, FileChunkStorage, InMemoryChunkStorage};
 pub use structures::{StructureKind, StructureSite};
 pub use terrain::{NbColumn, Terrain};

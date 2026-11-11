@@ -157,17 +157,17 @@ fn starvation_hurts_but_never_kills() {
 
 #[test]
 fn cold_biome_chills_and_fur_and_fire_keep_warm() {
-    let snowy = nb_world::Biome::SnowyPeaks;
+    let snowy = nb_world::BiomeInfo::named(nb_world::Biome::SnowyPeaks.name());
     // Sans protection.
     let (mut h, _) = arena();
-    h.blocks.set_biome(Some(snowy));
+    h.blocks.set_biome(Some(snowy.clone()));
     secs(&mut h, 30.0);
     let bare = vitals(&h).warmth;
     assert!(bare < 75.0, "chaleur nue {bare}");
 
     // Avec un équipement de fourrure complet.
     let (mut h, items) = arena();
-    h.blocks.set_biome(Some(snowy));
+    h.blocks.set_biome(Some(snowy.clone()));
     for (slot, name) in [
         (ArmorSlot::Head, "fur_cap"),
         (ArmorSlot::Chest, "fur_tunic"),
@@ -183,7 +183,7 @@ fn cold_biome_chills_and_fur_and_fire_keep_warm() {
 
     // Un feu de camp à côté.
     let (mut h, _) = arena();
-    h.blocks.set_biome(Some(snowy));
+    h.blocks.set_biome(Some(snowy.clone()));
     let camp = h.reg.get("campfire").id;
     h.put(1, 65, 0, camp);
     secs(&mut h, 30.0);
@@ -194,7 +194,8 @@ fn cold_biome_chills_and_fur_and_fire_keep_warm() {
 #[test]
 fn freezing_damages_the_player() {
     let (mut h, _) = arena();
-    h.blocks.set_biome(Some(nb_world::Biome::IceSpikes));
+    h.blocks
+        .set_biome(Some(nb_world::BiomeInfo::named("ICE_SPIKES")));
     set_vitals(&mut h, |v| v.warmth = 0.0);
     secs(&mut h, 20.0);
     assert!(h.h(h.player()).health < 10.0);

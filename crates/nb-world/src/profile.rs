@@ -1,0 +1,237 @@
+//! Profil d'univers (plan Norrcraft, session 0.2 ; GDD doc 01 §3).
+//!
+//! Le moteur ne connaît ni biome, ni mob, ni structure d'un univers : il parle à un
+//! [`TerrainGenerator`] et lit une table [`BiomeInfo`] dans un [`WorldProfile`]. Chaque univers
+//! (`vanilla`, `norrcraft`) fournit son propre profil.
+
+use std::fmt;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+
+use crate::chunk::Chunk;
+use crate::world::find_spawn_location;
+
+/// Identifiant de biome vu par le moteur (indice dans [`WorldProfile::biomes`]).
+///
+/// Même type que `nb_mesh::BiomeId`. Pour vanilla, c'est l'ordinal de l'enum interne.
+pub type BiomeId = u8;
+
+/// Univers de contenu : ensemble étanche de contenu et de règles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WorldKind {
+    /// Tout ce qui existait avant Norrcraft (générateurs Classic et Norrblock).
+    #[default]
+    Vanilla,
+    /// Le nouveau monde nordique.
+    Norrcraft,
+}
+
+impl WorldKind {
+    pub const ALL: [WorldKind; 2] = [WorldKind::Vanilla, WorldKind::Norrcraft];
+
+    /// Nom stable (écrit dans `world.json`, échangé par le LAN).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            WorldKind::Vanilla => "vanilla",
+            WorldKind::Norrcraft => "norrcraft",
+        }
+    }
+
+    /// Inverse de [`WorldKind::as_str`] (insensible à la casse).
+    pub fn parse(s: &str) -> Option<WorldKind> {
+        WorldKind::ALL
+            .into_iter()
+            .find(|k| k.as_str().eq_ignore_ascii_case(s.trim()))
+    }
+}
+
+impl fmt::Display for WorldKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// Précipitations d'un biome.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Precipitation {
+    None,
+    #[default]
+    Rain,
+    Snow,
+}
+
+/// Intensités sonores d'un biome, de 0 à 1 (hors grotte et eau libre).
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct BiomeAmbience {
+    pub wind: f32,
+    pub birds: f32,
+    pub crickets: f32,
+    pub frogs: f32,
+    pub water: f32,
+    pub lava: f32,
+}
+
+/// Description d'un biome pour le moteur : tout ce que le maillage, l'audio, l'apparition des
+/// mobs et la survie ont besoin de savoir, sans connaître le type de biome de l'univers.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BiomeInfo {
+    /// Nom stable (ex. `SNOWY_PLAINS`) ; c'est la clé des fichiers de données
+    /// (`spawnBiomes` des mobs, `biomes` de la survie).
+    pub name: String,
+    pub grass_tint: [f64; 3],
+    pub leaves_tint: [f64; 3],
+    pub water_color: [f64; 3],
+    /// Température indicative de 0 (glacial) à 1 (torride), échelle du générateur.
+    pub temperature: f32,
+    pub precipitation: Precipitation,
+    /// Thème musical de surface, par clé (`meadow`, `forest`, `snow`…).
+    pub music: String,
+    pub ambience: BiomeAmbience,
+}
+
+impl BiomeInfo {
+    /// Biome neutre portant seulement un nom (tests, mondes sans biomes).
+    pub fn named(name: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            grass_tint: [0.3, 0.5, 0.2],
+            leaves_tint: [0.3, 0.5, 0.2],
+            water_color: [0.2, 0.4, 0.8],
+            temperature: 0.5,
+            precipitation: Precipitation::Rain,
+            music: "meadow".to_owned(),
+            ambience: BiomeAmbience::default(),
+        }
+    }
+}
+
+/// Climat d'une colonne, pour les univers qui en ont un (saisons, chaleur, durée du jour).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Climate {
+    /// Température brute du générateur (échelle propre à l'univers).
+    pub temperature: f64,
+    pub humidity: f64,
+    /// Latitude en degrés, si l'univers en a une.
+    pub latitude: Option<f64>,
+}
+
+/// Interface unique, pure et réentrante, par laquelle le moteur parle à un générateur.
+pub trait TerrainGenerator: Send + Sync + fmt::Debug {
+    /// Copie indépendante au résultat identique : une instance par thread de génération.
+    fn fork(&self) -> Box<dyn TerrainGenerator>;
+
+    /// Premier `y` libre de la colonne `(wx, wz)`.
+    fn surface_height(&self, wx: i32, wz: i32) -> i32;
+
+    /// Biome de la colonne (indice dans [`WorldProfile::biomes`]).
+    fn biome_at(&self, wx: i32, wz: i32) -> BiomeId;
+
+    /// Remplit un chunk supposé vide. Les drapeaux sont à la charge de l'appelant.
+    fn generate_chunk(&self, chunk: &mut Chunk);
+
+    /// Position de départ `[x, y, z]` (pieds), cherchée en anneaux autour de l'origine.
+    fn find_spawn(&self, sea_level: i32) -> [f64; 3] {
+        find_spawn_location(sea_level, |x, z| self.surface_height(x, z))
+    }
+
+    /// Climat de la colonne ; `None` quand l'univers n'en a pas.
+    fn climate_at(&self, _wx: i32, _wz: i32) -> Option<Climate> {
+        None
+    }
+}
+
+/// Drapeaux de systèmes optionnels : le code teste un drapeau, jamais l'univers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Systems {
+    pub seasons: bool,
+    pub mys: bool,
+    pub freshness: bool,
+    pub folklore: bool,
+    pub air_medium: bool,
+}
+
+/// Tout ce qui dépend de l'univers d'un monde, construit au chargement et partagé (`Arc`).
+///
+/// Cette session ne porte que les biomes, le générateur et les drapeaux de systèmes ; les blocs,
+/// objets, recettes, mobs et règles viendront avec la palette par monde (session 0.3).
+pub struct WorldProfile {
+    pub kind: WorldKind,
+    /// Table `BiomeId → BiomeInfo`.
+    pub biomes: Vec<BiomeInfo>,
+    pub systems: Systems,
+    generator: Arc<dyn TerrainGenerator>,
+}
+
+impl fmt::Debug for WorldProfile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("WorldProfile")
+            .field("kind", &self.kind)
+            .field("biomes", &self.biomes.len())
+            .field("systems", &self.systems)
+            .finish_non_exhaustive()
+    }
+}
+
+impl WorldProfile {
+    pub fn new(
+        kind: WorldKind,
+        biomes: Vec<BiomeInfo>,
+        systems: Systems,
+        generator: Arc<dyn TerrainGenerator>,
+    ) -> Self {
+        assert!(
+            !biomes.is_empty() && biomes.len() <= usize::from(u8::MAX) + 1,
+            "un profil porte de 1 à 256 biomes"
+        );
+        Self {
+            kind,
+            biomes,
+            systems,
+            generator,
+        }
+    }
+
+    /// Nouvelle instance de générateur (une par thread de génération).
+    pub fn new_generator(&self) -> Box<dyn TerrainGenerator> {
+        self.generator.fork()
+    }
+
+    /// Générateur partagé du profil, pour les requêtes ponctuelles (hauteur, biome).
+    pub fn generator(&self) -> &Arc<dyn TerrainGenerator> {
+        &self.generator
+    }
+
+    /// Description d'un biome ; un identifiant inconnu retombe sur le premier biome du profil.
+    pub fn biome(&self, id: BiomeId) -> &BiomeInfo {
+        self.biomes.get(usize::from(id)).unwrap_or(&self.biomes[0])
+    }
+
+    /// Identifiant d'un biome par son nom.
+    pub fn biome_id_by_name(&self, name: &str) -> Option<BiomeId> {
+        self.biomes
+            .iter()
+            .position(|b| b.name == name)
+            .map(|i| i as BiomeId)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn world_kind_names_round_trip() {
+        for k in WorldKind::ALL {
+            assert_eq!(WorldKind::parse(k.as_str()), Some(k));
+        }
+        assert_eq!(WorldKind::parse(" Norrcraft "), Some(WorldKind::Norrcraft));
+        assert_eq!(WorldKind::parse("autre"), None);
+        assert_eq!(WorldKind::default(), WorldKind::Vanilla);
+        assert_eq!(
+            serde_json::to_string(&WorldKind::Norrcraft).unwrap(),
+            "\"norrcraft\""
+        );
+    }
+}

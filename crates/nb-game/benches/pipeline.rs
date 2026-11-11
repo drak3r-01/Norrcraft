@@ -21,8 +21,8 @@ use nb_mesh::{
     Neighborhood, UniformBiome,
 };
 use nb_world::{
-    compute_light, fnv1a, BiomeSystem, Chunk, ChunkManager, InMemoryChunkStorage, LightContext,
-    LightTable, Noise, WorldConfig, WorldGenerator, WorldType,
+    compute_light, fnv1a, Chunk, ChunkManager, InMemoryChunkStorage, LightContext, LightTable,
+    WorldConfig, WorldGenerator, WorldProfile, WorldType,
 };
 
 const SEED: i64 = 12345;
@@ -167,11 +167,11 @@ fn main() {
     }
 
     let table = BlockTable::from_registry(&reg, |_| 0);
-    let world_biomes = WorldBiomes(BiomeSystem::new(
-        Arc::new(Noise::new(SEED)),
+    let world_biomes = WorldBiomes::new(Arc::new(WorldProfile::vanilla(
+        SEED,
         Arc::new(WorldConfig::preset(WorldType::Normal)),
         reg.ids(),
-    ));
+    )));
     let voxels: Vec<(ChunkPos, ChunkVoxels)> = chunks
         .iter()
         .map(|c| (c.pos(), ChunkVoxels::from_vec(c.voxels().to_vec())))

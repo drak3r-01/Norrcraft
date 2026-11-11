@@ -676,7 +676,7 @@ impl System for VitalsSystem {
         let biome = ctx
             .blocks
             .biome_at(bx, bz)
-            .map_or(0.0, |b| data.biome_temp(b.name()));
+            .map_or(0.0, |b| data.biome_temp(&b.name));
         let day = {
             let angle = ctx.config.time_of_day / 1200.0 * std::f32::consts::TAU;
             (-angle.sin()).clamp(-1.0, 1.0)

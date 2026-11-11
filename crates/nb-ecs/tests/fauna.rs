@@ -8,7 +8,7 @@ use common::Harness;
 use nb_core::glam::DVec3;
 use nb_data::{BlockRegistry, MobMedium, MobRegistry, BUILTIN_MOB_IDS};
 use nb_ecs::GameMode;
-use nb_world::Biome;
+use nb_world::{Biome, BiomeInfo};
 
 fn new_mobs() -> Vec<nb_data::MobConfig> {
     MobRegistry::builtin()
@@ -116,7 +116,8 @@ fn land_harness(floor: &str, biome: Option<Biome>, mob: &str) -> Harness {
     let mut h = Harness::new();
     let b = h.reg.get(floor).id;
     h.slab(-80, 80, 64, -80, 80, b);
-    h.blocks.set_biome(biome);
+    h.blocks
+        .set_biome(biome.map(|b| BiomeInfo::named(b.name())));
     h.enable_spawn(mob);
     h.spawn_player(DVec3::new(0.5, 65.0, 0.5), GameMode::Creative);
     h
@@ -176,7 +177,8 @@ fn altitude_condition_is_respected() {
     let mut h = Harness::new();
     let stone = h.reg.get("stone").id;
     h.slab(-80, 80, 30, -80, 80, stone);
-    h.blocks.set_biome(Some(Biome::Mountains));
+    h.blocks
+        .set_biome(Some(BiomeInfo::named(Biome::Mountains.name())));
     h.enable_spawn("mountain_goat");
     h.ticks(60 * 20);
     assert_eq!(h.count_mobs("mountain_goat"), 0);
@@ -190,7 +192,7 @@ fn sea_harness(depth: i32, biome: Biome, mob: &str) -> Harness {
     for y in 40..40 + depth {
         h.slab(-80, 80, y, -80, 80, ids.water);
     }
-    h.blocks.set_biome(Some(biome));
+    h.blocks.set_biome(Some(BiomeInfo::named(biome.name())));
     h.enable_spawn(mob);
     h
 }
@@ -223,7 +225,8 @@ fn fauna_walks_without_panicking_for_a_while() {
     let mut h = Harness::new();
     let ids = h.ids();
     h.slab(-90, 90, 64, -90, 90, ids.grass);
-    h.blocks.set_biome(Some(Biome::Forest));
+    h.blocks
+        .set_biome(Some(BiomeInfo::named(Biome::Forest.name())));
     let all: Vec<String> = new_mobs().iter().map(|c| c.id.clone()).collect();
     for id in &all {
         h.enable_spawn(id);

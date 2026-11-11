@@ -18,7 +18,9 @@ use crate::chunk::{Chunk, ChunkEntry, SharedChunk, CHUNK_SIZE_X, CHUNK_SIZE_Z, C
 use crate::config::WorldConfig;
 use crate::generator::WorldGenerator;
 use crate::light::{LightContext, LightTable};
+use crate::profile::TerrainGenerator;
 use crate::storage::ChunkStorage;
+use crate::vanilla::adapter::VanillaTerrain;
 
 /// Distance de rendu par défaut (en chunks).
 pub const DEFAULT_RENDER_DISTANCE: i32 = 12;
@@ -273,7 +275,7 @@ impl Inner {
         }
     }
 
-    fn load_job(&self, pos: ChunkPos, generator: &WorldGenerator) {
+    fn load_job(&self, pos: ChunkPos, generator: &dyn TerrainGenerator) {
         if self.is_stale(pos) {
             return;
         }
@@ -355,7 +357,7 @@ impl Inner {
 /// Gestionnaire des chunks actifs autour du joueur.
 pub struct ChunkManager {
     inner: Arc<Inner>,
-    generator: Arc<WorldGenerator>,
+    generator: Arc<dyn TerrainGenerator>,
     registry: Arc<BlockRegistry>,
     gen_q: Arc<PrioQueue>,
     save_q: Arc<SaveQueue>,
@@ -393,7 +395,11 @@ impl ChunkManager {
     ) -> Self {
         Self::build(
             storage,
-            Arc::new(WorldGenerator::new(seed, cfg, registry.ids())),
+            Arc::new(VanillaTerrain::new(WorldGenerator::new(
+                seed,
+                cfg,
+                registry.ids(),
+            ))),
             registry,
             gen_threads,
             light_threads,
@@ -410,16 +416,27 @@ impl ChunkManager {
     ) -> Self {
         Self::build(
             storage,
-            Arc::new(generator),
+            Arc::new(VanillaTerrain::new(generator)),
             registry,
             gen_threads,
             light_threads,
         )
     }
 
+    /// Construit à partir d'un générateur de profil quelconque (une copie par thread).
+    pub fn with_terrain(
+        storage: Arc<dyn ChunkStorage>,
+        generator: Arc<dyn TerrainGenerator>,
+        registry: Arc<BlockRegistry>,
+        gen_threads: usize,
+        light_threads: usize,
+    ) -> Self {
+        Self::build(storage, generator, registry, gen_threads, light_threads)
+    }
+
     fn build(
         storage: Arc<dyn ChunkStorage>,
-        generator: Arc<WorldGenerator>,
+        generator: Arc<dyn TerrainGenerator>,
         registry: Arc<BlockRegistry>,
         gen_threads: usize,
         light_threads: usize,
@@ -447,7 +464,7 @@ impl ChunkManager {
             let inner = inner.clone();
             let q = gen_q.clone();
             // Un générateur par thread (copie indépendante, résultat identique).
-            let generator = WorldGenerator::clone(&generator);
+            let generator = generator.fork();
             workers.push(
                 std::thread::Builder::new()
                     .name(format!("nb-chunkgen-{i}"))
@@ -458,7 +475,7 @@ impl ChunkManager {
                                 break;
                             }
                             let r = catch_unwind(AssertUnwindSafe(|| {
-                                inner.load_job(pos, &generator);
+                                inner.load_job(pos, &*generator);
                             }));
                             if r.is_err() {
                                 eprintln!("échec de génération du chunk {pos:?}");
@@ -839,11 +856,12 @@ impl ChunkManager {
     }
 
     pub fn compute_surface_height(&self, wx: i32, wz: i32) -> i32 {
-        self.generator.compute_surface_height(wx, wz)
+        self.generator.surface_height(wx, wz)
     }
 
-    pub fn generator(&self) -> &WorldGenerator {
-        &self.generator
+    /// Générateur partagé du monde (hauteur, biome, spawn).
+    pub fn terrain(&self) -> &dyn TerrainGenerator {
+        &*self.generator
     }
 
     pub fn storage(&self) -> &Arc<dyn ChunkStorage> {
