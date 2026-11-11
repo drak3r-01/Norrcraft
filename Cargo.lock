@@ -875,6 +875,7 @@ name = "nb-game"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "glam",
  "nb-anim",
  "nb-audio",
  "nb-core",

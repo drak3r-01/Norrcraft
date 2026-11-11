@@ -10,7 +10,7 @@ use nb_world::norrcraft::{
 use crate::image_out::write_image;
 
 pub const MODES: &str =
-    "relief | hydro | w | h | fjord | formes | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
+    "relief | hydro | w | h | fjord | formes | biomes | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
 
 type Rgb = [f64; 3];
 
@@ -284,6 +284,10 @@ pub fn run(a: &[String]) {
     if !MODES.split(" | ").any(|m| m == mode) {
         eprintln!("mode inconnu « {mode} » ; modes : {MODES}");
         std::process::exit(2);
+    }
+    if mode == "biomes" {
+        crate::biomemap::run(seed, preset, cx, cz, size, step, &out);
+        return;
     }
 
     let cfg = NorrConfig::with_preset(preset);

@@ -153,7 +153,8 @@ fn norrcraft_world_is_created_saved_reloaded_and_vanilla_is_restored() {
         meta.block_palette,
         BlockRegistry::for_kind(WorldKind::Norrcraft).palette()
     );
-    assert_eq!(meta.biome_palette, ["VIDE"]);
+    assert_eq!(meta.biome_palette.len(), 25);
+    assert_eq!(meta.biome_palette[0], "VASTERHAV");
 
     // Retour au menu : le monde du menu est de nouveau vanilla, avec ses identifiants.
     g.command(UiCommand::SaveAndMainMenu);

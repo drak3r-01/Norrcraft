@@ -126,6 +126,9 @@ pub struct WorldProfile {
     /// Table `BiomeId → BiomeInfo`.
     pub biomes: Vec<BiomeInfo>,
     pub systems: Systems,
+    /// Rayon du carré de colonnes dont le mailleur moyenne les teintes de biome (0 : teinte du
+    /// biome de la colonne, comme vanilla ; 2 : moyenne sur 5 × 5 colonnes).
+    pub tint_blend: i32,
     generator: Arc<dyn TerrainGenerator>,
 }
 
@@ -135,6 +138,7 @@ impl fmt::Debug for WorldProfile {
             .field("kind", &self.kind)
             .field("biomes", &self.biomes.len())
             .field("systems", &self.systems)
+            .field("tint_blend", &self.tint_blend)
             .finish_non_exhaustive()
     }
 }
@@ -154,8 +158,15 @@ impl WorldProfile {
             kind,
             biomes,
             systems,
+            tint_blend: 0,
             generator,
         }
+    }
+
+    /// Même profil, teintes moyennées sur un carré de rayon `radius` colonnes.
+    pub fn with_tint_blend(mut self, radius: i32) -> Self {
+        self.tint_blend = radius.max(0);
+        self
     }
 
     /// Nouvelle instance de générateur (une par thread de génération).

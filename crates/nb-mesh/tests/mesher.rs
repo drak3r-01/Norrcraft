@@ -358,3 +358,53 @@ fn quad_diagonal_flip_keeps_winding() {
         "scène sans AO asymétrique : test sans objet"
     );
 }
+
+/// Source de biomes de test : biome 1 à partir de x = 8, teintes 0 et 1, moyenne sur 5 × 5.
+struct BlendedHalves(i32);
+
+impl nb_mesh::BiomeSource for BlendedHalves {
+    fn biome_at(&self, wx: i32, _wz: i32) -> nb_mesh::BiomeId {
+        u8::from(wx >= 8)
+    }
+
+    fn tints(&self, biome: nb_mesh::BiomeId) -> nb_mesh::BiomeTints {
+        let v = f64::from(biome) * 0.4;
+        nb_mesh::BiomeTints {
+            grass: [v; 3],
+            leaves: [v; 3],
+            water: [v; 3],
+        }
+    }
+
+    fn tint_blend_radius(&self) -> i32 {
+        self.0
+    }
+}
+
+#[test]
+fn tint_blend_averages_five_by_five_columns() {
+    const GRASS: u8 = 2;
+    let c = floor(GRASS, 0);
+    let chunks: [Option<&ChunkVoxels>; 9] = [Some(&c); 9];
+    let top_shades = |radius: i32| {
+        let m = mesh_chunk(
+            ChunkPos::new(0, 0),
+            &Neighborhood::from_voxels(chunks),
+            &table(),
+            &BlendedHalves(radius),
+        );
+        let mut v: Vec<u32> = m
+            .vertices
+            .iter()
+            .filter(|v| v.pos[1] == 1.0)
+            .map(|v| v.color[0].to_bits())
+            .collect();
+        v.sort_unstable();
+        v.dedup();
+        v.len()
+    };
+    // Sans moyenne : deux teintes (comportement vanilla) ; rayon 2 : la frontière passe par
+    // 0, 1/5, 2/5, 3/5, 4/5 et 1 sur cinq colonnes.
+    assert_eq!(top_shades(0), 2);
+    assert_eq!(top_shades(2), 6);
+}

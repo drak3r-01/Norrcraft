@@ -11,7 +11,8 @@ assets/
   common/      blocks.json                 socle : air (0), water (4), bedrock (6), lava (33)
   vanilla/     blocks, blocks_craft, blocks_survival, items, items_survival, recipes,
                recipes_survival, mobs_defaults, mobs_nb, mob_geometry(_nb), mob_rigs, survival
-  norrcraft/   blocks.json (granit, moran, grus : provisoires), items.json, recipes.json
+  norrcraft/   blocks.json (blocs de terrain, sessions 1.2 à 2.1), biomes.json (2.1 : 25 biomes,
+               teintes, ambiances, sols), items.json, recipes.json
   particles.json, settings_defaults.json, textures/   (partagés)
 ```
 

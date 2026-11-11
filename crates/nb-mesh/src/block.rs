@@ -133,7 +133,8 @@ impl BlockTable {
             .map(|b| {
                 let role = if b.id == ids.air {
                     BlockRole::Air
-                } else if b.id == ids.grass {
+                } else if b.id == ids.grass || (b.grass_tinted && !b.cross_shaped) {
+                    // Tout cube teinté herbe (vanilla : `grass` seul ; Norrcraft : `gras`, `mossa`).
                     BlockRole::Grass
                 } else if b.id == ids.water {
                     BlockRole::Water

@@ -18,6 +18,11 @@ pub trait BiomeSource: Send + Sync {
     fn biome_at(&self, wx: i32, wz: i32) -> BiomeId;
     /// `BiomeSystem.getConfig(biome)` réduit aux teintes.
     fn tints(&self, biome: BiomeId) -> BiomeTints;
+    /// Rayon `r` du carré de `(2r + 1)²` colonnes dont le mailleur moyenne les teintes (Norrcraft :
+    /// 2, doc 02 §7.4). 0 (défaut, vanilla) : teinte du biome de la colonne, inchangée.
+    fn tint_blend_radius(&self) -> i32 {
+        0
+    }
 }
 
 /// Ordre de l'enum Java `Biome`.

@@ -89,5 +89,5 @@ fn no_norrcraft_name_contains_a_vanilla_biome_or_mob() {
 fn norrcraft_world_uses_granite_from_the_registry() {
     let reg = BlockRegistry::for_kind(WorldKind::Norrcraft);
     assert_ne!(reg.get("granit").id, 0);
-    assert_eq!(biomes_of(WorldKind::Norrcraft).len(), 1);
+    assert_eq!(biomes_of(WorldKind::Norrcraft).len(), 25);
 }

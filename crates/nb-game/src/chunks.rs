@@ -90,6 +90,10 @@ impl BiomeSource for WorldBiomes {
             water: c.water_color,
         }
     }
+
+    fn tint_blend_radius(&self) -> i32 {
+        self.profile.tint_blend
+    }
 }
 
 #[cfg(test)]

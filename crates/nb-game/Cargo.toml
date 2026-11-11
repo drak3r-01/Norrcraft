@@ -23,6 +23,9 @@ bytemuck.workspace = true
 # dont l'entrée de workspace ne le précise pas (et le Cargo.toml racine n'est pas à ce crate).
 nb-gfx = { path = "../nb-gfx", default-features = false }
 
+[dev-dependencies]
+glam.workspace = true
+
 [lints]
 workspace = true
 

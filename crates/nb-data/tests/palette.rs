@@ -88,11 +88,20 @@ fn palette_fixes_ids_even_when_the_content_order_changes() {
     );
     let (reg, report) = BlockRegistry::from_palette(WorldKind::Norrcraft, &pal).unwrap();
     assert_eq!(reg.get("granit").id, 40);
-    // Les autres blocs de l'univers prennent les premiers identifiants libres.
+    // Les autres blocs de l'univers prennent les premiers identifiants libres, dans l'ordre de
+    // la palette par défaut.
+    let others: Vec<String> = BlockRegistry::for_kind(WorldKind::Norrcraft)
+        .palette()
+        .names()
+        .iter()
+        .filter(|n| !n.is_empty() && *n != "granit" && !SOCLE.contains(&n.as_str()))
+        .cloned()
+        .collect();
     assert_eq!(
-        report.added,
+        report.added[..8],
         ["moran", "grus", "flygsand", "klappersten", "torv", "permafrost", "blais", "basaltsten"]
     );
+    assert_eq!(report.added, others);
     assert_eq!(reg.get("moran").id, 1);
     assert_eq!(reg.get("grus").id, 2);
     assert!(report.unknown.is_empty());

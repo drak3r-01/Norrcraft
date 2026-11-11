@@ -8,6 +8,7 @@
 //! `cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <centre_x> <centre_z> <taille> <pas> <fichier.png> [mode]`
 //! (`préréglage` : norrland | skargard | hogfjall ; `mode` : voir `norr::MODES`, `overview` par défaut)
 
+mod biomemap;
 mod image_out;
 mod norr;
 

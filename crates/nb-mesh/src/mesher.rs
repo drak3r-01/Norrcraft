@@ -7,7 +7,7 @@
 use nb_core::math::{CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
 use nb_core::ChunkPos;
 
-use crate::biome::{BiomeId, BiomeSource};
+use crate::biome::{BiomeId, BiomeSource, BiomeTints};
 use crate::block::{should_render_face, BlockMeshInfo, BlockRole, BlockTable};
 use crate::light::{light_scale, LightVolume};
 use crate::neighborhood::{BlockCache, Neighborhood};
@@ -203,16 +203,30 @@ pub fn mesh_chunk(
     let start_x = pos.origin_x();
     let start_z = pos.origin_z();
     let mut column_biomes = [0 as BiomeId; CHUNK_SIZE_X * CHUNK_SIZE_Z];
-    for lx in 0..SX {
-        for lz in 0..SZ {
-            column_biomes[(lx * SZ + lz) as usize] = biomes.biome_at(start_x + lx, start_z + lz);
+    let blend = biomes.tint_blend_radius();
+    let blended = if blend > 0 {
+        Some(blended_tints(
+            biomes,
+            start_x,
+            start_z,
+            blend,
+            &mut column_biomes,
+        ))
+    } else {
+        for lx in 0..SX {
+            for lz in 0..SZ {
+                column_biomes[(lx * SZ + lz) as usize] =
+                    biomes.biome_at(start_x + lx, start_z + lz);
+            }
         }
-    }
+        None
+    };
     let mut m = Mesher {
         cache: &cache,
         table: blocks,
         light: &light,
         biomes,
+        blended,
         column_biomes,
         start_x,
         start_z,
@@ -227,6 +241,57 @@ pub fn mesh_chunk(
     }
     m.specials();
     MeshOutput { vertices: m.out }
+}
+
+/// Teintes moyennées sur un carré de `(2r + 1)²` colonnes (doc Norrcraft 02 §7.4) : renvoie la
+/// palette des teintes distinctes du chunk et écrit dans `keys` l'indice de palette de chaque
+/// colonne (au plus 256 teintes distinctes pour 256 colonnes : l'indice tient dans un octet et
+/// sert de critère de fusion, comme l'identifiant de biome sans moyenne).
+fn blended_tints(
+    biomes: &dyn BiomeSource,
+    start_x: i32,
+    start_z: i32,
+    r: i32,
+    keys: &mut [BiomeId; CHUNK_SIZE_X * CHUNK_SIZE_Z],
+) -> Vec<BiomeTints> {
+    let w = SX + 2 * r;
+    let mut ids = Vec::with_capacity((w * w) as usize);
+    for dz in 0..w {
+        for dx in 0..w {
+            ids.push(biomes.biome_at(start_x - r + dx, start_z - r + dz));
+        }
+    }
+    let mut table: [Option<BiomeTints>; 256] = [None; 256];
+    let mut tints_of =
+        |id: BiomeId| *table[usize::from(id)].get_or_insert_with(|| biomes.tints(id));
+    let n = f64::from((2 * r + 1) * (2 * r + 1));
+    let mut palette: Vec<BiomeTints> = Vec::new();
+    for lx in 0..SX {
+        for lz in 0..SZ {
+            let (mut g, mut l, mut wa) = ([0.0f64; 3], [0.0f64; 3], [0.0f64; 3]);
+            for dz in 0..=2 * r {
+                for dx in 0..=2 * r {
+                    let t = tints_of(ids[((lz + dz) * w + lx + dx) as usize]);
+                    for k in 0..3 {
+                        g[k] += t.grass[k];
+                        l[k] += t.leaves[k];
+                        wa[k] += t.water[k];
+                    }
+                }
+            }
+            let t = BiomeTints {
+                grass: g.map(|v| v / n),
+                leaves: l.map(|v| v / n),
+                water: wa.map(|v| v / n),
+            };
+            let key = palette.iter().position(|p| *p == t).unwrap_or_else(|| {
+                palette.push(t);
+                palette.len() - 1
+            });
+            keys[(lx * SZ + lz) as usize] = key as BiomeId;
+        }
+    }
+    palette
 }
 
 /// Constance d'une valeur de coin (4 octets empaquetés, coin 0 dans les bits 24..31) le long des
@@ -276,6 +341,8 @@ struct Mesher<'a> {
     table: &'a BlockTable,
     light: &'a LightVolume,
     biomes: &'a dyn BiomeSource,
+    /// Teintes moyennées (palette indexée par `column_biomes`), si la source en demande.
+    blended: Option<Vec<BiomeTints>>,
     column_biomes: [BiomeId; CHUNK_SIZE_X * CHUNK_SIZE_Z],
     start_x: i32,
     start_z: i32,
@@ -286,6 +353,15 @@ impl Mesher<'_> {
     #[inline]
     fn info(&self, id: u8) -> &BlockMeshInfo {
         self.table.get(id)
+    }
+
+    /// Teintes d'une clé de colonne : biome (vanilla) ou entrée de la palette moyennée.
+    #[inline]
+    fn tints(&self, key: BiomeId) -> BiomeTints {
+        match &self.blended {
+            Some(p) => p[usize::from(key)],
+            None => self.biomes.tints(key),
+        }
     }
 
     #[inline]
@@ -540,7 +616,7 @@ impl Mesher<'_> {
     /// `emitQuad` (§7).
     fn emit_quad(&mut self, p: [i32; 3], size: [i32; 3], face: Face, c: &Cell, surface_top: bool) {
         let info = self.table.get(c.ty);
-        let tints = self.biomes.tints(c.biome);
+        let tints = self.tints(c.biome);
         let f = face as usize;
         let is_fluid = info.is_fluid();
 
@@ -657,7 +733,7 @@ impl Mesher<'_> {
     ) {
         let mut rgb = [1.0f32; 3];
         if info.grass_tinted {
-            rgb = self.biomes.tints(biome).grass.map(|t| (t * 2.2) as f32);
+            rgb = self.tints(biome).grass.map(|t| (t * 2.2) as f32);
         }
         let encoded = info.texture_layers[0] as f32 + LAYER_CROSS_OFFSET;
         let v_light = light_scale(light_val);
@@ -721,7 +797,7 @@ impl Mesher<'_> {
 
     /// `emitPad` (§11) : teinte herbe, layer brut, pas de dirLight ni d'AO.
     fn emit_pad(&mut self, x: i32, y: i32, z: i32, layer: u32, biome: BiomeId, light_val: i32) {
-        let rgb = self.biomes.tints(biome).grass.map(|t| (t * 2.2) as f32);
+        let rgb = self.tints(biome).grass.map(|t| (t * 2.2) as f32);
         let layer = layer as f32;
         let py = y as f32 + 0.015f32;
         let v_light = light_scale(light_val);

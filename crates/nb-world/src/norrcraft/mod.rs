@@ -14,7 +14,12 @@
 //!
 //! Session 1.4 : hydrographie ([`hydro`] : niveau d'eau en escalier, lacs à margelle, rivières et
 //! rapides, mer ; scellement qui rend toute nappe étanche).
+//!
+//! Session 2.1 : biomes ([`biomes`] : 25 biomes, étagement, règles de sélection, frontières
+//! tramées ; teintes, ambiances et sols dans `assets/norrcraft/biomes.json`), sols par biome dans
+//! [`terrain`], teintes moyennées sur 5 × 5 colonnes par le mailleur.
 
+pub mod biomes;
 pub mod climate;
 pub mod config;
 pub mod fields;
@@ -24,6 +29,9 @@ pub mod landforms;
 pub mod math;
 pub mod terrain;
 
+pub use biomes::{
+    biome_defs, biome_infos, BiomeDef, BiomeSelector, BiomeSoil, NorrBiome, Selection, DITHER_BAND,
+};
 pub use climate::{altitudes, temperature_at, Altitudes, ClimateZone};
 pub use config::{NorrConfig, NorrPreset, DEFAULT_SEA_LEVEL, DEFAULT_WORLD_HEIGHT};
 pub use fields::{ChunkFields, FieldGrid, MacroFields, MacroSample, Province, COAST_C};
@@ -58,6 +66,9 @@ impl TerrainGenerator for EmptyTerrain {
 
     fn generate_chunk(&self, _chunk: &mut Chunk) {}
 }
+
+/// Rayon du carré de colonnes dont le mailleur moyenne les teintes de biome (2 : 5 × 5).
+pub const TINT_BLEND_RADIUS: i32 = 2;
 
 /// Hauteur du premier `y` libre du monde plat bouchon.
 pub const FLAT_SURFACE_Y: i32 = 64;
@@ -121,14 +132,20 @@ impl WorldProfile {
         Self::norrcraft_with(Arc::new(FlatGraniteTerrain::from_registry(registry)))
     }
 
-    /// Profil de Norrcraft avec le vrai relief (session 1.2). Un seul biome neutre jusqu'à la
-    /// sélection des biomes (session 2.1).
+    /// Profil de Norrcraft avec le vrai relief (session 1.2) et ses 25 biomes (session 2.1) ;
+    /// teintes moyennées sur 5 × 5 colonnes (doc 02 §7.4).
     pub fn norrcraft(seed: i64, cfg: NorrConfig, registry: &BlockRegistry) -> Self {
-        Self::norrcraft_with(Arc::new(NorrcraftTerrain::new(
-            seed,
-            cfg,
-            NorrBlocks::from_registry(registry),
-        )))
+        Self::new(
+            WorldKind::Norrcraft,
+            biome_infos(),
+            Systems::default(),
+            Arc::new(NorrcraftTerrain::new(
+                seed,
+                cfg,
+                NorrBlocks::from_registry(registry),
+            )),
+        )
+        .with_tint_blend(TINT_BLEND_RADIUS)
     }
 
     fn norrcraft_with(generator: Arc<dyn TerrainGenerator>) -> Self {

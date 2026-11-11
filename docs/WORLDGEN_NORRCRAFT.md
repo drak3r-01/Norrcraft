@@ -1,10 +1,11 @@
-# Worldgen Norrcraft : champs (1.1), relief (1.2), formes de relief (1.3) et hydrographie (1.4)
+# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1)
 
-Le vrai relief Norrcraft (GDD doc 02 §3 à §6 et §12 ; plan 06, sessions 1.1 à 1.4). La 1.1 a posé
-les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de hauteur et
-remplace le monde plat de granit de la phase 0 par un vrai terrain ; la 1.3 y pose archipel,
-côtes, eskers, tourbières, glaciers et champs de lave ; la 1.4 y met l'eau (mer, lacs, rivières),
-étanche par construction. Tout vit dans `crates/nb-world/src/norrcraft/`.
+Le vrai relief Norrcraft (GDD doc 02 §3 à §7 et §12 ; plan 06, sessions 1.1 à 1.4 et 2.1). La 1.1
+a posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de
+hauteur et remplace le monde plat de granit de la phase 0 par un vrai terrain ; la 1.3 y pose
+archipel, côtes, eskers, tourbières, glaciers et champs de lave ; la 1.4 y met l'eau (mer, lacs,
+rivières), étanche par construction ; la 2.1 y choisit les 25 biomes, leurs sols et leurs teintes.
+Tout vit dans `crates/nb-world/src/norrcraft/`.
 
 ## Modules
 
@@ -16,7 +17,8 @@ côtes, eskers, tourbières, glaciers et champs de lave ; la 1.4 y met l'eau (me
 | `climate.rs` | `ClimateZone` (arctique … némorale), `altitudes` (limites des arbres, de la roche nue, des neiges), `temperature_at` |
 | `height.rs` (1.2) | `HeightFields` : `column(wx, wz)` (treillis, identique aux chunks), `relief_exact(x, z)` (cartes), `relief(x, z, &MacroSample)` → `Relief { h, socle, land, chain, before_valleys, plateau, plateau_level, valley, valley_floor, hanging, fjord, forms }` (`forms` : 1.3) ; `socle(C)`, `soft_floor` |
 | `landforms.rs` (1.3) | `Landforms::apply` : archipel, côtes, eskers, marmites, drumlins, tourbières, palses, champ de lave, glacier → `Forms` (dans `Relief::forms`), `Coast` |
-| `terrain.rs` (1.2 à 1.4) | `NorrcraftTerrain` (`TerrainGenerator`) et `NorrBlocks` (blocs des formes de la 1.3, glace posée au-dessus du sol et de l'eau) ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)`, utilisé par `World::for_kind` |
+| `terrain.rs` (1.2 à 2.1) | `NorrcraftTerrain` (`TerrainGenerator` ; `column_biome`, cache de biomes par chunk) et `NorrBlocks` (blocs des formes de la 1.3, sols des biomes, peau, neige éternelle, banquise ; glace posée au-dessus du sol et de l'eau) ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)` (25 biomes, teintes moyennées 5 × 5), utilisé par `World::for_kind` |
+| `biomes.rs` (2.1) | `NorrBiome` (25 biomes), `biome_defs`/`biome_infos` (`assets/norrcraft/biomes.json`), `BiomeSoil`, `BiomeSelector::select` (règles du §7.2, étagement, frontières tramées) → `Selection { biome, fresh_water, snow, dither }`, `DISTRIBUTION_TARGETS` (§7.5) |
 | `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
 Règles communes (doc 02 §2) : fonctions pures de (graine, config, x, z), **aucune fonction
@@ -257,6 +259,123 @@ Repères mesurés (graine 12345, Norrland, 16 × 16 km) : mer 30,9 %, lacs 3,1 %
 1539 lacs du Worley ; à moins de 5 km de l'origine, lacs 3,7 à 4,0 % et rivières 2,1 à 2,5 %
 selon la graine, plus de 100 lacs de plus de 80 blocs ; niveaux d'eau de S à S + 30 sur 4 km.
 
+## Biomes (session 2.1, doc 02 §7 ; doc 04 §9)
+
+`biomes.rs` choisit le biome de chaque colonne ; `terrain.rs` en tire le sol ; le mailleur en tire
+les teintes. Le relief ne dépend d'aucun biome (doc 02 §7.4, point 1).
+
+### Données
+
+* `assets/norrcraft/biomes.json` (embarqué par `nb_data::universe::NORRCRAFT_BIOMES_JSON`) : les
+  25 biomes **dans l'ordre des identifiants** (`NorrBiome` : Västerhav = 0 … Lavafält = 24), avec
+  glose française, teintes d'herbe, de feuillage et d'eau, température indicative, précipitations,
+  thème musical, ambiances `[vent, oiseaux, grillons, grenouilles, eau, lave]` et **sol** : `top`
+  (peau d'un bloc sur le plat), `filler` et `depth` (couverture meuble), `rock` (roche nue des
+  pentes), `floor` (fond sous l'eau et rives), `patch` facultatif (`block`, `share` : taches de
+  sol). Le chargement vérifie l'ordre des biomes et l'existence des blocs.
+* `assets/norrcraft/blocks.json` : 19 blocs de terrain du doc 04 §9 : roches `rodgranit`, `gnejs`,
+  `kalksten`, `djupberg`, `sprucket_berg` ; sols `svartsand`, `blalera`, `jord`, `gras`, `mossa`,
+  `barrmatta`, `lovforna`, `lavhed`, `vitmossa`, `aska`, `rodmull`, `slagg` ; neige et glace
+  `sno`, `havsis`. `gras` et `mossa` sont teintés par le biome : un cube `grassTinted` non
+  cruciforme a désormais le rôle « herbe » du mailleur (vanilla n'en a qu'un, `grass`). `sand` et
+  `basalt` restent interdits (noms vanilla) : `flygsand` et `basaltsten` de la 1.3 les remplacent.
+* Textures provisoires `norr_*` (25 PNG dans `resource_packs/Default/…/block/`) :
+  `scripts/gen_norr_textures.py`, procédural et sans dépendance :
+  `docker run --rm -v "$(pwd -W):/w" -w /w rust:1 python3 scripts/gen_norr_textures.py`.
+  `norr_gras_top` et `norr_mossa_top` sont gris (multipliés par la teinte du biome). Les blocs
+  de la 1.3 empruntent encore des textures vanilla.
+
+### Sélection (doc 02 §7.1 et §7.2)
+
+Premier test vrai, sur la colonne, ses 4 voisines (`Neighbourhood`, pour les gradients) et sa
+colonne d'eau scellée :
+
+1. lave (`forms.lava > 0,5`, là où est le basalte) → Lavafält ; 2. glace → Glaciär ;
+3. mer : arctique → Packis, fjord → Fjord, K > 0,3 → Skärgård, O < 0,5 → Bottenhav,
+   C < 0,25 → Djuphav, sinon Västerhav ;
+4. rivière et ses berges (`channel_distance < largeur + 4`) → Älv ; un lac garde le biome
+   environnant, avec `fresh_water` (son altitude est celle de sa surface) ;
+5. étagement : y > y_k → Kalfjäll, y > y_a → Fjällhed, y > y_b → Fjällbjörkskog ;
+6. subarctique ou arctique bas : plat et humide (palse, tourbière ou Hm > 0,6) → Palsmyr ;
+   sinon Vr > 0,72 → Fjällbjörkskog, sinon Fjällhed ;
+7. côtes : klint → Klintkust, côte soulevée → Högkust, archipel → Skärgård, pré salé →
+   Strandäng, dunes → Tallhed ; puis C < 0,5 et K > 0,3 → Skärgård ;
+8. tourbière (My > 0,15, ou plaine plate boréale ou hémiboréale de Hm > 0,78) → Myr ;
+9. province grönsten au-dessus de S + 3 → Bergslag ;
+10. boréale : esker ou Hm < 0,35 → Tallhed, Vr > 0,78 → Brännfält, sinon Urskog ;
+11. hémiboréale : Lk > 0,6 → Sjöland, Hm > 0,50 → Urskog, Hm < 0,35 → Tallhed, sinon Hagmark ;
+12. némorale : calcaire et E > 0,35 → Alvar, Hm > 0,58 → Bokskog, sinon Hagmark.
+
+**Frontières tramées** (§7.4) : toute comparaison d'un champ continu à un seuil (zones de T₀,
+altitude contre y_a, y_b, y_k, y_n, Hm, Lk, Vr, E, O, C, K, My) est vraie avec la probabilité
+`sm(−12, 12, d)`, `d = (valeur − seuil) / |∇valeur|` (différences centrées sur les voisines, en
+blocs), comparée à `h(graine ^ 0x…0401, x, z)`. Deux biomes voisins s'interpénètrent sur 24 blocs ;
+le sol suit ce biome tramé (la flore le suivra). Les tests de formes physiques (lave, glace, mer,
+rivière, type de côte, esker) restent francs. Provinces (Bergslag, Alvar) : poids de frontière de
+`province_blend` comparé à `0,5 · h` (tramage sur ~30 blocs).
+
+**Neige éternelle** : au-dessus de y_n (tramé), une colonne sèche porte un bloc de `sno`, quelle
+que soit la pente (le reste de la neige sera la surcouche saisonnière de la phase 3).
+
+### Écarts au doc 02 §7.2, réglés sur les cibles du §7.5
+
+Les champs de la 1.1 donnent près de l'origine une zone hémiboréale (44 % des terres) bien plus
+vaste que ce que supposent les cibles, et aucune zone arctique à moins de 8 km. Constantes dans
+`biomes.rs` :
+
+| Règle | Doc | Retenu | Pourquoi |
+|---|---|---|---|
+| Myr | My > 0,5 | My > 0,15, ou plaine plate boréale ou hémiboréale de Hm > 0,78 | le cœur de tourbe seul ne fait que 0,5 % de la carte (cible 6) |
+| Brännfält | Vr > 0,92 | Vr > 0,78 | Vr n'atteint presque jamais 0,92 (95ᵉ centile : 0,81) |
+| Hémiboréale | Sjöland ou Hagmark | + Urskog si Hm > 0,50, Tallhed si Hm < 0,35 | Hagmark faisait 20 % de la carte (cible 6) |
+| Bokskog | Hm > 0,45 | Hm > 0,58 | +67 % sinon |
+| Alvar | E > 0,6 | E > 0,35 | −74 % sinon |
+| Subarctique bas | « selon Vr » | Vr > 0,72 → Fjällbjörkskog | |
+| Côtes | sous C < 0,50 | formes de côte sans condition sur C ; dunes → Tallhed | l'emprise des formes de la 1.3 déborde C < 0,5 ; les dunes n'avaient pas de biome |
+| Berges | | Älv sur 4 blocs de part et d'autre du lit | « lit et berges » de la fiche |
+
+Répartition mesurée (16 × 16 km, moyenne des graines 12345, −98765, 20261111, cible entre
+parenthèses) : mers ouvertes 23 % (21), Fjord 1,8 (2), Skärgård 4,4 (4), Urskog 13,7 (14), Tallhed
+5,9 (7), Myr 6,6 (6), Sjöland 6,0 (7), Hagmark 8,2 (6), Bokskog 3,8 (3), Alvar 1,0 (1),
+Fjällbjörkskog 7,0 (5), Fjällhed 8,2 (6), Kalfjäll 1,5 (3), Glaciär 0,6 (1), Palsmyr 2,4 (2),
+Bergslag 1,5 (2), côtes 1,2 (4), Brännfält 0,7 (0,5), Lavafält 0,1 (0,5), Älv 2,4 (2).
+
+**Hors cible**, exemptés du test : Packis (pas de mer arctique à moins de 8 km ; la banquise
+commence vers 17 km au nord-ouest pour la graine 12345), côtes (côtes soulevées et klints rares,
+formes de la 1.3), Lavafält (champ Gt de la 1.1 ; absent à moins de 8 km pour deux graines),
+Kalfjäll (peu de sommets au-dessus de y_k), Fjällbjörkskog (+41 % : la ceinture de 8 blocs sous la
+limite des arbres couvre beaucoup de versants). Le doc 02 §13 veut chaque biome à moins de 6 km
+de l'origine : ce n'est pas tenu pour Packis et Lavafält.
+
+### Sol (`terrain.rs`)
+
+Couverture, premier cas vrai : formes de la 1.3 (basalte et, sur ses rivages, sable noir ;
+gravier des moraines, du pied des glaciers, des eskers et drumlins ; tourbe et permafrost des
+palses ; tourbe des tourbières ; granit des îlots ; sable des dunes ; galets des côtes soulevées) ;
+pente > 2 → `rock` du biome sur 2 blocs ; sous l'eau → `floor` sur 2 blocs puis `filler` ; rive
+(au plus 1 bloc au-dessus de la nappe) → `floor` ; sinon `filler` sur `depth − pente` blocs.
+Puis la **peau** d'un bloc sur le sec et le plat (pente ≤ 1) : `top` du biome, ou la tache
+`patch` (tirage `0,75 · q(fBm(p / 6)) + 0,25 · h` : taches groupées de quelques blocs, bords
+irréguliers) ; les dunes ne la portent qu'au-delà de S + 2 ; la neige éternelle passe avant tout.
+La **banquise** (Packis) remplace la couche d'eau du dessus par `havsis`, hors des chenaux
+(`|N(p / 70) − 0,5| < 0,025`) ; `surface_height` reste le fond. Coût mesuré : 0,38 ms par chunk
+(budget 2,5).
+
+### Moteur
+
+* `TerrainGenerator::biome_at` lit un cache de chunks (`Arc<Mutex<…>>` partagé par toutes les
+  copies du générateur, 4096 chunks, vidé d'un coup au-delà) : la génération y range les biomes de
+  chaque chunk ; une colonne absente fait analyser son chunk entier. `NorrcraftTerrain::column_biome`
+  calcule une colonne seule, **identique** (testé) : cartes et tests.
+* Teintes : `WorldProfile::tint_blend` (Norrcraft : 2 ; vanilla : 0) → `BiomeSource::tint_blend_radius`.
+  À 2, le mailleur moyenne les teintes d'herbe, de feuillage et d'eau sur 5 × 5 colonnes et fusionne
+  les faces par teinte moyenne (palette du chunk, au plus 256 entrées). À 0, rien ne change
+  (maillage vanilla identique, tests dorés verts).
+* Aperçu 3D : `crates/nb-game/tests/preview_norrcraft.rs` (ignoré ; lavapipe) écrit
+  `crates/nb-game/renders/norrcraft_<graine>_<x>_<z>_<vue>.png` (ignoré par git) :
+  `NB_GFX_REQUIRE_GPU=1 NB_SH=1 crates/nb-gfx/scripts/vk-docker.sh 'NB_NORR_AT=0,-1700 cargo test --release -p nb-game --test preview_norrcraft -- --ignored'`
+  (`NB_NORR_SEED`, `NB_NORR_AT=x,z` ; par défaut, le point de départ).
+
 ## Outil `worldmap`
 
 ```
@@ -267,7 +386,7 @@ cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <c
 `mode` : `relief` (défaut depuis la 1.2 : relief ombré, teintes hypsométriques, mer par
 profondeur) | `hydro` (1.4 : relief ombré après l'hydrographie, mer par profondeur, lacs en
 turquoise, rivières en bleu vif, élargies aux grands pas pour rester visibles) | `w` (1.4 : terres
-teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `fjord` (relief ombré ; fjords en magenta, fonds
+teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `biomes` (2.1 : une couleur par biome, sélection exacte de chaque colonne échantillonnée, trame comprise ; eau douce bleutée, neige éternelle blanche ; l'outil imprime la répartition face aux cibles du doc 02 §7.5 et la distance du plus proche représentant de chaque biome à l'origine) | `fjord` (relief ombré ; fjords en magenta, fonds
 de vallée principale en jaune, plateaux en cyan) | `overview` (vue des champs de la 1.1 : terre par
 zone climatique, gris de la surrection, rouge = lave) | `c` | `o` | `t0` | `hm` | `u` | `e` | `lk` |
 `gt` | `vr` | `zones` | `pv` | `theta`. Le trait de côte dessiné est désormais le vrai (h = S).
@@ -315,6 +434,15 @@ zone hémiboréale (T₀ = 0,60).
   autour d'exemples de chaque forme, glace seulement en montagne, province de lave émergée et
   continue jusqu'au large, blocs posés par le générateur (glace bleue, tourbe, permafrost, sable,
   galets, basalte).
+* `nb-world/tests/norrcraft_biomes.rs` (2.1) : profil à 25 biomes et teintes moyennées ;
+  `biome_at` (cache, chunks générés ou non) = `column_biome` colonne par colonne ; **répartition**
+  sur 16 km pour 3 graines dans ±40 % des cibles du §7.5 (exemptions ci-dessus) ; chaque biome
+  présent (à moins de 8 km, la banquise au nord) ; trame présente mais sous 5 % de colonnes
+  isolées ; peaux des sols (Hagmark, Urskog, Sjöland, Tallhed, Bergslag) ; banquise gelée hors
+  des chenaux. `nb-mesh/tests/mesher.rs` : moyenne des teintes sur 5 × 5 colonnes (6 teintes à une
+  frontière) et maillage inchangé sans moyenne. Les tests `sealed.rs` et `universe.rs` (nb-game)
+  attendent désormais 25 biomes Norrcraft, `palette.rs` (nb-data) les 27 blocs ajoutés à une
+  vieille palette. En 2.1, les empreintes du terrain (`norrcraft_relief.rs`) ont changé (sols).
 * Toute modification d'une formule ou d'une constante de champ change les empreintes : les mettre
   à jour consciemment (et le dire dans le compte rendu). En 1.2, le réglage du biais de C a changé
   les empreintes des champs (`FINGERPRINTS`, `REF0`, `REF1` : seul C bouge). Les empreintes vanilla

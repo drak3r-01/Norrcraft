@@ -12,13 +12,15 @@ use serde::{Deserialize, Serialize};
 /// Socle commun : blocs que le moteur référence par leur nom, dans tous les univers.
 pub const COMMON_BLOCKS_JSON: &str = include_str!("../../../assets/common/blocks.json");
 
-/// Blocs de Norrcraft (palette provisoire de la phase 0 ; textures empruntées en attendant les
-/// textures `norr_*`).
+/// Blocs de Norrcraft (blocs de terrain de la session 2.1 en textures `norr_*` procédurales ; les
+/// premiers blocs empruntent encore des textures vanilla).
 pub const NORRCRAFT_BLOCKS_JSON: &str = include_str!("../../../assets/norrcraft/blocks.json");
 /// Objets purs de Norrcraft (aucun pour l'instant).
 pub const NORRCRAFT_ITEMS_JSON: &str = include_str!("../../../assets/norrcraft/items.json");
 /// Recettes de Norrcraft (aucune pour l'instant).
 pub const NORRCRAFT_RECIPES_JSON: &str = include_str!("../../../assets/norrcraft/recipes.json");
+/// Biomes de Norrcraft (session 2.1) : teintes, ambiances et sols, dans l'ordre des identifiants.
+pub const NORRCRAFT_BIOMES_JSON: &str = include_str!("../../../assets/norrcraft/biomes.json");
 
 /// Univers de contenu : ensemble étanche de contenu et de règles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
