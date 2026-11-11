@@ -30,12 +30,13 @@ use nb_data::{BlockId, BlockRegistry};
 use super::biomes::{BiomeSelector, BiomeSoil, Neighbourhood, NorrBiome, Selection, NEIGHBOURHOOD};
 use super::config::NorrConfig;
 use super::fields::{FieldGrid, MacroSample};
+use super::flora::{Column, FloraBlocks, Understory, Water};
 use super::height::{HeightFields, Relief};
 use super::hydro::{seal, Hydrography, WaterColumn, WaterKind};
 use super::landforms::Coast;
 use super::math::GradField;
 use super::subsoil::{ColumnIn, DepositInfo, Region, SiteProbe, Sites, Subsoil, SubsoilBlocks};
-use crate::chunk::{Chunk, CHUNK_SIZE_X, CHUNK_SIZE_Z};
+use crate::chunk::{Chunk, AIR, CHUNK_SIZE_X, CHUNK_SIZE_Z};
 use crate::profile::{BiomeId, Climate, TerrainGenerator};
 use crate::world::find_spawn_location;
 
@@ -58,6 +59,8 @@ pub struct NorrBlocks {
     pub sea_ice: BlockId,
     /// Roches de province, minerais et blocs du sous-sol (session 2.2).
     pub sub: SubsoilBlocks,
+    /// Plantes de la strate basse (session 2.4).
+    pub flora: FloraBlocks,
     /// Sols des biomes, par identifiant de biome.
     pub soils: [BiomeSoil; NorrBiome::COUNT],
 }
@@ -80,6 +83,7 @@ impl NorrBlocks {
             snow: registry.get("sno").id,
             sea_ice: registry.get("havsis").id,
             sub: SubsoilBlocks::from_registry(registry),
+            flora: FloraBlocks::from_registry(registry),
             soils: BiomeSoil::table(registry),
         }
     }
@@ -224,6 +228,7 @@ pub struct NorrcraftTerrain {
     blocks: NorrBlocks,
     selector: BiomeSelector,
     subsoil: Subsoil,
+    understory: Understory,
     leads: GradField,
     /// Biomes des chunks déjà analysés, partagés par toutes les copies du générateur (le maillage
     /// relit les biomes des chunks que la génération vient de calculer).
@@ -237,6 +242,7 @@ impl NorrcraftTerrain {
             blocks,
             selector: BiomeSelector::new(seed, cfg.sea_level),
             subsoil: Subsoil::new(seed, cfg, blocks.sub),
+            understory: Understory::new(seed, blocks.flora),
             leads: GradField::new(seed, LEADS_SEED),
             biome_cache: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -406,6 +412,56 @@ impl NorrcraftTerrain {
             biome: &biome,
         })
     }
+    /// Strate basse (session 2.4), **après** les arbres : une plante par colonne, sur le sol, au
+    /// fond de l'eau ou à sa surface. Tout bloc non-air (tronc, feuille) occupe la cellule.
+    fn place_understory(&self, chunk: &mut Chunk, cols: &ChunkColumns, x0: i32, z0: i32) {
+        let n = CHUNK_SIZE_X + 2;
+        let hmax = self.world_height();
+        let water = self.blocks.water;
+        for lz in 0..CHUNK_SIZE_Z {
+            for lx in 0..CHUNK_SIZE_X {
+                let (i, j) = (lx + 1, lz + 1);
+                let c = cols.water[j * n + i];
+                let r = &cols.reliefs[j * n + i];
+                let s = &cols.biomes[lz * CHUNK_SIZE_X + lx];
+                let h = c.top;
+                if s.snow || h < 2 || h >= hmax - 1 || ice_top(r, c.surface(), hmax).is_some() {
+                    continue;
+                }
+                let wet_nb = |k: usize| {
+                    let nb = cols.water[k];
+                    nb.is_wet()
+                        && (matches!(nb.kind, WaterKind::Lake | WaterKind::River)
+                            || s.biome == NorrBiome::Bottenhav)
+                };
+                let (x, z) = (lx as i32, lz as i32);
+                let column = Column {
+                    wx: x0 + x,
+                    wz: z0 + z,
+                    biome: s.biome,
+                    ground: self.understory.ground_of(chunk.block(x, h - 1, z)),
+                    water: c.is_wet().then(|| match c.kind {
+                        WaterKind::Sea if s.biome == NorrBiome::Bottenhav => Water::Brackish,
+                        WaterKind::Sea => Water::Salt,
+                        _ => Water::Fresh,
+                    }),
+                    depth: (c.level - h).max(0),
+                    shore: !c.is_wet()
+                        && [j * n + i - 1, j * n + i + 1, (j - 1) * n + i, (j + 1) * n + i]
+                            .into_iter()
+                            .any(wet_nb),
+                };
+                if let Some(p) = self.understory.pick(&column) {
+                    let y = if p.floating { c.level - 1 } else { h };
+                    let here = chunk.block(x, y, z);
+                    if here == AIR || here == water {
+                        chunk.set_block(x, y, z, p.block);
+                    }
+                }
+            }
+        }
+    }
+
 }
 
 impl TerrainGenerator for NorrcraftTerrain {
@@ -522,7 +578,8 @@ impl TerrainGenerator for NorrcraftTerrain {
                 }
                 // Glace des glaciers, au-dessus du sol et de l'eau.
                 let surface = c.surface();
-                if let Some(t) = ice_top(r, surface, hmax) {
+                let ice = ice_top(r, surface, hmax);
+                if let Some(t) = ice {
                     for y in surface..t {
                         // Tunnel de fonte à la base du glacier (grotte de glace, doc 02 §8.3).
                         if !self.subsoil.ice_tunnel(&sc, surface, t, y) {
@@ -532,6 +589,7 @@ impl TerrainGenerator for NorrcraftTerrain {
                 }
             }
         }
+        self.place_understory(chunk, &cols, x0, z0);
     }
 
     /// Départ cherché en anneaux autour de l'origine, sur la terre sèche au-dessus du niveau de la

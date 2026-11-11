@@ -21,6 +21,7 @@ Tout vit dans `crates/nb-world/src/norrcraft/`.
 | `terrain.rs` (1.2 à 2.1) | `NorrcraftTerrain` (`TerrainGenerator` ; `column_biome`, cache de biomes par chunk) et `NorrBlocks` (blocs des formes de la 1.3, sols des biomes, peau, neige éternelle, banquise ; glace posée au-dessus du sol et de l'eau) ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)` (25 biomes, teintes moyennées 5 × 5), utilisé par `World::for_kind` |
 | `biomes.rs` (2.1) | `NorrBiome` (25 biomes), `biome_defs`/`biome_infos` (`assets/norrcraft/biomes.json`), `BiomeSoil`, `BiomeSelector::select` (règles du §7.2, étagement, frontières tramées) → `Selection { biome, fresh_water, snow, dither }`, `DISTRIBUTION_TARGETS` (§7.5) |
 | `subsoil.rs` (2.2) | `Subsoil` (provinces au treillis 4, filons de diabase, minerais, cavités, corps de la grille : `sites`, `deposits`), `SubColumn` (tirages par colonne), `SubsoilBlocks`, `Region`, `SiteProbe` ; `math.rs` gagne `GradField3` (bruit 3D) |
+| `flora.rs` (2.4) | `Understory::pick(&Column)` (strate basse : 37 plantes, fiches `SPECS`), `FloraBlocks`, `Ground`, `Water` |
 | `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
 Règles communes (doc 02 §2) : fonctions pures de (graine, config, x, z), **aucune fonction
@@ -462,6 +463,52 @@ mais un chunk avec faille aura de l'air sous `h − 1`.
 Coût mesuré : 1,3 à 1,7 ms par chunk (budget 2,5 ; 0,38 avant) : les provinces (25 évaluations
 par chunk), les distances de filons et les grilles de corps.
 
+## Strate basse (session 2.4, doc 02 §9.3)
+
+`flora.rs` : `Understory` (placement), `FloraBlocks` (ids lus dans le registre, rangés dans
+`NorrBlocks::flora`), `Column`/`Pick`, `Ground` (nature du sol). 37 blocs de plantes, ids 80 à 116
+(la 2.3 garde 54 à 79 pour troncs et feuillages), tous en croix, sans collision, sans lumière :
+`blabar lingon hjortron smultron tranbar nypon havtorn ljung renlav skagglav kantarell karljohan
+flugsvamp vitsippa blasippa midsommarblomster prastkrage blaklocka rodklover rallarros angsull
+kvanne orkide fjallsippa isranunkel vass kaveldun nackros blastang sockertang hogt_gras ormbunke
+ramslok glasort dvargbjork lupin mjodort` (`hogt_gras` et `ormbunke` sont teintés par l'herbe du
+biome). Textures procédurales `norr_*` par `scripts/gen_norr_flora.py` (sprites 16 × 16 alpha ×2).
+
+### Placement (doc 02 §9.2 transposé à la strate basse)
+
+* Une **fiche** par plante (`SPECS`, 38 lignes : le roseau en a deux) : habitat (terre, rive, fond
+  d'eau de `min..max` blocs selon l'eau douce/saumâtre/salée, surface d'eau douce), sols admis,
+  densité par biome, longueur d'onde et seuil de la tache.
+* Par colonne, dans l'ordre de la table (champignons rares et baies d'abord, `ormbunke` et
+  `hogt_gras` en dernier) : `h(graine, x, z, fiche) < densité × tache`, avec
+  `tache = sm(s − 0,1, s + 0,1, F(p/λ; 2))`. Le tirage de hachage passe avant le bruit (le fBm n'est
+  évalué que sur les colonnes déjà retenues). Fonction pure de (graine, colonne) : indépendant de
+  l'ordre des chunks.
+* **Sol** : lu dans le bloc posé sous la plante (`gras`, `mossa`, `barrmatta`, `lovforna`,
+  `lavhed`, `vitmossa`, `torv`, sables, graviers, roches…). Rien sur la roche nue (sauf algues), la
+  neige, la glace d'un glacier ni la banquise ; rien là où `Selection::snow` est vrai.
+* **Eau** : roseau et massette au fond des lacs de 1 à 2 blocs (roseau aussi sur la rive sèche
+  voisine d'une eau douce), nénuphar flottant à la surface d'une eau douce d'au moins 2 blocs,
+  fucus (1 à 6 blocs) et laminaire (3 à 18) au fond des mers. La plante remplace le bloc d'eau du
+  fond (ou de la surface pour le nénuphar) : jamais d'air nouveau, donc l'étanchéité est intacte.
+* La passe tourne **après** les arbres (2.3) : toute cellule non vide est occupée.
+
+### Écarts au doc 02 §9.3
+
+* **Saisons** : pas de « mûr/vert », pas de floraison de printemps ni de champignons d'automne
+  seulement : tout est en pleine saison jusqu'à la phase 3.
+* Un bloc par plante (un seul bloc `midsommarblomster` pour les 7 fleurs de la Saint-Jean, plus
+  `prastkrage`, `blaklocka` et `rodklover` déjà séparées par le doc 04) ; **zostère**, lin et
+  chanvre sauvages, cumin des prés, sphaigne (c'est le sol `vitmossa`), amanite préparée et
+  champignons autres que les trois du doc 04 : pas de bloc, reportés.
+* `glasort` (salicorne) pousse sur les rivages sableux ou argileux (Strandäng, Skärgård).
+* Pas de plante de 2 blocs de haut (angélique, roseau) ; pas de décor de relief au-delà de la
+  strate basse (le doc 02 §9.3 n'en décrit pas d'autre).
+* Les rares : `orkide` (Alvar, Klintkust), `nypon`/`havtorn` (côtes) sont peu fréquentes près de
+  l'origine faute de ces biomes ; elles existent (test d'atteignabilité de chaque fiche).
+
+Seed `0x…0701` (la 2.3 prend `0x…06xx`, la 2.2 `0x…05xx`). Coût mesuré (release, graine 12345, 40 × 40 chunks, `time_per_chunk` ignoré) : 0,8 ms par chunk, strate basse comprise.
+
 ## Outil `worldmap`
 
 ```
@@ -547,3 +594,9 @@ zone hémiboréale (T₀ = 0,60).
   les empreintes des champs (`FINGERPRINTS`, `REF0`, `REF1` : seul C bouge). Les empreintes vanilla
   (`tests/fingerprints.rs`) et l'étanchéité (`nb-game/tests/sealed.rs`) restent verts. En 1.3,
   seules les empreintes du terrain (`norrcraft_relief.rs`) changent ; celles des champs non.
+* `nb-world/tests/norrcraft_flora.rs` (2.4) : chunks identiques quel que soit l'ordre de génération
+  et d'une copie du générateur à l'autre (3 graines), plantes toujours posées sur un sol (jamais sur
+  la neige, la glace, la banquise ni dans l'air ; seul le nénuphar flotte), plantes spécialisées
+  seulement dans leurs biomes, chaque plante vue sur la grille ±1600 blocs pour 3 graines (hors
+  quelques plantes de biomes rares près de l'origine) ; unitaires dans `flora.rs` (blocs
+  enregistrés, en croix, non solides ; toutes les fiches atteignables).

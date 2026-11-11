@@ -26,6 +26,7 @@ pub mod biomes;
 pub mod climate;
 pub mod config;
 pub mod fields;
+pub mod flora;
 pub mod height;
 pub mod hydro;
 pub mod landforms;
@@ -38,6 +39,7 @@ pub use biomes::{
 };
 pub use climate::{altitudes, temperature_at, Altitudes, ClimateZone};
 pub use config::{NorrConfig, NorrPreset, DEFAULT_SEA_LEVEL, DEFAULT_WORLD_HEIGHT};
+pub use flora::{FloraBlocks, Understory};
 pub use fields::{ChunkFields, FieldGrid, MacroFields, MacroSample, Province, COAST_C};
 pub use height::{HeightFields, Relief};
 pub use hydro::{Hydrography, Hydrology, Lake, LakeSet, SeaFacade, WaterColumn, WaterKind};
@@ -199,6 +201,8 @@ mod tests {
         let p = WorldProfile::norrcraft(12345, NorrConfig::default(), &reg);
         let gen = p.new_generator();
         let (water, bedrock) = (reg.get("water").id, reg.get("bedrock").id);
+        // La strate basse (session 2.4) occupe la cellule au-dessus du sol.
+        let plant = |id| reg.from_id(id).cross_shaped;
         let hydro = Hydrography::new(12345, NorrConfig::default());
         for (cx, cz) in [(0, 0), (-3, 5), (40, -17), (-250, 90)] {
             let mut chunk = Chunk::new(nb_core::ChunkPos::new(cx, cz));
@@ -217,11 +221,12 @@ mod tests {
                     assert_eq!(c.top, h);
                     let above = chunk.block(x, h, z);
                     if c.is_wet() {
-                        assert_eq!(above, water);
-                        assert_eq!(chunk.block(x, c.level - 1, z), water);
+                        assert!(above == water || plant(above), "eau ou plante au fond");
+                        let top = chunk.block(x, c.level - 1, z);
+                        assert!(top == water || plant(top), "eau ou nénuphar en surface");
                         assert_eq!(chunk.block(x, c.level, z), 0);
                     } else {
-                        assert_eq!(above, 0);
+                        assert!(above == 0 || plant(above), "air ou plante");
                     }
                 }
             }
