@@ -129,6 +129,8 @@ pub struct HostNet {
     server: NetServer,
     beacon: Option<Beacon>,
     host_name: String,
+    /// Univers du monde hébergé (annoncé par la balise).
+    world_kind: &'static str,
     world_name: String,
     mob_types: Vec<String>,
     mob_index: HashMap<String, u16>,
@@ -176,6 +178,7 @@ impl HostNet {
             server,
             beacon: None,
             host_name: opts.host_name,
+            world_kind: regs.kind.as_str(),
             world_name: opts.world_name,
             mob_types,
             mob_index,
@@ -224,6 +227,7 @@ impl HostNet {
             world_name: self.world_name.clone(),
             players: self.player_count().min(255) as u8,
             max_players: MAX_PLAYERS as u8,
+            world_kind: self.world_kind.to_owned(),
         }
     }
 

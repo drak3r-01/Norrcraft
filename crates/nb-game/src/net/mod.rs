@@ -137,6 +137,8 @@ pub struct ServerEntry {
     pub address: String,
     pub players: u8,
     pub max_players: u8,
+    /// Univers du monde (`vanilla`, `norrcraft`), vide si l'hôte ne l'annonce pas.
+    pub world_kind: String,
 }
 
 /// Ce que l'interface sait de la partie en réseau.

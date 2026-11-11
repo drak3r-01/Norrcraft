@@ -40,6 +40,8 @@ pub struct ServerInfo {
     pub world_name: String,
     pub players: u8,
     pub max_players: u8,
+    /// Univers du monde (`vanilla`, `norrcraft`) ; vide si l'hôte ne l'annonce pas.
+    pub world_kind: String,
 }
 
 impl ServerInfo {
@@ -51,7 +53,8 @@ impl ServerInfo {
             .str(&self.host_name)
             .str(&self.world_name)
             .u8(self.players)
-            .u8(self.max_players);
+            .u8(self.max_players)
+            .str(&self.world_kind);
         w.buf
     }
 
@@ -67,6 +70,7 @@ impl ServerInfo {
             world_name: r.str()?,
             players: r.u8()?,
             max_players: r.u8()?,
+            world_kind: r.str().unwrap_or_default(),
         })
     }
 }
@@ -256,6 +260,7 @@ mod tests {
             world_name: "Mon monde".into(),
             players,
             max_players: 8,
+            world_kind: "norrcraft".into(),
         }
     }
 

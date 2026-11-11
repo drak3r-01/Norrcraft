@@ -18,4 +18,6 @@ pub use mobs::{MobAction, MobSettingsScreen};
 pub use multiplayer::{MultiplayerAction, MultiplayerScreen, MultiplayerView, ServerRow};
 pub use resource_packs::{PackAction, PackEntry, ResourcePackScreen};
 pub use settings::{SettingsAction, SettingsScreen, SettingsTab};
-pub use world_select::{WorldAction, WorldEntry, WorldGenParams, WorldSelectScreen, WorldType};
+pub use world_select::{
+    universe_label, WorldAction, WorldEntry, WorldGenParams, WorldSelectScreen, WorldType,
+};

@@ -218,6 +218,7 @@ fn world_entries(view: &UiView<'_>) -> Vec<WorldEntry> {
             last_played_at: m.last_played_at,
             game_mode: m.game_mode.clone(),
             allow_cheats: m.allow_cheats,
+            world_kind: m.world_kind,
         })
         .collect()
 }
@@ -494,10 +495,20 @@ fn server_rows(view: &UiView<'_>) -> Vec<ServerRow> {
         .iter()
         .map(|s| ServerRow {
             title: s.world.clone(),
-            subtitle: format!(
-                "Hosted by {} - {}/{} players - {}",
-                s.host, s.players, s.max_players, s.address
-            ),
+            subtitle: match nb_data::WorldKind::parse(&s.world_kind) {
+                Some(k) => format!(
+                    "Hosted by {} - {} - {}/{} players - {}",
+                    s.host,
+                    nb_ui::screens::universe_label(k),
+                    s.players,
+                    s.max_players,
+                    s.address
+                ),
+                None => format!(
+                    "Hosted by {} - {}/{} players - {}",
+                    s.host, s.players, s.max_players, s.address
+                ),
+            },
             address: s.address.clone(),
             full: s.players >= s.max_players,
         })
@@ -599,13 +610,14 @@ impl NbUi {
                 allow_cheats,
                 world_type,
                 params,
+                world_kind,
             } => UiCommand::CreateWorld(Box::new(NewWorld {
                 name,
                 seed_text,
                 game_mode: GameMode::from_java_name(&game_mode),
                 allow_cheats,
                 config: config_for(world_type, &params),
-                world_kind: Default::default(),
+                world_kind,
             })),
             WorldAction::Edit {
                 old_name,

@@ -54,7 +54,7 @@ pub use generator::WorldGenerator;
 pub use light::{compute_light, LightContext, LightTable};
 pub use manager::{BlockEdit, ChunkManager, DEFAULT_RENDER_DISTANCE};
 pub use noise::{hash_position, java_string_hash, Noise};
-pub use norrcraft::EmptyTerrain;
+pub use norrcraft::{EmptyTerrain, FlatGraniteTerrain, FLAT_SURFACE_Y};
 pub use profile::{
     BiomeAmbience, BiomeId, BiomeInfo, Climate, Precipitation, Systems, TerrainGenerator,
     WorldKind, WorldProfile,

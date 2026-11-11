@@ -7,6 +7,7 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nb_core::JavaRandom;
+use nb_data::WorldKind;
 
 use super::common::{
     draw_background, draw_title, AdvClick, AdvKind, AdvPanel, AdvRow, MouseEdge, Scroll, CONTENT_W,
@@ -38,6 +39,11 @@ const GAME_MODE_ROW_Y: i32 = SEED_INPUT_Y + 44 + 12;
 const CHEATS_ROW_Y: i32 = GAME_MODE_ROW_Y + 40 + 8;
 const WORLD_TYPE_ROW_Y: i32 = CHEATS_ROW_Y + 40 + 8;
 const ADV_TOGGLE_Y: i32 = WORLD_TYPE_ROW_Y + 50 + 10;
+// Sélecteur d'univers : à droite de l'étiquette « World Name: », au-dessus de tout le reste
+// (le formulaire vanilla garde ses positions d'origine).
+const UNIVERSE_Y: i32 = FORM_Y - 2;
+const UNIVERSE_H: i32 = 24;
+const UNIVERSE_W: i32 = 300;
 /// `createAdvPanelTop`.
 pub const ADV_PANEL_TOP: i32 = ADV_TOGGLE_Y + 36 + 4;
 
@@ -59,6 +65,24 @@ pub struct WorldEntry {
     pub last_played_at: i64,
     pub game_mode: String,
     pub allow_cheats: bool,
+    /// Univers du monde (pastille de la liste).
+    pub world_kind: WorldKind,
+}
+
+/// Nom affiché d'un univers (sélecteur de création, pastille de la liste, liste LAN).
+pub fn universe_label(kind: WorldKind) -> &'static str {
+    match kind {
+        WorldKind::Vanilla => "Vanilla",
+        WorldKind::Norrcraft => "Norrcraft",
+    }
+}
+
+/// Couleur de la pastille d'un univers.
+fn universe_color(kind: WorldKind) -> [f32; 4] {
+    match kind {
+        WorldKind::Vanilla => [0.55, 0.85, 0.45, 1.0],
+        WorldKind::Norrcraft => [0.55, 0.75, 1.0, 1.0],
+    }
 }
 
 /// `WorldConfig.WorldType` (ordre des ordinaux).
@@ -167,6 +191,8 @@ pub enum WorldAction {
         allow_cheats: bool,
         world_type: WorldType,
         params: Box<WorldGenParams>,
+        /// Univers choisi (vanilla : réglages ci-dessus ; Norrcraft : ils sont ignorés).
+        world_kind: WorldKind,
     },
     /// `renameWorld` + mode de jeu / triche ; l'appelant rafraîchit la liste
     /// ([`WorldSelectScreen::set_worlds`]).
@@ -436,6 +462,8 @@ pub struct WorldSelectScreen {
     pub edit_game_mode: String,
     pub edit_allow_cheats: bool,
     pub create_world_type: WorldType,
+    /// Sélecteur d'univers du formulaire de création.
+    pub create_kind: WorldKind,
     pub pending: WorldGenParams,
     pub advanced_expanded: bool,
     pub adv: AdvPanel,
@@ -470,6 +498,7 @@ impl WorldSelectScreen {
             edit_game_mode: "CREATIVE".into(),
             edit_allow_cheats: false,
             create_world_type: WorldType::Normal,
+            create_kind: WorldKind::Vanilla,
             pending: defaults.clone(),
             defaults,
             advanced_expanded: false,
@@ -589,6 +618,7 @@ impl WorldSelectScreen {
             self.create_game_mode = "SURVIVAL".into();
             self.create_allow_cheats = false;
             self.create_world_type = WorldType::Normal;
+            self.create_kind = WorldKind::Vanilla;
             self.pending = self.defaults.clone();
             self.advanced_expanded = false;
             self.adv.scroll.offset = 0;
@@ -697,18 +727,29 @@ impl WorldSelectScreen {
             self.create_allow_cheats = !self.create_allow_cheats;
             return None;
         }
-        if hit_test(mx, my, cx + CONTENT_W - 250, WORLD_TYPE_ROW_Y, 250, 50) {
+        if hit_test(mx, my, cx + CONTENT_W - UNIVERSE_W, UNIVERSE_Y, UNIVERSE_W, UNIVERSE_H) {
+            self.create_kind = match self.create_kind {
+                WorldKind::Vanilla => WorldKind::Norrcraft,
+                WorldKind::Norrcraft => WorldKind::Vanilla,
+            };
+            if self.create_kind != WorldKind::Vanilla {
+                self.advanced_expanded = false;
+            }
+            return None;
+        }
+        let vanilla = self.create_kind == WorldKind::Vanilla;
+        if vanilla && hit_test(mx, my, cx + CONTENT_W - 250, WORLD_TYPE_ROW_Y, 250, 50) {
             self.create_world_type = self.create_world_type.next();
             self.pending = preset(self.create_world_type);
             self.init_adv_rows();
             return None;
         }
-        if hit_test(mx, my, cx, ADV_TOGGLE_Y, CONTENT_W, 36) {
+        if vanilla && hit_test(mx, my, cx, ADV_TOGGLE_Y, CONTENT_W, 36) {
             self.advanced_expanded = !self.advanced_expanded;
             self.adv.scroll.offset = 0;
             return None;
         }
-        if self.advanced_expanded {
+        if vanilla && self.advanced_expanded {
             match self.adv.click(mx, my, cx, ADV_PANEL_TOP, panel_h) {
                 AdvClick::Outside => {}
                 AdvClick::SliderGrabbed(_) | AdvClick::Toggled(_) => {
@@ -734,6 +775,7 @@ impl WorldSelectScreen {
                 allow_cheats: self.create_allow_cheats,
                 world_type: self.create_world_type,
                 params: Box::new(self.pending.clone()),
+                world_kind: self.create_kind,
             });
         }
         if hit_test(mx, my, cx + BIG_BTN_W + GAP, row1, BIG_BTN_W, BTN1_H) {
@@ -916,6 +958,15 @@ impl WorldSelectScreen {
                     [bg, bg, bg, 0.9],
                 );
                 dl.text(&m.name, (cx + 12) as f32, (y + 14) as f32, 2.5, WHITE);
+                let tag = format!("[{}]", universe_label(m.world_kind));
+                let tw = font::measure_width(&tag, 2.0);
+                dl.text(
+                    &tag,
+                    (cx + CONTENT_W) as f32 - tw - 12.0,
+                    (y + 14) as f32,
+                    2.0,
+                    universe_color(m.world_kind),
+                );
                 let date = format!("Last played: {}", format_date(m.last_played_at));
                 dl.text(&date, (cx + 12) as f32, (y + 48) as f32, 1.8, WHITE);
             }
@@ -1036,23 +1087,38 @@ impl WorldSelectScreen {
             "OFF"
         };
         button(dl, cx + CONTENT_W - 80, CHEATS_ROW_Y, 80, 40, cheats, true);
-        t(dl, "World Type:", cx, WORLD_TYPE_ROW_Y + 16);
-        let wt = format!("World Type: {}", self.create_world_type.display_name());
+        let uni = format!("Universe: {}", universe_label(self.create_kind));
         button(
             dl,
-            cx + CONTENT_W - 250,
-            WORLD_TYPE_ROW_Y,
-            250,
-            50,
-            &wt,
+            cx + CONTENT_W - UNIVERSE_W,
+            UNIVERSE_Y,
+            UNIVERSE_W,
+            UNIVERSE_H,
+            &uni,
             true,
         );
-        let adv = format!(
-            "{}Advanced",
-            if self.advanced_expanded { "v " } else { "> " }
-        );
-        button(dl, cx, ADV_TOGGLE_Y, CONTENT_W, 36, &adv, true);
-        if self.advanced_expanded {
+        let vanilla = self.create_kind == WorldKind::Vanilla;
+        if !vanilla {
+            t(dl, "Norrcraft: placeholder flat granite world.", cx, WORLD_TYPE_ROW_Y + 16);
+        } else {
+            t(dl, "World Type:", cx, WORLD_TYPE_ROW_Y + 16);
+            let wt = format!("World Type: {}", self.create_world_type.display_name());
+            button(
+                dl,
+                cx + CONTENT_W - 250,
+                WORLD_TYPE_ROW_Y,
+                250,
+                50,
+                &wt,
+                true,
+            );
+            let adv = format!(
+                "{}Advanced",
+                if self.advanced_expanded { "v " } else { "> " }
+            );
+            button(dl, cx, ADV_TOGGLE_Y, CONTENT_W, 36, &adv, true);
+        }
+        if vanilla && self.advanced_expanded {
             let panel_h = h - BOTTOM_H - ADV_PANEL_TOP;
             if panel_h > 20 {
                 self.adv.draw(dl, cx, ADV_PANEL_TOP, panel_h, value_display);

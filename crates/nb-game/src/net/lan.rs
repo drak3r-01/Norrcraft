@@ -110,6 +110,7 @@ impl LanBrowser {
                         address: d.addr.to_string(),
                         players: d.info.players,
                         max_players: d.info.max_players,
+                        world_kind: d.info.world_kind,
                     })
                     .collect()
             })

@@ -29,7 +29,7 @@ pub struct NewWorld {
     pub game_mode: GameMode,
     pub allow_cheats: bool,
     pub config: WorldConfig,
-    /// Univers du monde (vanilla par défaut ; le sélecteur arrive avec la session 0.4).
+    /// Univers du monde (choisi dans le sélecteur de l'écran de création ; vanilla par défaut).
     pub world_kind: nb_data::WorldKind,
 }
 

@@ -58,12 +58,14 @@ fn worlds() -> Vec<WorldEntry> {
             last_played_at: 1_700_000_000_000,
             game_mode: "SURVIVAL".into(),
             allow_cheats: false,
+            world_kind: nb_data::WorldKind::Vanilla,
         },
         WorldEntry {
             name: "Beta".into(),
             last_played_at: 0,
             game_mode: String::new(),
             allow_cheats: true,
+            world_kind: nb_data::WorldKind::Norrcraft,
         },
     ]
 }
@@ -334,4 +336,28 @@ fn main_screen_draw() {
     assert!(dl.batches().iter().any(|b| b.scissor == Some(clip)));
     // « Play Selected World » inactif (teinte 0,45).
     assert!(dl.vertices().iter().any(|v| v.color == gray(0.45)));
+}
+
+#[test]
+fn universe_selector_in_create_form() {
+    use nb_data::WorldKind;
+    let mut h = Harness::new();
+    h.click(700.0, ROW1); // Create New World
+    assert_eq!(h.s.create_kind, WorldKind::Vanilla, "vanilla par défaut");
+    // Bouton « Universe » à droite de l'étiquette du nom (y 72..96).
+    h.click(900.0, 80.0);
+    assert_eq!(h.s.create_kind, WorldKind::Norrcraft);
+    // Le type de monde et le panneau avancé sont masqués : leur zone est inerte.
+    h.click(900.0, 330.0);
+    assert_eq!(h.s.create_world_type, WorldType::Normal);
+    let r = h.click(300.0, ROW1);
+    let Some(WorldAction::Create { world_kind, .. }) = r else {
+        panic!("création attendue : {r:?}");
+    };
+    assert_eq!(world_kind, WorldKind::Norrcraft);
+    // Retour à vanilla.
+    h.click(900.0, 80.0);
+    assert_eq!(h.s.create_kind, WorldKind::Vanilla);
+    h.click(900.0, 330.0);
+    assert_eq!(h.s.create_world_type, WorldType::Flat);
 }

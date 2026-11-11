@@ -58,13 +58,10 @@ impl World {
     ) -> Self {
         match kind {
             WorldKind::Vanilla => Self::new(seed, storage, cfg, registry),
-            WorldKind::Norrcraft => Self::with_profile(
-                seed,
-                storage,
-                cfg,
-                registry,
-                Arc::new(WorldProfile::norrcraft_empty()),
-            ),
+            WorldKind::Norrcraft => {
+                let profile = Arc::new(WorldProfile::norrcraft_flat(&registry));
+                Self::with_profile(seed, storage, cfg, registry, profile)
+            }
         }
     }
 

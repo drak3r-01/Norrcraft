@@ -70,12 +70,22 @@ lu en repli) et `mobs_norrcraft.json`.
   registres d'après eux : les chunks reçus sont dans les identifiants de l'hôte. En quittant la
   partie, il retrouve les registres vanilla de son menu.
 
+## Interface et générateur bouchon (session 0.4)
+
+* Écran de création : bouton **Universe: Vanilla / Norrcraft** à droite de l'étiquette « World
+  Name: » (vanilla par défaut, jusqu'à la livraison de la phase 2 du plan). En Norrcraft, le type
+  de monde et le panneau « Advanced » (réglages vanilla) sont masqués. La liste des mondes affiche
+  une pastille d'univers `[Vanilla]` / `[Norrcraft]`.
+* `nb_world::FlatGraniteTerrain` : `y = 0` bedrock, `1..64` granit (lu dans le registre du
+  monde), air au-dessus, apparition au centre. Il remplace `EmptyTerrain` dans
+  `World::for_kind` ; la phase 1 le remplacera par le vrai relief.
+* La balise UDP annonce l'univers (`ServerInfo.world_kind`, ajouté en fin de paquet) : la liste des
+  parties LAN affiche « Hosted by Léa - Norrcraft - 1/8 players - ip:port ».
+* Test d'étanchéité : `crates/nb-game/tests/sealed.rs` (blocs, objets, mobs et biomes disjoints
+  hors socle ; aucun nom Norrcraft ne contient un nom de biome ou de mob vanilla).
+
 ## Reste à faire (sessions suivantes)
 
-* 0.4 : sélecteur d'univers à la création, générateur Norrcraft bouchon (granit plat) à la place
-  du générateur vide `EmptyTerrain`, test d'étanchéité sur les noms de biomes, mobs et
-  structures.
 * `WorldConfig` est encore celui de vanilla pour les deux univers ; le bloc `norrConfig` du
   doc 01 §6 arrivera avec les réglages propres à Norrcraft.
-* La poignée de main n'est pas encore annoncée par la balise UDP (la liste des parties ne montre
-  pas l'univers).
+* Les structures n'ont pas encore de registre : le test d'étanchéité les couvrira à leur arrivée.
