@@ -276,9 +276,14 @@ impl MacroFields {
     /// Province rocheuse dans la cellule de Worley (coordonnées déformées).
     fn province_warped(&self, px: f64, pz: f64) -> Province {
         let hit = self.pv.eval(px, pz);
-        let r = self.pv.cell_rand(hit.cell.0, hit.cell.1, 0);
+        self.province_of_cell(hit.cell, hit.center)
+    }
+
+    /// Nature de la province de la cellule `cell` (de point `center`).
+    fn province_of_cell(&self, cell: (i32, i32), center: [f64; 2]) -> Province {
+        let r = self.pv.cell_rand(cell.0, cell.1, 0);
         // Le calcaire se concentre au sud-est (+x, +z) ; les parts restent celles du doc en moyenne.
-        let se = smooth(-4000.0, 4000.0, hit.center[0] + hit.center[1]);
+        let se = smooth(-4000.0, 4000.0, center[0] + center[1]);
         let mut weights = [0.0; 8];
         for (w, p) in weights.iter_mut().zip(Province::ALL) {
             *w = p.share();
@@ -299,6 +304,20 @@ impl MacroFields {
     pub fn province(&self, x: f64, z: f64) -> Province {
         let (px, pz) = self.warped(x, z);
         self.province_warped(px, pz)
+    }
+
+    /// Province en (x, z) et son poids, qui s'annule continûment sur ~60 blocs avant la frontière
+    /// avec une province d'une autre nature (`sm(0, 120, F2 − F1)` en coordonnées déformées).
+    /// Sert aux formes de relief propres à une province (klint calcaire, côte soulevée de granit
+    /// rouge), qui doivent s'éteindre sans marche à la frontière.
+    pub fn province_blend(&self, x: f64, z: f64) -> (Province, f64) {
+        let (px, pz) = self.warped(x, z);
+        let hit = self.pv.eval(px, pz);
+        let here = self.province_of_cell(hit.cell, hit.center);
+        if self.province_of_cell(hit.cell2, hit.center2) == here {
+            return (here, 1.0);
+        }
+        (here, smooth(0.0, 120.0, hit.f2 - hit.f1))
     }
 
     /// Identifiant de la cellule de province (pour distinguer deux provinces voisines de même nature).

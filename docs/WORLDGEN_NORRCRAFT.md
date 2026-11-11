@@ -1,9 +1,10 @@
-# Worldgen Norrcraft : champs (1.1), relief (1.2) et hydrographie (1.4)
+# Worldgen Norrcraft : champs (1.1), relief (1.2), formes de relief (1.3) et hydrographie (1.4)
 
-Le vrai relief Norrcraft (GDD doc 02 §3 à §5.4, §6 et §12 ; plan 06, sessions 1.1, 1.2 et 1.4). La
-1.1 a posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de
-hauteur et remplace le monde plat de granit de la phase 0 par un vrai terrain ; la 1.4 y met l'eau
-(mer, lacs, rivières), étanche par construction. Tout vit dans `crates/nb-world/src/norrcraft/`.
+Le vrai relief Norrcraft (GDD doc 02 §3 à §6 et §12 ; plan 06, sessions 1.1 à 1.4). La 1.1 a posé
+les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de hauteur et
+remplace le monde plat de granit de la phase 0 par un vrai terrain ; la 1.3 y pose archipel,
+côtes, eskers, tourbières, glaciers et champs de lave ; la 1.4 y met l'eau (mer, lacs, rivières),
+étanche par construction. Tout vit dans `crates/nb-world/src/norrcraft/`.
 
 ## Modules
 
@@ -13,8 +14,9 @@ hauteur et remplace le monde plat de granit de la phase 0 par un vrai terrain ; 
 | `config.rs` | `NorrConfig` (préréglage, niveau de mer 40, hauteur 128 : décision D3), `NorrPreset` (Norrland, Skärgård, Högfjäll) |
 | `fields.rs` | `MacroFields::sample(x, z)` → `MacroSample { c, o, t0, hm, u, e, lk, gt, vr, theta }` ; `province(x, z)` ; `ChunkFields` (treillis 4 × 4) |
 | `climate.rs` | `ClimateZone` (arctique … némorale), `altitudes` (limites des arbres, de la roche nue, des neiges), `temperature_at` |
-| `height.rs` (1.2) | `HeightFields` : `column(wx, wz)` (treillis, identique aux chunks), `relief_exact(x, z)` (cartes), `relief(x, z, &MacroSample)` → `Relief { h, socle, land, chain, before_valleys, plateau, plateau_level, valley, valley_floor, hanging, fjord }` ; `socle(C)`, `soft_floor` |
-| `terrain.rs` (1.2, 1.4) | `NorrcraftTerrain` (`TerrainGenerator`) et `NorrBlocks` ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)`, utilisé par `World::for_kind` |
+| `height.rs` (1.2) | `HeightFields` : `column(wx, wz)` (treillis, identique aux chunks), `relief_exact(x, z)` (cartes), `relief(x, z, &MacroSample)` → `Relief { h, socle, land, chain, before_valleys, plateau, plateau_level, valley, valley_floor, hanging, fjord, forms }` (`forms` : 1.3) ; `socle(C)`, `soft_floor` |
+| `landforms.rs` (1.3) | `Landforms::apply` : archipel, côtes, eskers, marmites, drumlins, tourbières, palses, champ de lave, glacier → `Forms` (dans `Relief::forms`), `Coast` |
+| `terrain.rs` (1.2 à 1.4) | `NorrcraftTerrain` (`TerrainGenerator`) et `NorrBlocks` (blocs des formes de la 1.3, glace posée au-dessus du sol et de l'eau) ; `WorldProfile::norrcraft(graine, NorrConfig, &registre)`, utilisé par `World::for_kind` |
 | `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
 Règles communes (doc 02 §2) : fonctions pures de (graine, config, x, z), **aucune fonction
@@ -122,6 +124,72 @@ fjords (sous la mer) 2,1 / 1,7 / 1,6 % de la carte (cible doc §7.5 : 2 %) ; 3 �
 de S + 44. Points d'intérêt de la graine 12345 : côte à fjords vers (−5600, 300), chaîne vers
 (−1800, 5900).
 
+## Formes de relief (session 1.3, doc 02 §5.5 à §5.8)
+
+`landforms.rs` (`Landforms::apply`) prend le relief `h₄` de la 1.2 et applique, dans l'ordre du
+doc : archipel, côtes, eskers et marmites, drumlins, tourbières et palses, champ de lave, glacier.
+Le résultat est le sol final `Relief::h` et la décomposition `Relief::forms` (`Forms` :
+`filtered` = Hl, `archipelago` = K, `coast` (`Coast::{None, Skargard, Klint, Raised, Dunes,
+SaltMeadow}`), `esker`, `drumlin`, `kettle`, `mire`, `mire_ridge`, `palsa`, `lava`, `moraine`,
+`ice`, `cliff`). Les bruits ont leurs graines `0x4E52_5743_0000_02xx`. La glace est une épaisseur
+au-dessus du sol : `Relief::top()` la compte (surface, départ), `Relief::ground_top()` non.
+
+* **Relief filtré Hl** : la même chaîne de calcul que h (chaîne, plateaux, plafond, vallées) appliquée
+  au socle seul, sans collines ni détail (§5.2). Les crêtes de la chaîne restent (le doc enlève aussi
+  le « détail de crête » ; ce n'est pas séparable du terme `Rg`). `hydro::filtered_height` le renvoie (`Forms::filtered`) : la 1.4 y cale l'escalier W, les tourbières aussi. Les graines des formes sont `0x…03xx` (`0x…02xx` est à l'hydrographie).
+* **Archipel** (§5.5) : formule du doc, avec trois réglages. K est multiplié par
+  `ARCHIPELAGO_BOOST = 1,6` (sans quoi K dépasse rarement 0,6 et les îlots n'émergent presque jamais :
+  0,1 % de la carte). La hauteur d'un îlot est bornée à `0,9 · rᵢ` : le doc laissait un écueil de
+  6 blocs de rayon monter de 18 blocs. Le gain du préréglage Skärgård (× 2) élargit aussi le masque
+  `sm(0,50 ; 0,65 ; q(F(p/1800; 2)))` de 0,2 : × 1,7 îlots au lieu de × 1,1.
+* **Côtes** (§5.6), seulement pour 0,38 < C < 0,62. Province lue par `MacroFields::province_blend`,
+  dont le poids s'annule sur ~60 blocs avant une frontière de province, pour que klint et terrasses
+  s'éteignent sans marche. **Klint** (calcaire, E < 0,45) : `+12 · sm(0,468 ; 0,474 ; C)`, falaise
+  déclarée, plateau calcaire jusqu'à C = 0,55 puis retour en pente douce à C = 0,62. **Côte soulevée**
+  (granit rouge, O < 0,5, 0,25 < T₀ < 0,5) : terrasses de 4 blocs entre S et S + 24, avec un
+  `arrondi` adouci (`4 · soft_floor(h/4 + 0,5 ; 0,4)`) pour rester continu ; galets en surface.
+  **Pré salé** (E > 0,75, T₀ > 0,5) et **dunes** (E > 0,5) : bande littorale repérée par l'altitude
+  (de S − 3 à S + 8 pour le pré, bosse autour de S + 2,5 pour les dunes) plutôt que par une distance
+  à la côte, qu'on ne connaît pas à la colonne. Les raukar et les champs de galets en décor sont pour
+  les sessions de décors.
+* **Eskers** (§5.7) : formule du doc (`Z(p/1300)`, 2 octaves, demi-largeur 0,012), hauteur 5 à 8
+  modulée par `N(p/300)`, en zone C > 0,55, U < 0,2. **Marmites** : grille de pas 64, une cellule sur
+  deux, creux de 3 à 5 blocs (rayon 5 à 9) dont le centre est à 1,2 à 3,2 demi-largeurs d'un esker.
+  **Drumlins** : grille de pas 90, 7 cellules sur 10, bosses de 3 à 5 blocs de rayon 14 à 22,
+  allongées 3:1 le long de θ, en plaine (U < 0,2, E > 0,5) dans des champs `q(F(p/1500; 2)) > 0,6`.
+* **Tourbières** (§5.8) : masque My du doc, zones boréale et subarctique (T₀ de 0,1 à 0,52, en
+  pente douce), `h ← lerp(h, W + 1 + cordon, My)` avec W en escalier adouci (`soft_floor`, marches
+  de 6) calculé sur Hl ; cordons `r < 0,35` le long de θ (le doc préfère la pente du relief lissé,
+  coûteuse à la colonne). Cordon : sol jusqu'à W (h = W + 1) ; gouille : fond en W − 1 (h = W − 0,5), que l'hydrographie remplit jusqu'à W (eau affleurante) sur la partie plate de chaque marche.
+  **Palses** (zone subarctique de la tourbière) : grille de pas 26, 55 % des cellules, buttes de 3 à
+  6 blocs (profil parabolique, pente ≤ 2a/r), cœur de `permafrost` sous un bloc de tourbe.
+* **Champ de lave** : plaine `S + 6 + 5 · Rg(p/90; 3)`, plus un volcan-bouclier par cellule de pas
+  2400 (+30, rayon 450 à 600), des pseudo-cratères (pas 70, anneaux de 4 à 7 blocs) et des fissures
+  `Z(p/700) < 0,01` de 8 blocs (falaises déclarées ; la mer y entre si leur fond est sous S). Écart :
+  le poids est `sm(0 ; 0,5 ; Gt)` et non Gt, pour que toute la province Gt > 0,5 émerge (au-dessus
+  des grands fonds, Gt ≈ 0,54 laissait la plaine sous l'eau) ; la montée de Gt de 0 à 0,5 forme le
+  flanc de l'île. Basalte sur 4 blocs.
+* **Glacier** : dans la chaîne (`sm(0,25 ; 0,45 ; U)`), calotte de surface `G = Hl + 5` où
+  `Hl > y_n` (ligne des neiges), langues dans les auges (§5.4) dont les épaulements dépassent
+  `y_n`, jusqu'à `y_a`, épaisses de 8 ; crevasses en bandes transverses à θ (le doc : là où la pente
+  de G dépasse 0,35, non calculable à la colonne) dans les langues de plus de 6 blocs, profondes de 6 à
+  20, falaises déclarées ; moraines de gravier (+3) sous le contour de la calotte (Hl ≈ y_n − 5) et
+  au front des langues. Pas encore de lac proglaciaire. La glace est posée au-dessus du sol et de l'eau ; la hauteur isolée (départ) est le dessus de la glace sur la terre sèche.
+
+Blocs provisoires ajoutés à `assets/norrcraft/blocks.json` (textures empruntées) : `flygsand`,
+`klappersten`, `torv`, `permafrost`, `blais`, `basaltsten`. Le doc 04 §9 dit `sand` et `basalt`,
+mais ces noms existent dans vanilla et les univers ne partagent aucun bloc hors du socle
+(`nb-game/tests/sealed.rs`) : d'où `flygsand` (sable éolien, celui des dunes) et `basaltsten`. Couverture
+(`NorrBlocks::cover`) par priorité : basalte, moraine, gravier sous la glace, palse (tourbe sur
+permafrost), tourbe, gravier des eskers et drumlins, roche nue en pente, granit nu des îlots,
+sable des dunes, galets des côtes soulevées, puis la règle de la 1.2.
+
+Repères mesurés (carré de 24 km, pas 40, Norrland, 3 graines) : îlots émergés 0,2 %, klint 0,9 à
+1,4 %, côte soulevée 0,1 à 0,3 %, dunes 3,4 à 3,9 %, pré salé 0,3 à 0,4 %, eskers 0,7 à 0,8 %,
+drumlins 0,3 %, tourbières 0,9 à 1,5 %, palses 0,01 à 0,03 %, glace 0,2 à 0,6 % (Högfjäll : 1,5 % sur
+16 km). Champ de lave : rare et au large (graine 12345 : un à 10 km ; graine −98765 : aucun à moins de 12 km) ; la province la plus forte à moins de 30 km est à 20 à 34 km de l'origine. Points
+d'intérêt de la graine 12345 : glacier (Högfjäll) vers (700, −4300), tourbière et palses vers
+(1400, −7400), côte soulevée et îlots vers (10400, −6100), lave vers (6300, −7500) et (−28200, 17000).
 ## Hydrographie (session 1.4, doc 02 §6)
 
 L'eau du moteur est statique : chaque nappe est horizontale et étanche par construction. Pour
@@ -131,7 +199,7 @@ chaque colonne, `Hydrology::column` part du relief de la 1.2 et rend une `WaterC
 
 1. **Escalier W** (§6.1) : `W = S + 6 · plancher(max(0, Hl − S − 2) / 6)`, avec `Hl` le relief
    filtré (`filtered_height` : socle, chaîne, plateaux, plafond doux et vallées, sans collines ni
-   détail, recomposés à partir des termes de `Relief`). **Tout creux sous W se remplit à W** (la
+   détail, calculé par la fonction de hauteur depuis la 1.3). **Tout creux sous W se remplit à W** (la
    nappe) : la mer sur la côte (W = S tant que Hl < S + 8), des étangs et des lacs de creux dans
    les terres. Juste au-dessus d'une marche (15 % de la marche), les creux sont comblés jusqu'à W
    (barre rocheuse, granit nu) : deux nappes de niveaux différents ne se touchent pas en plein champ.
@@ -183,7 +251,7 @@ joueur évite les colonnes mouillées. Coût mesuré : **0,31 ms par chunk** en 
 * **Deltas** (bancs de sable vers C ≈ 0,47) : non faits, avec les côtes (1.3) et les blocs de sable
   (2.1). **Banquise** arctique : pas de bloc de glace dans la palette, seule `SeaFacade::Arctic`
   existe. Eau saumâtre : drapeau de biome (2.1).
-* Le **myr** de la 1.3 (`h ← lerp(h, W + 1, My)`) peut appeler `stair_level(filtered_height(..))`.
+* Le **myr** de la 1.3 se cale sur le même W (adouci), et ses gouilles prennent l'eau de la nappe.
 
 Repères mesurés (graine 12345, Norrland, 16 × 16 km) : mer 30,9 %, lacs 3,1 %, rivières 1,8 % ;
 1539 lacs du Worley ; à moins de 5 km de l'origine, lacs 3,7 à 4,0 % et rivières 2,1 à 2,5 %
@@ -199,7 +267,7 @@ cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <c
 `mode` : `relief` (défaut depuis la 1.2 : relief ombré, teintes hypsométriques, mer par
 profondeur) | `hydro` (1.4 : relief ombré après l'hydrographie, mer par profondeur, lacs en
 turquoise, rivières en bleu vif, élargies aux grands pas pour rester visibles) | `w` (1.4 : terres
-teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `fjord` (relief ombré ; fjords en magenta, fonds
+teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `fjord` (relief ombré ; fjords en magenta, fonds
 de vallée principale en jaune, plateaux en cyan) | `overview` (vue des champs de la 1.1 : terre par
 zone climatique, gris de la surrection, rouge = lave) | `c` | `o` | `t0` | `hm` | `u` | `e` | `lk` |
 `gt` | `vr` | `zones` | `pv` | `theta`. Le trait de côte dessiné est désormais le vrai (h = S).
@@ -240,7 +308,15 @@ zone hémiboréale (T₀ = 0,60).
   lac ou rivière ; nappes calées sur l'escalier W ; **continuité de la surface visible** (sol ou
   eau) sur 6 km hors marches déclarées (barrages, barres, parois d'auge) ; colonne isolée = chunk
   généré, eau comprise.
+  mesure de temps ignorée par défaut (`-- --ignored`). En 1.3, les falaises déclarées comprennent
+  klint, crevasses et fissures (`Relief::wall`).
+* `nb-world/tests/norrcraft_landforms.rs` (1.3) : chaque forme présente à moins de 12 km pour
+  3 graines, Skärgård plus riche en îlots, **continuité 2D** sur des carrés de 48 × 48 colonnes
+  autour d'exemples de chaque forme, glace seulement en montagne, province de lave émergée et
+  continue jusqu'au large, blocs posés par le générateur (glace bleue, tourbe, permafrost, sable,
+  galets, basalte).
 * Toute modification d'une formule ou d'une constante de champ change les empreintes : les mettre
   à jour consciemment (et le dire dans le compte rendu). En 1.2, le réglage du biais de C a changé
   les empreintes des champs (`FINGERPRINTS`, `REF0`, `REF1` : seul C bouge). Les empreintes vanilla
-  (`tests/fingerprints.rs`) et l'étanchéité (`nb-game/tests/sealed.rs`) restent verts.
+  (`tests/fingerprints.rs`) et l'étanchéité (`nb-game/tests/sealed.rs`) restent verts. En 1.3,
+  seules les empreintes du terrain (`norrcraft_relief.rs`) changent ; celles des champs non.

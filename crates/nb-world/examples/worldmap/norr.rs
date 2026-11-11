@@ -1,16 +1,89 @@
 //! Carte Norrcraft : relief ombré (session 1.2), champs macroscopiques (session 1.1), zones
-//! climatiques, provinces, sens des glaces, hydrographie (session 1.4). Sortie PNG et statistiques de répartition.
+//! climatiques, provinces, sens des glaces, formes de relief (session 1.3), hydrographie (session
+//! 1.4). Sortie PNG et statistiques de répartition.
 
 use nb_world::norrcraft::{
-    ClimateZone, Hydrography, MacroSample, NorrConfig, NorrPreset, Province, WaterKind, COAST_C,
+    ClimateZone, Coast, Forms, Hydrography, MacroSample, NorrConfig, NorrPreset, Province,
+    WaterKind, COAST_C,
 };
 
 use crate::image_out::write_image;
 
 pub const MODES: &str =
-    "relief | hydro | w | h | fjord | overview| h | fjord | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
+    "relief | hydro | w | h | fjord | formes | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
 
 type Rgb = [f64; 3];
+
+/// Couleur d'une forme de relief de la session 1.3 (mode `formes`), ou `None`.
+fn form_color(f: &Forms, sea_floor: bool) -> Option<Rgb> {
+    if f.lava > 0.5 {
+        return Some([200.0, 50.0, 30.0]);
+    }
+    if f.ice > 0.5 {
+        return Some([235.0, 248.0, 255.0]);
+    }
+    if f.moraine > 1.0 {
+        return Some([150.0, 120.0, 90.0]);
+    }
+    if f.palsa > 1.0 {
+        return Some([150.0, 60.0, 200.0]);
+    }
+    if f.mire > 0.5 {
+        return Some([150.0, 110.0, 40.0]);
+    }
+    if f.esker > 1.0 {
+        return Some([250.0, 220.0, 60.0]);
+    }
+    if f.kettle > 0.5 {
+        return Some([40.0, 200.0, 220.0]);
+    }
+    if f.drumlin > 1.0 {
+        return Some([120.0, 200.0, 90.0]);
+    }
+    match f.coast {
+        Coast::Skargard if !sea_floor => Some([240.0, 120.0, 90.0]),
+        Coast::Klint => Some([250.0, 245.0, 200.0]),
+        Coast::Raised => Some([200.0, 70.0, 60.0]),
+        Coast::Dunes => Some([240.0, 210.0, 140.0]),
+        Coast::SaltMeadow => Some([90.0, 220.0, 150.0]),
+        _ => None,
+    }
+}
+
+/// Noms des formes comptées (statistiques).
+const FORM_STATS: [&str; 13] = [
+    "îlots (K > 0,3, terre)",
+    "klint",
+    "côte soulevée",
+    "dunes",
+    "pré salé",
+    "eskers",
+    "marmites",
+    "drumlins",
+    "tourbières",
+    "palses",
+    "glace",
+    "moraines",
+    "lave",
+];
+
+fn form_flags(f: &Forms, land: bool) -> [bool; 13] {
+    [
+        f.archipelago > 0.3 && land,
+        f.coast == Coast::Klint,
+        f.coast == Coast::Raised,
+        f.coast == Coast::Dunes,
+        f.coast == Coast::SaltMeadow,
+        f.esker > 1.0,
+        f.kettle > 0.5,
+        f.drumlin > 1.0,
+        f.mire > 0.5,
+        f.palsa > 1.0,
+        f.ice > 0.5,
+        f.moraine > 1.0,
+        f.lava > 0.5,
+    ]
+}
 
 fn mix(a: Rgb, b: Rgb, t: f64) -> Rgb {
     let t = t.clamp(0.0, 1.0);
@@ -192,6 +265,8 @@ struct Px {
     fjord: bool,
     valley: f64,
     plateau: f64,
+    /// Formes de relief de la 1.3 (épaisseur de glace comprise).
+    forms: Forms,
 }
 
 pub fn run(a: &[String]) {
@@ -237,6 +312,7 @@ pub fn run(a: &[String]) {
     let mut prov = [0u64; 8];
     let (mut land, mut land_c, mut lava, mut fjord, mut plateau, mut high) =
         (0u64, 0u64, 0u64, 0u64, 0u64, 0u64);
+    let mut forms = [0u64; FORM_STATS.len()];
     for j in 0..size {
         for i in 0..size {
             let (wx, wz) = (f64::from(x0 + i * step), f64::from(z0 + j * step));
@@ -276,6 +352,9 @@ pub fn run(a: &[String]) {
             {
                 field_values[k].push(v);
             }
+            for (k, on) in form_flags(&r.forms, is_land).into_iter().enumerate() {
+                forms[k] += u64::from(on);
+            }
             cells.push(Px {
                 h: r.h,
                 top: wc.map_or(r.h, |c| f64::from(c.top) + 0.5),
@@ -287,10 +366,11 @@ pub fn run(a: &[String]) {
                 fjord: r.fjord,
                 valley: r.valley,
                 plateau: r.plateau,
+                forms: r.forms,
             });
 
             let mut c: Rgb = match mode {
-                "relief" | "hydro" | "w" | "h" | "fjord" => [0.0; 3],
+                "relief" | "hydro" | "w" | "h" | "fjord" | "formes" => [0.0; 3],
                 "overview" => overview_color(&s),
                 "zones" => {
                     let base = zone_color(zone);
@@ -327,13 +407,19 @@ pub fn run(a: &[String]) {
     }
 
     // Seconde passe : relief ombré (lumière du nord-ouest), à partir des hauteurs voisines.
-    if matches!(mode, "relief" | "hydro" | "w" | "h" | "fjord") {
+    if matches!(mode, "relief" | "hydro" | "w" | "h" | "fjord" | "formes") {
         let at =
             |i: i32, j: i32| cells[(j.clamp(0, size - 1) * size + i.clamp(0, size - 1)) as usize];
         for j in 0..size {
             for i in 0..size {
                 let p = at(i, j);
-                let hh = |q: Px| if with_water { q.top.max(q.level) } else { q.h };
+                let hh = |q: Px| {
+                    if with_water {
+                        q.top.max(q.level)
+                    } else {
+                        q.h + q.forms.ice
+                    }
+                };
                 let (dx, dz) = (
                     (hh(at(i + 1, j)) - hh(at(i - 1, j))) / f64::from(2 * step),
                     (hh(at(i, j + 1)) - hh(at(i, j - 1))) / f64::from(2 * step),
@@ -354,10 +440,15 @@ pub fn run(a: &[String]) {
                             v
                         }
                     }
-                    _ if p.h.floor() < sea => {
+                    _ if (p.h + p.forms.ice).floor() < sea => {
                         let mut c = water_tint(sea - p.h);
                         if mode == "fjord" && p.fjord {
                             c = mix(c, [200.0, 40.0, 160.0], 0.6);
+                        }
+                        if mode == "formes" {
+                            if let Some(f) = form_color(&p.forms, true) {
+                                c = mix(c, f, 0.45);
+                            }
                         }
                         // Le relief sous-marin reste lisible, atténué.
                         let s = 1.0 + (shade - 1.0) * 0.35;
@@ -365,11 +456,25 @@ pub fn run(a: &[String]) {
                     }
                     _ => {
                         let mut c = land_tint(p.h - sea);
+                        // Relief : glace, basalte et tourbe se voient aussi sans le mode `formes`.
+                        let f = &p.forms;
+                        if f.ice > 0.5 {
+                            c = [228.0, 240.0, 250.0];
+                        } else if f.lava > 0.5 {
+                            c = mix(c, [55.0, 50.0, 52.0], 0.85);
+                        } else if f.mire > 0.5 {
+                            c = mix(c, [120.0, 100.0, 50.0], 0.5);
+                        }
                         if mode == "fjord" {
                             if p.valley > 0.5 {
                                 c = mix(c, [230.0, 170.0, 40.0], 0.5);
                             } else if p.plateau > 0.5 {
                                 c = mix(c, [60.0, 170.0, 200.0], 0.4);
+                            }
+                        }
+                        if mode == "formes" {
+                            if let Some(fc) = form_color(f, false) {
+                                c = mix(c, fc, 0.75);
                             }
                         }
                         [c[0] * shade, c[1] * shade, c[2] * shade]
@@ -408,6 +513,15 @@ pub fn run(a: &[String]) {
             pct(water_count[3]),
         );
     }
+    println!(
+        "-- formes de relief (% de la carte) : {}",
+        FORM_STATS
+            .iter()
+            .zip(forms)
+            .map(|(name, v)| format!("{name} {:.2}", pct(v)))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    );
     println!("-- quantiles (min 5% 25% 50% 75% 95% max)");
     print_quantiles("h", heights);
     for (name, v) in ["c", "o", "t0", "hm", "u", "e", "lk", "gt", "vr"]

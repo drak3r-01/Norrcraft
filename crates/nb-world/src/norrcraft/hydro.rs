@@ -27,8 +27,8 @@
 
 use super::config::NorrConfig;
 use super::fields::MacroSample;
-use super::height::{HeightFields, Relief, CAP_MARGIN, CAP_START, HANGING_RISE};
-use super::math::{smooth, soft_cap, spread, GradField, Worley};
+use super::height::{HeightFields, Relief};
+use super::math::{smooth, spread, GradField, Worley};
 
 /// Constantes de semence de l'hydrographie (`graine XOR constante`). Figées.
 mod seeds {
@@ -179,13 +179,11 @@ pub fn seal(c: WaterColumn, neighbours: [WaterColumn; 4], world_height: i32) -> 
 }
 
 /// Relief filtré `Hl` (doc 02 §6.1) : le relief de la colonne sans les collines ni le détail
-/// (socle, chaîne, plateaux, plafond doux, vallées), reconstruit à partir des termes de [`Relief`].
-pub fn filtered_height(r: &Relief, sea: f64) -> f64 {
-    let h2 = r.socle + r.chain;
-    let h3 = h2 + r.plateau * 0.75 * (r.plateau_level - h2);
-    let h3 = soft_cap(h3, sea + CAP_START, CAP_MARGIN);
-    let h3b = h3 - r.hanging * (h3 - (r.valley_floor + HANGING_RISE)).max(0.0);
-    h3b - r.valley * (h3b - r.valley_floor).max(0.0)
+/// (socle, chaîne, plateaux, plafond doux, vallées). Depuis la 1.3, la fonction de hauteur le
+/// calcule elle-même (même chaîne de calcul appliquée au socle seul) et le range dans
+/// [`Forms::filtered`](super::landforms::Forms) : les tourbières s'y calent aussi.
+pub fn filtered_height(r: &Relief, _sea: f64) -> f64 {
+    r.forms.filtered
 }
 
 /// Niveau en escalier `W` et position dans la marche (dans [0, 1) ; 0 juste au-dessus d'une

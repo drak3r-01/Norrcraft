@@ -36,9 +36,9 @@ fn chunk_fingerprint(seed: i64) -> u64 {
 /// fonction de hauteur, des champs ou du remplissage les change : à mettre à jour consciemment,
 /// avec une ligne dans le compte rendu de session.
 const FINGERPRINTS: [(i64, u64); 3] = [
-    (12345, 0x9f7d757f74b2a9e9),
-    (-98765, 0x8c2477e2eb5c04d8),
-    (20261111, 0xbfda8287cacf5c6e),
+    (12345, 0xf57f1fb14b7df626),
+    (-98765, 0x6994d8be04b6e4cc),
+    (20261111, 0xa2f7b108b8ecfd2d),
 ];
 
 #[test]

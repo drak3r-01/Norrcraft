@@ -6,7 +6,9 @@
 //! 2. **collines et détail** `Hc + Dt` (§5.2) ;
 //! 3. **chaîne des Scandes** `Mt` (crêtes déformées), **plateaux** (vidda) en paliers, **plafond
 //!    doux** (§5.3) ;
-//! 4. **vallées glaciaires** en U et **fjords**, plus des **vallées suspendues** (§5.4).
+//! 4. **vallées glaciaires** en U et **fjords**, plus des **vallées suspendues** (§5.4) ;
+//! 5. **formes de relief** de la session 1.3 (§5.5 à §5.8 : archipel, côtes, eskers, tourbières,
+//!    palses, champ de lave, glacier), voir [`super::landforms`].
 //!
 //! Chaque étape est continue (les paliers du doc, écrits avec `plancher`, sont adoucis par
 //! [`soft_floor`]) : seules les parois des auges glaciaires sont des falaises franches, et elles
@@ -15,6 +17,7 @@
 
 use super::config::NorrConfig;
 use super::fields::{MacroFields, MacroSample};
+use super::landforms::{BaseRelief, Forms, Landforms};
 use super::math::{bump, lerp, smooth, soft_cap, spread, GradField};
 
 /// Constantes de semence des bruits du relief (`graine XOR constante`). Figées : en changer une
@@ -83,7 +86,8 @@ fn u_profile(t: f64) -> f64 {
 /// suivantes (biomes, hydrographie, décors).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Relief {
-    /// Altitude finale `h₄` (en blocs, flottante). Le premier bloc d'air est `plancher(h)`.
+    /// Altitude finale du sol (en blocs, flottante), formes de la 1.3 comprises. Le premier bloc
+    /// au-dessus du sol est `plancher(h)` (air, eau, ou glace d'un glacier : voir [`Forms::ice`]).
     pub h: f64,
     /// Socle `B(C)` (préréglage compris).
     pub socle: f64,
@@ -105,19 +109,27 @@ pub struct Relief {
     pub hanging: f64,
     /// Étiquette **Fjord** (doc 02 §5.4) : `g · u(t) > 0,5`, `f < S` et `C < 0,56`.
     pub fjord: bool,
+    /// Formes de relief de la session 1.3 (archipel, côtes, eskers, tourbières, glace, lave).
+    pub forms: Forms,
 }
 
 impl Relief {
-    /// Premier `y` libre de la colonne (surface), borné à `[1, hauteur − 1]`.
+    /// Premier `y` libre de la colonne (surface, glace comprise), borné à `[1, hauteur − 1]`.
     pub fn top(&self, world_height: i32) -> i32 {
+        ((self.h + self.forms.ice).floor() as i32).clamp(1, world_height - 1)
+    }
+
+    /// Premier `y` au-dessus du sol (roche et couverture meuble, sans la glace), borné comme
+    /// [`Relief::top`].
+    pub fn ground_top(&self, world_height: i32) -> i32 {
         (self.h.floor() as i32).clamp(1, world_height - 1)
     }
 
-    /// Paroi d'auge déclarée : la colonne est sur le flanc d'une vallée glaciaire (ni fond, ni
-    /// hors de l'auge) ; les marches de plus de 3 blocs y sont permises (doc 02 §13).
+    /// Falaise déclarée : flanc d'une vallée glaciaire (ni fond, ni hors de l'auge), klint,
+    /// crevasse ou fissure volcanique ; les marches de plus de 3 blocs y sont permises (doc 02 §13).
     pub fn wall(&self) -> bool {
         let side = |w: f64| w > 0.01 && w < 0.99;
-        side(self.valley) || side(self.hanging)
+        side(self.valley) || side(self.hanging) || self.forms.cliff
     }
 }
 
@@ -135,6 +147,7 @@ pub struct HeightFields {
     valley_warp: GradField,
     valley: GradField,
     hanging: GradField,
+    landforms: Landforms,
 }
 
 impl HeightFields {
@@ -151,6 +164,7 @@ impl HeightFields {
             valley_warp: GradField::new(seed, seeds::VALLEY_WARP),
             valley: GradField::new(seed, seeds::VALLEY),
             hanging: GradField::new(seed, seeds::HANGING),
+            landforms: Landforms::new(seed),
         }
     }
 
@@ -196,7 +210,6 @@ impl HeightFields {
         let (pmx, pmz) = self.chain_warp.warp(x, z, 90.0, 420.0);
         let rg = self.chain.ridged(pmx / 1500.0, pmz / 1500.0, 5);
         let chain = u * land * (22.0 + 50.0 * rg) * (0.35 + 0.65 * (1.0 - e));
-        let h2 = h1 + chain;
 
         // Plateaux (vidda) : paliers S + 44, S + 56, S + 68 (adoucis : voir `soft_floor`).
         let p_mask = smooth(
@@ -206,9 +219,15 @@ impl HeightFields {
         ) * u;
         let level_n = spread(self.plateau_level.fbm(x / 1600.0, z / 1600.0, 2));
         let level = s + 44.0 + 12.0 * soft_floor((3.0 * level_n).min(2.999), 0.3);
-        let plateau = p_mask * bump(h2, level, 14.0);
-        let h3 = h2 + plateau * 0.75 * (level - h2);
-        let h3 = soft_cap(h3, s + CAP_START, CAP_MARGIN);
+        // Chaîne, plateaux et plafond doux appliqués à `h₁` : `(h₃, poids du plateau)`. Servent
+        // deux fois : au relief et au relief filtré `Hl` (sans les collines ni le détail).
+        let raise = |h1: f64| {
+            let h2 = h1 + chain;
+            let plateau = p_mask * bump(h2, level, 14.0);
+            let h3 = h2 + plateau * 0.75 * (level - h2);
+            (soft_cap(h3, s + CAP_START, CAP_MARGIN), plateau)
+        };
+        let (h3, plateau) = raise(h1);
 
         // §5.4 Vallées glaciaires et fjords.
         let (vx, vz) = self.valley_warp.warp(x, z, 160.0, 520.0);
@@ -224,13 +243,28 @@ impl HeightFields {
         // Vallées suspendues : auges plus étroites, fond 18 blocs au-dessus de la principale.
         let t2 = (self.hanging.zero_line(vx / 450.0, vz / 450.0, 3) / half_width).min(1.0);
         let hanging = g * u_profile(t2);
-        let h3b = h3 - hanging * (h3 - (floor + HANGING_RISE)).max(0.0);
-
         let valley = g * u_profile(t);
-        let h4 = h3b - valley * (h3b - floor).max(0.0);
+        let carve = |h3: f64| {
+            let h3b = h3 - hanging * (h3 - (floor + HANGING_RISE)).max(0.0);
+            h3b - valley * (h3b - floor).max(0.0)
+        };
+        let h4 = carve(h3);
+        let filtered = carve(raise(b).0);
+
+        // §5.5 à §5.8 Formes de relief (session 1.3).
+        let base = BaseRelief {
+            h: h4,
+            filtered,
+            land,
+            valley,
+            before_valleys: h3,
+        };
+        let (h, forms) = self
+            .landforms
+            .apply(x, z, m, &self.macro_fields, &self.cfg, base);
 
         Relief {
-            h: h4,
+            h,
             socle: b,
             land,
             chain,
@@ -241,6 +275,7 @@ impl HeightFields {
             valley_floor: floor,
             hanging,
             fjord: valley > 0.5 && floor < s && c < 0.56,
+            forms,
         }
     }
 }

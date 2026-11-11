@@ -9,6 +9,9 @@
 //! Session 1.2 : fonction de hauteur ([`height`] : socle, collines, chaîne, plateaux, vallées en U,
 //! fjords) et vrai générateur ([`terrain`]), qui remplace le monde plat de granit dans les mondes.
 //!
+//! Session 1.3 : formes de relief ([`landforms`] : archipel, côtes, eskers, drumlins, tourbières,
+//! palses, champ de lave, glacier), et leurs blocs provisoires dans [`terrain`].
+//!
 //! Session 1.4 : hydrographie ([`hydro`] : niveau d'eau en escalier, lacs à margelle, rivières et
 //! rapides, mer ; scellement qui rend toute nappe étanche).
 
@@ -17,6 +20,7 @@ pub mod config;
 pub mod fields;
 pub mod height;
 pub mod hydro;
+pub mod landforms;
 pub mod math;
 pub mod terrain;
 
@@ -25,6 +29,7 @@ pub use config::{NorrConfig, NorrPreset, DEFAULT_SEA_LEVEL, DEFAULT_WORLD_HEIGHT
 pub use fields::{ChunkFields, FieldGrid, MacroFields, MacroSample, Province, COAST_C};
 pub use height::{HeightFields, Relief};
 pub use hydro::{Hydrography, Hydrology, Lake, LakeSet, SeaFacade, WaterColumn, WaterKind};
+pub use landforms::{Coast, Forms};
 pub use terrain::{NorrBlocks, NorrcraftTerrain};
 
 use std::sync::Arc;
