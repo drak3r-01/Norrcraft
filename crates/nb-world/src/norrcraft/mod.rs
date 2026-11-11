@@ -34,6 +34,7 @@ pub mod height;
 pub mod hydro;
 pub mod landforms;
 pub mod math;
+pub mod seasonal;
 pub mod subsoil;
 pub mod terrain;
 pub mod trees;
@@ -49,6 +50,7 @@ pub use height::{HeightFields, Relief};
 pub use hydro::{Hydrography, Hydrology, Lake, LakeSet, SeaFacade, WaterColumn, WaterKind};
 pub use landforms::{Coast, Forms};
 pub use subsoil::{DepositInfo, Region, SiteProbe, Sites, SubColumn, Subsoil, SubsoilBlocks};
+pub use seasonal::SeasonBlocks;
 pub use terrain::{NorrBlocks, NorrcraftTerrain};
 pub use trees::{
     Kind as TreeKind, Plant, Species, Style as TreeStyle, TreeBlocks, TreeColumn, TreeProbe, Trees,

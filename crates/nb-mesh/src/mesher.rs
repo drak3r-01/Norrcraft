@@ -7,7 +7,7 @@
 use nb_core::math::{CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
 use nb_core::ChunkPos;
 
-use crate::biome::{BiomeId, BiomeSource, BiomeTints};
+use crate::biome::{BiomeId, BiomeSource, BiomeTints, SeasonTint};
 use crate::block::{should_render_face, BlockMeshInfo, BlockRole, BlockTable};
 use crate::light::{light_scale, LightVolume};
 use crate::neighborhood::{BlockCache, Neighborhood};
@@ -228,6 +228,8 @@ pub fn mesh_chunk(
         biomes,
         blended,
         column_biomes,
+        grass_season: biomes.grass_season(),
+        leaf_season: biomes.leaf_season(),
         start_x,
         start_z,
         out: Vec::with_capacity(1 << 15),
@@ -344,6 +346,9 @@ struct Mesher<'a> {
     /// Teintes moyennées (palette indexée par `column_biomes`), si la source en demande.
     blended: Option<Vec<BiomeTints>>,
     column_biomes: [BiomeId; CHUNK_SIZE_X * CHUNK_SIZE_Z],
+    /// Teintes de saison (Norrcraft) : herbe, feuillages caducs.
+    grass_season: Option<SeasonTint>,
+    leaf_season: Option<SeasonTint>,
     start_x: i32,
     start_z: i32,
     out: Vec<ChunkVertex>,
@@ -358,9 +363,23 @@ impl Mesher<'_> {
     /// Teintes d'une clé de colonne : biome (vanilla) ou entrée de la palette moyennée.
     #[inline]
     fn tints(&self, key: BiomeId) -> BiomeTints {
-        match &self.blended {
+        let mut t = match &self.blended {
             Some(p) => p[usize::from(key)],
             None => self.biomes.tints(key),
+        };
+        if let Some(g) = &self.grass_season {
+            t.grass = g.apply(t.grass);
+        }
+        t
+    }
+
+    /// Teinte des feuilles d'un bloc : celle du biome, glissée vers la teinte de saison pour
+    /// les feuillus (blocs `seasonal`).
+    #[inline]
+    fn leaves_rgb(&self, info: &BlockMeshInfo, tints: &BiomeTints) -> [f64; 3] {
+        match (&self.leaf_season, info.seasonal) {
+            (Some(s), true) => s.apply(tints.leaves),
+            _ => tints.leaves,
         }
     }
 
@@ -607,6 +626,8 @@ impl Mesher<'_> {
                     } else if info.role == BlockRole::LilyPad {
                         let layer = info.texture_layers[0];
                         self.emit_pad(wx, y, wz, layer, biome, light_val);
+                    } else if info.role == BlockRole::Layer {
+                        self.emit_layer(lx, y, lz, info, light_val);
                     }
                 }
             }
@@ -624,7 +645,7 @@ impl Mesher<'_> {
         if info.role == BlockRole::Grass && face == Face::PosY {
             rgb = tints.grass.map(|t| (t * 2.2) as f32);
         } else if info.leaves_tinted {
-            rgb = tints.leaves.map(|t| (t * 2.2) as f32);
+            rgb = self.leaves_rgb(info, &tints).map(|t| (t * 2.2) as f32);
         } else if info.role == BlockRole::Water {
             rgb = tints.water.map(|t| t as f32);
         }
@@ -790,6 +811,61 @@ impl Mesher<'_> {
                     uv,
                     layer: encoded,
                     color,
+                });
+            }
+        }
+    }
+
+    /// Couche partielle (neige de la surcouche saisonnière) : dalle de `layer_eighths / 8` de
+    /// bloc, dessus et quatre côtés (le dessous est caché par le sol). Un côté contre un bloc
+    /// plein opaque ou une couche au moins aussi haute n'est pas émis. Sans AO, lumière de la
+    /// cellule.
+    fn emit_layer(&mut self, lx: i32, y: i32, lz: i32, info: &BlockMeshInfo, light_val: i32) {
+        let h = f32::from(info.layer_eighths) / 8.0;
+        let v_light = light_scale(light_val);
+        let (x0, z0) = ((self.start_x + lx) as f32, (self.start_z + lz) as f32);
+        let (x1, z1) = (x0 + 1.0, z0 + 1.0);
+        let (yb, yt) = (y as f32, y as f32 + h);
+        for face in [
+            Face::PosY,
+            Face::PosZ,
+            Face::NegZ,
+            Face::NegX,
+            Face::PosX,
+        ] {
+            if face != Face::PosY {
+                let o = face.offset();
+                let nb = self.info(self.cache.get(lx + o[0], y, lz + o[2]));
+                let hidden = match nb.role {
+                    BlockRole::Layer => nb.layer_eighths >= info.layer_eighths,
+                    _ => !nb.transparent && !nb.cross_shaped && nb.role == BlockRole::Other,
+                };
+                if hidden {
+                    continue;
+                }
+            }
+            let positions: [[f32; 3]; 4] = match face {
+                Face::PosZ => [[x1, yb, z1], [x1, yt, z1], [x0, yt, z1], [x0, yb, z1]],
+                Face::NegZ => [[x1, yb, z0], [x0, yb, z0], [x0, yt, z0], [x1, yt, z0]],
+                Face::NegX => [[x0, yb, z0], [x0, yb, z1], [x0, yt, z1], [x0, yt, z0]],
+                Face::PosX => [[x1, yb, z1], [x1, yb, z0], [x1, yt, z0], [x1, yt, z1]],
+                Face::PosY => [[x0, yt, z1], [x1, yt, z1], [x1, yt, z0], [x0, yt, z0]],
+                Face::NegY => [[x0, yb, z0], [x1, yb, z0], [x1, yb, z1], [x0, yb, z1]],
+            };
+            let v_max = if face == Face::PosY { 1.0 } else { h };
+            let uvs: [[f32; 2]; 4] = if face == Face::PosZ {
+                [[1.0, 0.0], [1.0, v_max], [0.0, v_max], [0.0, 0.0]]
+            } else {
+                [[0.0, 0.0], [1.0, 0.0], [1.0, v_max], [0.0, v_max]]
+            };
+            let k = face.dir_light() * v_light;
+            let layer = info.texture_layers[face as usize] as f32;
+            for i in QUAD_INDICES {
+                self.out.push(ChunkVertex {
+                    pos: positions[i],
+                    uv: uvs[i],
+                    layer,
+                    color: [k, k, k],
                 });
             }
         }

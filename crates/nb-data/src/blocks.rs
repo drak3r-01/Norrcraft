@@ -113,6 +113,12 @@ pub struct BlockProperties {
     pub light_attenuation: u8,
     #[serde(default)]
     pub light_emission: u8,
+    /// Hauteur en huitièmes de bloc pour une couche (neige) ; 0 = bloc plein.
+    #[serde(default)]
+    pub height: u8,
+    /// Feuillage caduc : la teinte de saison du mailleur s en applique.
+    #[serde(default)]
+    pub seasonal: bool,
 }
 
 /// Un type de bloc chargé. Les indices de texture sont résolus plus tard par l'atlas.
@@ -128,6 +134,8 @@ pub struct BlockType {
     pub solid: bool,
     pub light_attenuation: u8,
     pub light_emission: u8,
+    pub height: u8,
+    pub seasonal: bool,
 }
 
 impl From<BlockProperties> for BlockType {
@@ -147,6 +155,8 @@ impl From<BlockProperties> for BlockType {
             solid: p.solid,
             light_attenuation: p.light_attenuation,
             light_emission: p.light_emission,
+            height: p.height,
+            seasonal: p.seasonal,
         }
     }
 }
@@ -501,6 +511,8 @@ impl BlockRegistry {
                         solid: true,
                         light_attenuation: 15,
                         light_emission: 0,
+                        height: 0,
+                        seasonal: false,
                     });
                 }
             }

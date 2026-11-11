@@ -4,7 +4,8 @@
 use std::sync::Arc;
 
 use nb_core::ChunkPos;
-use nb_mesh::{BiomeId, BiomeSource, BiomeTints, ChunkSource, ChunkVoxels};
+use nb_mesh::{BiomeId, BiomeSource, BiomeTints, ChunkSource, ChunkVoxels, SeasonTint};
+use nb_world::seasons::SeasonRules;
 use nb_world::{ChunkManager, TerrainGenerator, WorldProfile};
 
 /// Vue « maillage » des chunks actifs d'un monde.
@@ -93,6 +94,23 @@ impl BiomeSource for WorldBiomes {
 
     fn tint_blend_radius(&self) -> i32 {
         self.profile.tint_blend
+    }
+
+    /// Feuillus : teinte du pas de saison courant du générateur (doc 04 §2.3).
+    fn leaf_season(&self) -> Option<SeasonTint> {
+        let t = SeasonRules::builtin().leaf_tint(self.terrain.season()?)?;
+        Some(SeasonTint {
+            target: t.target,
+            mix: t.mix,
+        })
+    }
+
+    fn grass_season(&self) -> Option<SeasonTint> {
+        let t = SeasonRules::builtin().grass_tint(self.terrain.season()?)?;
+        Some(SeasonTint {
+            target: t.target,
+            mix: t.mix,
+        })
     }
 }
 

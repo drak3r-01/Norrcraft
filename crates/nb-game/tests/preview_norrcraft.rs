@@ -2,7 +2,9 @@
 //! par lavapipe. Ignoré par défaut ; écrit `crates/nb-game/renders/norrcraft_*.png` :
 //! `NB_GFX_REQUIRE_GPU=1 NB_SH=1 crates/nb-gfx/scripts/vk-docker.sh \
 //!   'cargo test -p nb-game --test preview_norrcraft -- --ignored'`
-//! (`NB_NORR_SEED`, `NB_NORR_AT=x,z` pour choisir le lieu ; par défaut le point de départ).
+//! (`NB_NORR_SEED`, `NB_NORR_AT=x,z` pour choisir le lieu ; par défaut le point de départ ;
+//! `NB_NORR_SEASON=0..7` pour le pas de saison, session 3.2 : 0 janvier, 1 mars, 2 mai, 3 juin,
+//! 4 août, 5 septembre, 6 octobre, 7 décembre ; absent : état de fin d'été).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -43,6 +45,10 @@ fn preview_norrcraft() {
     let reg = BlockRegistry::for_kind(WorldKind::Norrcraft);
     let profile = Arc::new(WorldProfile::norrcraft(seed, NorrConfig::default(), &reg));
     let gen = profile.new_generator();
+    let season: Option<u8> = std::env::var("NB_NORR_SEASON")
+        .ok()
+        .and_then(|s| s.parse().ok());
+    gen.set_season(season);
     let (ox, oz) = match std::env::var("NB_NORR_AT").ok() {
         Some(s) => {
             let v: Vec<i32> = s.split(',').filter_map(|p| p.trim().parse().ok()).collect();
@@ -131,7 +137,8 @@ fn preview_norrcraft() {
             r.render(&input).unwrap();
         }
         let img = r.render(&input).unwrap();
-        img.save(dir.join(format!("norrcraft_{seed}_{ox}_{oz}_{label}.png")))
+        let tag = season.map_or(String::new(), |s| format!("_s{s}"));
+        img.save(dir.join(format!("norrcraft_{seed}_{ox}_{oz}{tag}_{label}.png")))
             .unwrap();
     }
 }

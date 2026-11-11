@@ -106,6 +106,22 @@ pub trait TerrainGenerator: Send + Sync + fmt::Debug {
     fn climate_at(&self, _wx: i32, _wz: i32) -> Option<Climate> {
         None
     }
+
+    /// Règle le pas de saison (0..8, [`crate::seasons`]) des chunks générés ensuite ; `None` :
+    /// état de fin d'été, sans surcouche. L'état est partagé par toutes les copies (`fork`).
+    /// Les univers sans saisons l'ignorent.
+    fn set_season(&self, _step: Option<u8>) {}
+
+    /// Pas de saison courant.
+    fn season(&self) -> Option<u8> {
+        None
+    }
+
+    /// Recalcule la surcouche saisonnière d'un chunk existant sans toucher aux colonnes que le
+    /// joueur a modifiées. `true` si le contenu a changé.
+    fn reseason(&self, _chunk: &mut Chunk) -> bool {
+        false
+    }
 }
 
 /// Drapeaux de systèmes optionnels : le code teste un drapeau, jamais l'univers.

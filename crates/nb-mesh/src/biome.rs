@@ -11,6 +11,21 @@ pub struct BiomeTints {
     pub water: [f64; 3],
 }
 
+/// Teinte de saison (doc Norrcraft 04 §2.3) : la teinte du biome glisse vers `target` d'une
+/// part `mix` (0 = inchangée, 1 = `target`). Paramètre du mailleur, aucun bloc en plus.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SeasonTint {
+    pub target: [f64; 3],
+    pub mix: f64,
+}
+
+impl SeasonTint {
+    /// Teinte `t` ramenée vers la cible.
+    pub fn apply(&self, t: [f64; 3]) -> [f64; 3] {
+        std::array::from_fn(|k| t[k] + (self.target[k] - t[k]) * self.mix)
+    }
+}
+
 /// Source de biomes (implémentée par la génération du monde).
 pub trait BiomeSource: Send + Sync {
     /// `BiomeSystem.getBiome(wx, wz)`, appelé avec les coordonnées monde entières du bloc.
@@ -22,6 +37,14 @@ pub trait BiomeSource: Send + Sync {
     /// 2, doc 02 §7.4). 0 (défaut, vanilla) : teinte du biome de la colonne, inchangée.
     fn tint_blend_radius(&self) -> i32 {
         0
+    }
+    /// Teinte de saison des feuillages caducs (blocs `seasonal`). `None` : teinte du biome.
+    fn leaf_season(&self) -> Option<SeasonTint> {
+        None
+    }
+    /// Teinte de saison de l'herbe (cubes et plantes teintés herbe). `None` : teinte du biome.
+    fn grass_season(&self) -> Option<SeasonTint> {
+        None
     }
 }
 

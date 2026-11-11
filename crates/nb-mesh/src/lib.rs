@@ -23,7 +23,9 @@ pub mod neighborhood;
 pub mod scheduler;
 pub mod vertex;
 
-pub use biome::{java_tints, BiomeId, BiomeSource, BiomeTints, FnBiomes, UniformBiome};
+pub use biome::{
+    java_tints, BiomeId, BiomeSource, BiomeTints, FnBiomes, SeasonTint, UniformBiome,
+};
 pub use block::{should_render_face, BlockMeshInfo, BlockRole, BlockTable};
 pub use camera::{clamp_pitch, mul_mat4, perspective_gl, view_matrix};
 pub use culling::{ChunkQuadtree, Frustum};

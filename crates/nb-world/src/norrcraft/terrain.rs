@@ -23,6 +23,7 @@
 //! barrages prend aussi la roche de la province quand le biome ne fixe pas la sienne.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nb_data::{BlockId, BlockRegistry};
@@ -35,10 +36,12 @@ use super::height::{HeightFields, Relief};
 use super::hydro::{seal, Hydrography, WaterColumn, WaterKind};
 use super::landforms::Coast;
 use super::math::GradField;
+use super::seasonal::{self, ColumnInput, SeasonBlocks};
 use super::subsoil::{ColumnIn, DepositInfo, Region, SiteProbe, Sites, Subsoil, SubsoilBlocks};
 use super::trees::{TreeBlocks, TreeColumn, TreeProbe, Trees};
-use crate::chunk::{Chunk, AIR, CHUNK_SIZE_X, CHUNK_SIZE_Z};
+use crate::chunk::{Chunk, AIR, CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
 use crate::profile::{BiomeId, Climate, TerrainGenerator};
+use crate::seasons::SeasonRules;
 use crate::world::find_spawn_location;
 
 /// Blocs utilisés par le générateur, lus dans le registre du monde.
@@ -64,6 +67,8 @@ pub struct NorrBlocks {
     pub flora: FloraBlocks,
     /// Troncs et feuillages des arbres (session 2.3).
     pub trees: TreeBlocks,
+    /// Surcouche saisonnière (session 3.2).
+    pub season: SeasonBlocks,
     /// Sols des biomes, par identifiant de biome.
     pub soils: [BiomeSoil; NorrBiome::COUNT],
 }
@@ -88,6 +93,7 @@ impl NorrBlocks {
             sub: SubsoilBlocks::from_registry(registry),
             flora: FloraBlocks::from_registry(registry),
             trees: TreeBlocks::from_registry(registry),
+            season: SeasonBlocks::from_registry(registry),
             soils: BiomeSoil::table(registry),
         }
     }
@@ -224,6 +230,8 @@ const WET_RING: [(i32, i32); 12] = [
     (3, -3),
     (-3, -3),
 ];
+/// Valeur de `season` sans surcouche saisonnière.
+const NO_SEASON: u8 = u8::MAX;
 /// Chunks dont les biomes restent en cache (vidé d'un coup au-delà).
 const BIOME_CACHE_MAX: usize = 4096;
 
@@ -250,6 +258,9 @@ pub struct NorrcraftTerrain {
     understory: Understory,
     trees: Trees,
     leads: GradField,
+    /// Pas de saison courant ([`NO_SEASON`] : état de fin d'été, sans surcouche), partagé par
+    /// toutes les copies du générateur.
+    season: Arc<AtomicU8>,
     /// Biomes des chunks déjà analysés, partagés par toutes les copies du générateur (le maillage
     /// relit les biomes des chunks que la génération vient de calculer).
     biome_cache: Arc<Mutex<HashMap<(i32, i32), ChunkBiomes>>>,
@@ -265,6 +276,7 @@ impl NorrcraftTerrain {
             understory: Understory::new(seed, blocks.flora),
             trees: Trees::new(seed, cfg.sea_level, blocks.trees),
             leads: GradField::new(seed, LEADS_SEED),
+            season: Arc::new(AtomicU8::new(NO_SEASON)),
             biome_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -489,96 +501,17 @@ impl NorrcraftTerrain {
             biome: &biome,
         })
     }
-    /// Strate basse (session 2.4), **après** les arbres : une plante par colonne, sur le sol, au
-    /// fond de l'eau ou à sa surface. Tout bloc non-air (tronc, feuille) occupe la cellule.
-    fn place_understory(&self, chunk: &mut Chunk, cols: &ChunkColumns, x0: i32, z0: i32) {
-        let n = CHUNK_SIZE_X + 2;
-        let hmax = self.world_height();
-        let water = self.blocks.water;
-        for lz in 0..CHUNK_SIZE_Z {
-            for lx in 0..CHUNK_SIZE_X {
-                let (i, j) = (lx + 1, lz + 1);
-                let c = cols.water[j * n + i];
-                let r = &cols.reliefs[j * n + i];
-                let s = &cols.biomes[lz * CHUNK_SIZE_X + lx];
-                let h = c.top;
-                if s.snow || h < 2 || h >= hmax - 1 || ice_top(r, c.surface(), hmax).is_some() {
-                    continue;
-                }
-                let wet_nb = |k: usize| {
-                    let nb = cols.water[k];
-                    nb.is_wet()
-                        && (matches!(nb.kind, WaterKind::Lake | WaterKind::River)
-                            || s.biome == NorrBiome::Bottenhav)
-                };
-                let (x, z) = (lx as i32, lz as i32);
-                let column = Column {
-                    wx: x0 + x,
-                    wz: z0 + z,
-                    biome: s.biome,
-                    ground: self.understory.ground_of(chunk.block(x, h - 1, z)),
-                    water: c.is_wet().then(|| match c.kind {
-                        WaterKind::Sea if s.biome == NorrBiome::Bottenhav => Water::Brackish,
-                        WaterKind::Sea => Water::Salt,
-                        _ => Water::Fresh,
-                    }),
-                    depth: (c.level - h).max(0),
-                    shore: !c.is_wet()
-                        && [j * n + i - 1, j * n + i + 1, (j - 1) * n + i, (j + 1) * n + i]
-                            .into_iter()
-                            .any(wet_nb),
-                };
-                if let Some(p) = self.understory.pick(&column) {
-                    let y = if p.floating { c.level - 1 } else { h };
-                    let here = chunk.block(x, y, z);
-                    if here == AIR || here == water {
-                        chunk.set_block(x, y, z, p.block);
-                    }
-                }
-            }
+    /// Pas de saison courant, `None` sans surcouche.
+    fn season_step(&self) -> Option<u8> {
+        match self.season.load(Ordering::Acquire) {
+            NO_SEASON => None,
+            s => Some(s),
         }
     }
 
-}
-
-impl TerrainGenerator for NorrcraftTerrain {
-    fn fork(&self) -> Box<dyn TerrainGenerator> {
-        Box::new(self.clone())
-    }
-
-    /// Premier `y` non solide de la colonne (le fond, sous une nappe d'eau, banquise comprise ; le
-    /// dessus de la glace d'un glacier sur la terre sèche).
-    fn surface_height(&self, wx: i32, wz: i32) -> i32 {
-        self.dry_surface(wx, wz)
-            .unwrap_or_else(|| self.hydro.column(wx, wz).top)
-    }
-
-    /// Biome de la colonne : lu dans le cache des chunks analysés, sinon le chunk entier est
-    /// analysé (la sélection a besoin des voisines et de l'eau scellée).
-    fn biome_at(&self, wx: i32, wz: i32) -> BiomeId {
-        let (cx, cz) = (
-            wx.div_euclid(CHUNK_SIZE_X as i32),
-            wz.div_euclid(CHUNK_SIZE_Z as i32),
-        );
-        let k = (wz.rem_euclid(CHUNK_SIZE_Z as i32) as usize) * CHUNK_SIZE_X
-            + wx.rem_euclid(CHUNK_SIZE_X as i32) as usize;
-        if let Some(ids) = self
-            .biome_cache
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(&(cx, cz))
-        {
-            return ids[k];
-        }
-        let cols = self.analyse(cx * CHUNK_SIZE_X as i32, cz * CHUNK_SIZE_Z as i32);
-        self.remember(cx, cz, &cols.biomes)[k]
-    }
-
-    fn generate_chunk(&self, chunk: &mut Chunk) {
-        let pos = chunk.pos();
-        let (x0, z0) = (pos.x * CHUNK_SIZE_X as i32, pos.z * CHUNK_SIZE_Z as i32);
-        let cols = self.analyse(x0, z0);
-        self.remember(pos.x, pos.z, &cols.biomes);
+    /// Terrain, arbres et strate basse : l'état de fin d'été (session 3.2 : la surcouche
+    /// saisonnière vient ensuite, voir [`Self::overlay_season`]).
+    fn generate_base(&self, chunk: &mut Chunk, cols: &ChunkColumns, x0: i32, z0: i32) {
         let n = CHUNK_SIZE_X + 2;
         let top = |i: usize, j: usize| cols.water[j * n + i].top;
         let sea = self.sea();
@@ -669,7 +602,183 @@ impl TerrainGenerator for NorrcraftTerrain {
         // Arbres (session 2.3) : en dernier, les passes de décor suivantes traitent tout bloc
         // non-air comme occupé.
         self.with_tree_probe(|probe| self.trees.pass(chunk, probe));
-        self.place_understory(chunk, &cols, x0, z0);
+        self.place_understory(chunk, cols, x0, z0);
+    }
+
+    /// Surcouche saisonnière du pas `step` sur tout le chunk (colonnes supposées naturelles).
+    fn overlay_season(&self, chunk: &mut Chunk, cols: &ChunkColumns, x0: i32, z0: i32, step: u8) {
+        let n = CHUNK_SIZE_X + 2;
+        let hmax = self.world_height();
+        let sea = self.sea();
+        let rules = SeasonRules::builtin();
+        for lz in 0..CHUNK_SIZE_Z {
+            for lx in 0..CHUNK_SIZE_X {
+                let (i, j) = (lx + 1, lz + 1);
+                let c = cols.water[j * n + i];
+                let r = &cols.reliefs[j * n + i];
+                let ground = ice_top(r, c.surface(), hmax).unwrap_or(c.top);
+                let input = ColumnInput {
+                    wx: x0 + lx as i32,
+                    wz: z0 + lz as i32,
+                    water: c,
+                    ground,
+                    macros: &cols.macros[j * n + i],
+                    biome: cols.biomes[lz * CHUNK_SIZE_X + lx].biome,
+                    upwind_top: cols.water[j * n + i - 1].top,
+                    sea_level: sea,
+                    world_height: hmax,
+                };
+                seasonal::apply_column(
+                    chunk,
+                    &self.blocks.season,
+                    rules,
+                    step,
+                    lx as i32,
+                    lz as i32,
+                    &input,
+                );
+            }
+        }
+    }
+
+    /// Strate basse (session 2.4), **après** les arbres : une plante par colonne, sur le sol, au
+    /// fond de l'eau ou à sa surface. Tout bloc non-air (tronc, feuille) occupe la cellule.
+    fn place_understory(&self, chunk: &mut Chunk, cols: &ChunkColumns, x0: i32, z0: i32) {
+        let n = CHUNK_SIZE_X + 2;
+        let hmax = self.world_height();
+        let water = self.blocks.water;
+        for lz in 0..CHUNK_SIZE_Z {
+            for lx in 0..CHUNK_SIZE_X {
+                let (i, j) = (lx + 1, lz + 1);
+                let c = cols.water[j * n + i];
+                let r = &cols.reliefs[j * n + i];
+                let s = &cols.biomes[lz * CHUNK_SIZE_X + lx];
+                let h = c.top;
+                if s.snow || h < 2 || h >= hmax - 1 || ice_top(r, c.surface(), hmax).is_some() {
+                    continue;
+                }
+                let wet_nb = |k: usize| {
+                    let nb = cols.water[k];
+                    nb.is_wet()
+                        && (matches!(nb.kind, WaterKind::Lake | WaterKind::River)
+                            || s.biome == NorrBiome::Bottenhav)
+                };
+                let (x, z) = (lx as i32, lz as i32);
+                let column = Column {
+                    wx: x0 + x,
+                    wz: z0 + z,
+                    biome: s.biome,
+                    ground: self.understory.ground_of(chunk.block(x, h - 1, z)),
+                    water: c.is_wet().then(|| match c.kind {
+                        WaterKind::Sea if s.biome == NorrBiome::Bottenhav => Water::Brackish,
+                        WaterKind::Sea => Water::Salt,
+                        _ => Water::Fresh,
+                    }),
+                    depth: (c.level - h).max(0),
+                    shore: !c.is_wet()
+                        && [
+                            j * n + i - 1,
+                            j * n + i + 1,
+                            (j - 1) * n + i,
+                            (j + 1) * n + i,
+                        ]
+                        .into_iter()
+                        .any(wet_nb),
+                };
+                if let Some(p) = self.understory.pick(&column) {
+                    let y = if p.floating { c.level - 1 } else { h };
+                    let here = chunk.block(x, y, z);
+                    if here == AIR || here == water {
+                        chunk.set_block(x, y, z, p.block);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl TerrainGenerator for NorrcraftTerrain {
+    fn fork(&self) -> Box<dyn TerrainGenerator> {
+        Box::new(self.clone())
+    }
+
+    /// Premier `y` non solide de la colonne (le fond, sous une nappe d'eau, banquise comprise ; le
+    /// dessus de la glace d'un glacier sur la terre sèche).
+    fn surface_height(&self, wx: i32, wz: i32) -> i32 {
+        self.dry_surface(wx, wz)
+            .unwrap_or_else(|| self.hydro.column(wx, wz).top)
+    }
+
+    /// Biome de la colonne : lu dans le cache des chunks analysés, sinon le chunk entier est
+    /// analysé (la sélection a besoin des voisines et de l'eau scellée).
+    fn biome_at(&self, wx: i32, wz: i32) -> BiomeId {
+        let (cx, cz) = (
+            wx.div_euclid(CHUNK_SIZE_X as i32),
+            wz.div_euclid(CHUNK_SIZE_Z as i32),
+        );
+        let k = (wz.rem_euclid(CHUNK_SIZE_Z as i32) as usize) * CHUNK_SIZE_X
+            + wx.rem_euclid(CHUNK_SIZE_X as i32) as usize;
+        if let Some(ids) = self
+            .biome_cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&(cx, cz))
+        {
+            return ids[k];
+        }
+        let cols = self.analyse(cx * CHUNK_SIZE_X as i32, cz * CHUNK_SIZE_Z as i32);
+        self.remember(cx, cz, &cols.biomes)[k]
+    }
+
+    fn generate_chunk(&self, chunk: &mut Chunk) {
+        let pos = chunk.pos();
+        let (x0, z0) = (pos.x * CHUNK_SIZE_X as i32, pos.z * CHUNK_SIZE_Z as i32);
+        let cols = self.analyse(x0, z0);
+        self.remember(pos.x, pos.z, &cols.biomes);
+        self.generate_base(chunk, &cols, x0, z0);
+        if let Some(step) = self.season_step() {
+            self.overlay_season(chunk, &cols, x0, z0, step);
+        }
+    }
+
+    fn set_season(&self, step: Option<u8>) {
+        self.season
+            .store(step.unwrap_or(NO_SEASON), Ordering::Release);
+    }
+
+    fn season(&self) -> Option<u8> {
+        self.season_step()
+    }
+
+    /// Recalcule la surcouche d'un chunk déjà généré (chargé du disque, ou pas de saison
+    /// changé) : le chunk de fin d'été est régénéré, la surcouche y est posée, et seules les
+    /// colonnes encore naturelles reprennent le nouvel état. `true` si le chunk a changé.
+    fn reseason(&self, chunk: &mut Chunk) -> bool {
+        let Some(step) = self.season_step() else {
+            return false;
+        };
+        let pos = chunk.pos();
+        let (x0, z0) = (pos.x * CHUNK_SIZE_X as i32, pos.z * CHUNK_SIZE_Z as i32);
+        let cols = self.analyse(x0, z0);
+        let mut base = Chunk::new(pos);
+        self.generate_base(&mut base, &cols, x0, z0);
+        let mut next = base.clone();
+        self.overlay_season(&mut next, &cols, x0, z0, step);
+        let blocks = &self.blocks.season;
+        for z in 0..CHUNK_SIZE_Z as i32 {
+            for x in 0..CHUNK_SIZE_X as i32 {
+                if !seasonal::pristine(blocks, chunk, &base, x, z) {
+                    for y in 0..CHUNK_SIZE_Y as i32 {
+                        next.set_block(x, y, z, chunk.block(x, y, z));
+                    }
+                }
+            }
+        }
+        if next.voxels() == chunk.voxels() {
+            return false;
+        }
+        chunk.replace_voxels(next.voxels());
+        true
     }
 
     /// Départ cherché en anneaux autour de l'origine, sur la terre sèche au-dessus du niveau de la
@@ -678,11 +787,9 @@ impl TerrainGenerator for NorrcraftTerrain {
     fn find_spawn(&self, _sea_level: i32) -> [f64; 3] {
         // Ni sous un houppier ni dans un tronc : aucune plante à moins de 6 blocs.
         self.with_tree_probe(|probe| {
-            find_spawn_location(self.sea(), |x, z| {
-                match self.dry_surface(x, z) {
-                    Some(h) if !self.trees.plant_within(probe, x, z, 6) => h,
-                    _ => i32::MIN,
-                }
+            find_spawn_location(self.sea(), |x, z| match self.dry_surface(x, z) {
+                Some(h) if !self.trees.plant_within(probe, x, z, 6) => h,
+                _ => i32::MIN,
             })
         })
     }

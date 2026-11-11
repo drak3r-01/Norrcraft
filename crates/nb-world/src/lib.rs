@@ -33,6 +33,7 @@ pub mod noise;
 pub mod norrcraft;
 pub mod profile;
 pub mod save;
+pub mod seasons;
 pub mod storage;
 pub mod vanilla;
 pub mod world;

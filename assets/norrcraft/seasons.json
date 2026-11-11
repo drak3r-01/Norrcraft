@@ -1,0 +1,95 @@
+{
+  "_doc": "Flore : liste des pas où une plante est présente ; hors saison elle devient `else` (air, ou ris = rameau sans fruits) ; une plante absente de la table est présente toute l année. Règles de la surcouche saisonnière (session 3.2, doc 04 §2.3). Les pas de saison sont numérotés 0..7 : le pas s est centré sur la fraction d'année (s + 0,5) / 8, 0 = solstice d'hiver (pas 0 = fin janvier, 1 = mars, 2 = mai, 3 = juin, 4 = août, 5 = septembre, 6 = octobre, 7 = décembre). Les températures sont sur l'échelle de T0 (0 arctique, 1 sud doux).",
+  "temperature": {
+    "_doc": "T(a) = T_moyenne − amplitude(λ)·cos(2π(a − le plus froid)) ; amplitude = base + par_lambda·λ ; λ = 1 − T0.",
+    "coldest": 0.07,
+    "amplitude_base": 0.2,
+    "amplitude_per_lambda": 0.15
+  },
+  "snow": {
+    "_doc": "Manteau en couches de 1/8 de bloc : il s'accumule quand T < threshold (accumulate × écart × humidité) et fond au-dessus (melt × écart).",
+    "threshold": 0.34,
+    "accumulate": 140.0,
+    "melt": 520.0,
+    "cap": 16.0,
+    "wet_base": 0.6,
+    "wet_gain": 0.8,
+    "canopy": 0.5,
+    "drift_layers": 2,
+    "drift_drop": 2,
+    "min_visible": 0.5
+  },
+  "ice": {
+    "_doc": "Épaisseur h (arbitraire) : croît de growth × écart sous le seuil de l'eau, fond de melt × écart au-dessus. Rangs : e = 1 dès h ≥ e1, 2 dès e2, 3 dès e3. À la débâcle (h décroît) e est plafonné à 1.",
+    "lake_threshold": 0.3,
+    "brackish_threshold": 0.26,
+    "sea_threshold": 0.18,
+    "growth": 12.0,
+    "melt": 40.0,
+    "e1": 0.05,
+    "e2": 0.2,
+    "e3": 0.45
+  },
+  "leaves": {
+    "_doc": "Part des feuilles de feuillus tenue à la branche : lisse(T) entre bare_below et full_above, à l'automne (T baisse) et au printemps (T monte).",
+    "autumn_bare_below": 0.32,
+    "autumn_full_above": 0.52,
+    "spring_bare_below": 0.3,
+    "spring_full_above": 0.44
+  },
+  "leaf_tints": {
+    "_doc": "Teinte de saison des feuillus par pas : cible (échelle des teintes de biomes) et part du mélange.",
+    "steps": [
+      {"target": [0.42, 0.33, 0.16], "mix": 0.9},
+      {"target": [0.42, 0.33, 0.16], "mix": 0.9},
+      {"target": [0.56, 0.82, 0.26], "mix": 0.55},
+      null,
+      null,
+      {"target": [0.74, 0.66, 0.14], "mix": 0.3},
+      {"target": [0.80, 0.40, 0.09], "mix": 0.85},
+      {"target": [0.46, 0.34, 0.16], "mix": 0.9}
+    ]
+  },
+  "grass_tints": {
+    "steps": [
+      {"target": [0.52, 0.47, 0.30], "mix": 0.7},
+      {"target": [0.52, 0.47, 0.30], "mix": 0.6},
+      {"target": [0.46, 0.76, 0.20], "mix": 0.3},
+      null,
+      null,
+      {"target": [0.62, 0.62, 0.22], "mix": 0.3},
+      {"target": [0.56, 0.50, 0.22], "mix": 0.6},
+      {"target": [0.52, 0.47, 0.30], "mix": 0.7}
+    ]
+  },
+  "flora": {
+    "blabar": {"steps": [4, 5], "else": "ris"},
+    "lingon": {"steps": [5, 6], "else": "ris"},
+    "hjortron": {"steps": [4], "else": "air"},
+    "smultron": {"steps": [3, 4], "else": "ris"},
+    "tranbar": {"steps": [5, 6], "else": "ris"},
+    "nypon": {"steps": [4, 5, 6], "else": "ris"},
+    "havtorn": {"steps": [5, 6, 7], "else": "ris"},
+    "kantarell": {"steps": [4, 5, 6], "else": "air"},
+    "karljohan": {"steps": [4, 5, 6], "else": "air"},
+    "flugsvamp": {"steps": [4, 5, 6], "else": "air"},
+    "vitsippa": {"steps": [2], "else": "air"},
+    "blasippa": {"steps": [2], "else": "air"},
+    "ramslok": {"steps": [2, 3], "else": "air"},
+    "midsommarblomster": {"steps": [3, 4], "else": "air"},
+    "prastkrage": {"steps": [3, 4], "else": "air"},
+    "blaklocka": {"steps": [4, 5], "else": "air"},
+    "rodklover": {"steps": [3, 4, 5], "else": "air"},
+    "rallarros": {"steps": [4, 5], "else": "air"},
+    "angsull": {"steps": [3, 4], "else": "air"},
+    "kvanne": {"steps": [3, 4], "else": "air"},
+    "orkide": {"steps": [3, 4], "else": "air"},
+    "fjallsippa": {"steps": [3, 4], "else": "air"},
+    "isranunkel": {"steps": [3, 4], "else": "air"},
+    "lupin": {"steps": [3, 4], "else": "air"},
+    "mjodort": {"steps": [3, 4, 5], "else": "air"},
+    "glasort": {"steps": [2, 3, 4, 5, 6], "else": "air"},
+    "kaveldun": {"steps": [2, 3, 4, 5, 6], "else": "air"},
+    "nackros": {"steps": [3, 4, 5], "else": "air"}
+  }
+}

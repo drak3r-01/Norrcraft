@@ -391,6 +391,8 @@ mod tests {
             light_attenuation: 1,
             light_emission: 100,
             texture_layers: [0; 6],
+            layer_eighths: 0,
+            seasonal: false,
         };
         let mut murky = glow.clone();
         murky.light_emission = 0;

@@ -78,8 +78,9 @@ joueur calcule le décalage solaire pour sa propre latitude. `days_per_month` vo
 
 * Le solstice d'été tombe le 21 juin réel, au milieu de `juni` ; le doc place les mois sur des
   fractions d'année égales.
-* La surcouche saisonnière des chunks (neige, glace, feuillages, flore), les fêtes actives et la
-  croissance des plantes par la lumière (doc 04 §2.3 et §2.4) viennent avec les sessions 3.2 et
+* La surcouche saisonnière des chunks (neige, glace, feuillages, flore) est faite : voir
+  `docs/SAISONS.md` (session 3.2). Les fêtes actives et la
+  croissance des plantes par la lumière (doc 04 §2.4) viennent avec la session
   6.4. `survival.rs` (température de l'air) lit encore `config.time_of_day`, sans décalage solaire.
 * Pas de réglage de création pour `days_per_month` (le champ de `world.json` le permet).
 * La phase de la lune n'est pas encore dessinée.

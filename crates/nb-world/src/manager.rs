@@ -6,7 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
 use std::thread::JoinHandle;
 
@@ -166,6 +166,11 @@ struct Inner {
     extra_centers: Mutex<Vec<(i32, i32, i32)>>,
     /// Monde client : les chunks viennent tous de l'hôte, rien n'est généré ni sauvegardé.
     remote: AtomicBool,
+    /// Compteur des changements de pas de saison : un chunk généré pendant un changement est
+    /// remis à la surcouche.
+    season_epoch: AtomicU64,
+    /// Chunks dont la surcouche saisonnière est à recalculer.
+    season_q: PrioQueue,
 }
 
 /// Une écriture de bloc en coordonnées monde (journal d'éditions, voir
@@ -300,8 +305,14 @@ impl Inner {
                 None
             }
         };
+        let epoch = self.season_epoch.load(Ordering::Acquire);
         let chunk = match stored {
-            Some(v) => Chunk::from_voxels(pos, v.as_slice()),
+            // Chunk enregistré dans une autre saison : surcouche recalculée avant l'affichage.
+            Some(v) => {
+                let mut c = Chunk::from_voxels(pos, v.as_slice());
+                generator.reseason(&mut c);
+                c
+            }
             // Monde client : un chunk absent du stockage n'existe pas encore (l'hôte l'enverra).
             None if self.remote.load(Ordering::Acquire) => return,
             None => {
@@ -316,6 +327,32 @@ impl Inner {
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .insert(pos, entry);
+        self.mark_neighbors_mesh_dirty(pos);
+        if self.season_epoch.load(Ordering::Acquire) != epoch {
+            self.season_q.push(pos);
+        }
+    }
+
+    /// Recalcule la surcouche saisonnière d'un chunk actif sur une copie, puis la remplace si rien
+    /// n'a été écrit entre-temps (sinon la tâche repart). Le maillage est toujours à refaire :
+    /// les teintes de saison changent même quand les blocs ne changent pas.
+    fn season_job(&self, pos: ChunkPos, generator: &dyn TerrainGenerator) {
+        if self.is_stale(pos) {
+            return;
+        }
+        let Some(entry) = self.active_get(pos) else {
+            return;
+        };
+        let edits = entry.edit_count();
+        let mut copy = entry.read().clone();
+        if generator.reseason(&mut copy) {
+            let voxels: Box<[BlockId; CHUNK_VOLUME]> = Box::new(*copy.voxels());
+            if !entry.replace_voxels_if_unchanged(&voxels, edits) {
+                self.season_q.push(pos);
+                return;
+            }
+        }
+        self.mark_mesh_dirty(pos);
         self.mark_neighbors_mesh_dirty(pos);
     }
 
@@ -456,6 +493,8 @@ impl ChunkManager {
             edit_log: Mutex::new(None),
             extra_centers: Mutex::new(Vec::new()),
             remote: AtomicBool::new(false),
+            season_epoch: AtomicU64::new(0),
+            season_q: PrioQueue::new(),
         });
         let gen_q = Arc::new(PrioQueue::new());
         let light_q = Arc::new(PrioQueue::new());
@@ -512,6 +551,29 @@ impl ChunkManager {
                     .expect("thread de lumière"),
             );
         }
+        {
+            let inner = inner.clone();
+            let generator = generator.fork();
+            workers.push(
+                std::thread::Builder::new()
+                    .name("nb-season".to_owned())
+                    .spawn(move || {
+                        nb_core::thread::lower_priority();
+                        while let Some(pos) = inner.season_q.pop(|| inner.player_chunk_xz()) {
+                            if inner.shutdown.load(Ordering::Acquire) {
+                                break;
+                            }
+                            let r = catch_unwind(AssertUnwindSafe(|| {
+                                inner.season_job(pos, &*generator);
+                            }));
+                            if r.is_err() {
+                                eprintln!("échec de la surcouche saisonnière du chunk {pos:?}");
+                            }
+                        }
+                    })
+                    .expect("thread de saison"),
+            );
+        }
         let save_q = Arc::new(SaveQueue::new());
         {
             let inner = inner.clone();
@@ -540,6 +602,25 @@ impl ChunkManager {
             save_q,
             workers: Mutex::new(workers),
         }
+    }
+
+    /// Règle le pas de saison (0..8) du monde et met en file la surcouche de tous les chunks
+    /// actifs ; les chunks générés ensuite le suivent. `None` : retour à l'état de fin d'été.
+    /// Sans effet quand le pas ne change pas.
+    pub fn set_season(&self, step: Option<u8>) {
+        if self.generator.season() == step {
+            return;
+        }
+        self.generator.set_season(step);
+        self.inner.season_epoch.fetch_add(1, Ordering::AcqRel);
+        for pos in self.active_positions() {
+            self.inner.season_q.push(pos);
+        }
+    }
+
+    /// Pas de saison courant du générateur.
+    pub fn season(&self) -> Option<u8> {
+        self.generator.season()
     }
 
     pub fn set_render_distance(&self, r: i32) {
@@ -898,6 +979,7 @@ impl ChunkManager {
         self.inner.shutdown.store(true, Ordering::Release);
         self.gen_q.close();
         self.light_q.close();
+        self.inner.season_q.close();
         self.save_q.close();
         let workers: Vec<_> = lock(&self.workers).drain(..).collect();
         for w in workers {

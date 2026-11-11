@@ -10,6 +10,8 @@ pub enum BlockRole {
     Water,
     Lava,
     LilyPad,
+    /// Couche partielle (neige) : dalle de `layer_eighths / 8` de bloc, hors greedy.
+    Layer,
     Other,
 }
 
@@ -27,6 +29,10 @@ pub struct BlockMeshInfo {
     pub light_emission: i32,
     /// Layers de texture résolus, indexés par face (0 = +Z … 5 = −Y).
     pub texture_layers: [u32; 6],
+    /// Hauteur d'une couche en huitièmes de bloc (0 = bloc plein).
+    pub layer_eighths: u8,
+    /// Feuillage caduc : reçoit la teinte de saison du mailleur.
+    pub seasonal: bool,
 }
 
 impl BlockMeshInfo {
@@ -41,6 +47,8 @@ impl BlockMeshInfo {
             light_attenuation: 0,
             light_emission: 0,
             texture_layers: [0; 6],
+            layer_eighths: 0,
+            seasonal: false,
         }
     }
 
@@ -52,7 +60,10 @@ impl BlockMeshInfo {
     /// Blocs ignorés comme bloc courant par le greedy meshing (air, croix, nénuphar).
     #[inline]
     pub(crate) fn skipped_by_greedy(&self) -> bool {
-        self.role == BlockRole::Air || self.cross_shaped || self.role == BlockRole::LilyPad
+        matches!(
+            self.role,
+            BlockRole::Air | BlockRole::LilyPad | BlockRole::Layer
+        ) || self.cross_shaped
     }
 
     /// `isLightBlocking` (§5.1).
@@ -60,7 +71,11 @@ impl BlockMeshInfo {
     pub fn is_light_blocking(&self) -> bool {
         !(matches!(
             self.role,
-            BlockRole::Air | BlockRole::Water | BlockRole::Lava | BlockRole::LilyPad
+            BlockRole::Air
+                | BlockRole::Water
+                | BlockRole::Lava
+                | BlockRole::LilyPad
+                | BlockRole::Layer
         ) || self.cross_shaped
             || self.leaves_tinted)
     }
@@ -70,7 +85,11 @@ impl BlockMeshInfo {
     pub fn is_ao_solid(&self) -> bool {
         !(matches!(
             self.role,
-            BlockRole::Air | BlockRole::Water | BlockRole::Lava | BlockRole::LilyPad
+            BlockRole::Air
+                | BlockRole::Water
+                | BlockRole::Lava
+                | BlockRole::LilyPad
+                | BlockRole::Layer
         ) || self.cross_shaped)
     }
 }
@@ -142,6 +161,8 @@ impl BlockTable {
                     BlockRole::Lava
                 } else if b.id == ids.lily_pad {
                     BlockRole::LilyPad
+                } else if (1..8).contains(&b.height) {
+                    BlockRole::Layer
                 } else {
                     BlockRole::Other
                 };
@@ -160,6 +181,12 @@ impl BlockTable {
                     light_attenuation: i32::from(b.light_attenuation as i8),
                     light_emission: i32::from(b.light_emission as i8),
                     texture_layers,
+                    layer_eighths: if (1..8).contains(&b.height) {
+                        b.height
+                    } else {
+                        0
+                    },
+                    seasonal: b.seasonal,
                 };
                 (b.id, info)
             })
@@ -190,9 +217,11 @@ impl BlockTable {
 /// (identifiants canoniques égaux).
 pub fn should_render_face(cur: &BlockMeshInfo, nb: &BlockMeshInfo, same_block: bool) -> bool {
     if cur.is_fluid() {
-        return (nb.transparent || nb.role == BlockRole::LilyPad) && !same_block;
+        return (nb.transparent || matches!(nb.role, BlockRole::LilyPad | BlockRole::Layer))
+            && !same_block;
     }
-    if nb.transparent || nb.cross_shaped || nb.role == BlockRole::LilyPad {
+    if nb.transparent || nb.cross_shaped || matches!(nb.role, BlockRole::LilyPad | BlockRole::Layer)
+    {
         return !(same_block && !cur.leaves_tinted);
     }
     false

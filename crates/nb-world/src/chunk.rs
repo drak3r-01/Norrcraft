@@ -256,6 +256,24 @@ impl ChunkEntry {
         self.flags.mark_all();
     }
 
+    /// Remplace tous les voxels **si aucune écriture n'a eu lieu** depuis que le compteur valait
+    /// `expected` (surcouche saisonnière calculée sur une copie). Le verrou en écriture est tenu
+    /// pendant le test : une écriture concurrente attend, puis ne se perd pas.
+    pub fn replace_voxels_if_unchanged(
+        &self,
+        voxels: &[BlockId; CHUNK_VOLUME],
+        expected: u64,
+    ) -> bool {
+        let mut g = self.write();
+        if self.edit_count() != expected {
+            return false;
+        }
+        g.replace_voxels(voxels);
+        self.edits.fetch_add(1, Ordering::AcqRel);
+        self.flags.mark_all();
+        true
+    }
+
     /// Compteur d'écritures (voir [`ChunkEntry::edits`]).
     pub fn edit_count(&self) -> u64 {
         self.edits.load(Ordering::Acquire)

@@ -6,6 +6,7 @@
 
 use nb_ecs::Transform;
 use nb_world::calendar::{smooth_latitude, DayLight};
+use nb_world::seasons::step_of;
 
 use super::*;
 
@@ -46,6 +47,11 @@ impl Game {
             self.sky.latitude = smooth_latitude(self.sky.latitude, self.calendar_state.target, dt);
         }
         let a = cal.year_fraction(self.sky.day, self.sky.time_of_day);
+        // Surcouche saisonnière des chunks : un pas tous les huitièmes d'année.
+        self.session
+            .world
+            .chunk_manager()
+            .set_season(Some(step_of(a)));
         self.sky.solar_bias = DayLight::at(a, self.sky.latitude).bias;
     }
 
