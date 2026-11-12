@@ -166,6 +166,9 @@ pub struct MobConfig {
     /// Fiche d'élevage d'un animal domestique (session 5.7, `husbandry.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub husbandry: Option<crate::husbandry::Husbandry>,
+    /// Interactions avec le monde, traces, piégeage et dépeçage (session 5.8, `ecology.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ecology: Option<crate::ecology::Ecology>,
 }
 
 impl MobConfig {

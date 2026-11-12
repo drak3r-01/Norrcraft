@@ -672,6 +672,147 @@ add("skogskatt", "Skogskatt",
     husbandry=hus("ratter", ["fisk", "mjolk"], None, follow=8.0))
 
 
+# -- Écologie, traces, piégeage et dépeçage (doc 03 §4.5 et §5, session 5.8) ---------------------
+BERRIES = ["blabar", "lingon", "ris", "ljung"]
+FENCES = ["staket"]
+WINTER = [10, 3]
+WARM_SEASON = [4, 9]
+
+
+def cut(item, lo, hi, chance=1.0, knife=False, months=None, bonus=1.5):
+    c = {"item": item, "min": lo, "max": hi, "chance": chance, "needsKnife": knife, "knifeBonus": bonus}
+    if months:
+        c["months"] = months
+    return c
+
+
+def big_game(meat=(3, 6), horn=None, fur=True):
+    """Gros gibier : viande à la main, peau au couteau (pelage d'hiver plus chaud et plus cher)."""
+    cuts = [cut("kott", *meat), cut("ben", 1, 2, 0.8, True)]
+    if fur:
+        cuts += [cut("vinterskinn", 1, 1, 1.0, True, WINTER), cut("skinn", 1, 2, 1.0, True, WARM_SEASON)]
+    if horn:
+        cuts.append(cut(horn, 1, 2, 0.9, True))
+    return cuts
+
+
+def small_game(meat=(1, 2), fur=None):
+    cuts = [cut("kott", *meat)]
+    if fur:
+        cuts += [cut(fur, 1, 1, 0.9, True)]
+    return cuts
+
+
+def bird(meat=(1, 2)):
+    return [cut("kott", *meat), cut("fjader", 2, 5, 0.9)]
+
+
+def fish(n=(1, 2)):
+    return [cut("fisk", *n)]
+
+
+def eco(browse=None, fell=None, venom=None, tracks=None, catch=None, nat=None, loot=None, carcass=None):
+    d = {}
+    if browse:
+        d["browse"] = browse
+    if fell:
+        d["fell"] = fell
+    if venom:
+        d["venom"] = venom
+    if tracks:
+        d["tracks"] = tracks
+    if catch:
+        d["catch"] = catch
+    if nat:
+        d["naturfrid"] = nat
+    if loot:
+        d["loot"] = loot
+    if carcass:
+        d["carcass"] = carcass
+    return d
+
+
+def trk(print_, ttl=1800.0, **kw):
+    d = {"print": print_, "ttl": ttl}
+    d.update(kw)
+    return d
+
+
+def nat(worth=1.0, breeding=None, sacred=False):
+    d = {"worth": worth, "sacred": sacred}
+    if breeding:
+        d["breeding"] = breeding
+    return d
+
+
+def snare(p):
+    return {"trap": "snare", "chance": p}
+
+
+def pit(p):
+    return {"trap": "pit", "chance": p}
+
+
+def ftrap(p):
+    return {"trap": "fishTrap", "chance": p}
+
+
+def net(p):
+    return {"trap": "net", "chance": p}
+
+
+BIRTH = [4, 5]  # mise bas : mai et juin
+ECOLOGY = {
+    "alg": eco(browse={"eats": BERRIES, "fences": FENCES}, tracks=trk("klov", droppings=0.4, debark=True),
+               catch=[pit(0.25)], nat=nat(1.0, BIRTH), loot=big_game((4, 8), "horn")),
+    "radjur": eco(browse={"eats": BERRIES, "fences": FENCES}, tracks=trk("klov", droppings=0.3),
+                  catch=[pit(0.3)], nat=nat(1.0, BIRTH), loot=big_game((2, 4))),
+    "ren": eco(browse={"eats": ["ris", "ljung"], "months": [5, 9], "fences": FENCES},
+               tracks=trk("klov", droppings=0.3), catch=[pit(0.3)], nat=nat(1.0, BIRTH),
+               loot=big_game((3, 6), "horn")),
+    "myskoxe": eco(tracks=trk("klov", 2400.0), nat=nat(1.2, BIRTH), loot=big_game((5, 9), "horn")),
+    "snolopare": eco(tracks=trk("tass", 1500.0), catch=[snare(0.6)], nat=nat(0.6, [3, 7]),
+                     loot=small_game((1, 2), "skinn")),
+    "ekorre": eco(catch=[snare(0.15)], nat=nat(0.3), loot=small_game((1, 1))),
+    "hermelin": eco(tracks=trk("tass", 900.0), catch=[snare(0.3)], nat=nat(0.3), loot=small_game((1, 1), "skinn")),
+    "orre": eco(tracks=trk("fagel", 1200.0), catch=[snare(0.5)], nat=nat(0.8, [4, 6]), loot=bird()),
+    "tjader": eco(tracks=trk("fagel", 1200.0), catch=[snare(0.4)], nat=nat(0.8, [4, 6]), loot=bird((2, 3))),
+    "ripa": eco(tracks=trk("fagel", 1200.0), catch=[snare(0.6)], nat=nat(0.8, [4, 6]), loot=bird()),
+    "trana": eco(catch=[net(0.1)], nat=nat(1.0, [3, 6], True), loot=bird((2, 3))),
+    "grasgas": eco(catch=[net(0.2)], nat=nat(0.8, [3, 6]), loot=bird((2, 4))),
+    "sangsvan": eco(nat=nat(1.0, [3, 6], True), loot=bird((3, 5))),
+    "ejder": eco(catch=[net(0.2)], nat=nat(0.8, [4, 6]), loot=bird((1, 2))),
+    "varg": eco(tracks=trk("tass", 2400.0), nat=nat(0.4), loot=big_game((2, 4), None)),
+    "lo": eco(tracks=trk("tass", 2400.0), nat=nat(0.5), loot=big_game((1, 2), None)),
+    "jarv": eco(tracks=trk("tass", 2400.0), nat=nat(0.5), loot=big_game((1, 2), None)),
+    "fjallrav": eco(tracks=trk("tass", 1800.0), nat=nat(0.4), loot=small_game((1, 1), "skinn")),
+    "bjorn": eco(tracks=trk("tass", 3600.0, debark=True, droppings=0.2), nat=nat(1.0, [0, 2], True),
+                 loot=big_game((5, 10), None)),
+    "huggorm": eco(venom={"damagePerSec": 0.5, "seconds": 20.0, "chance": 0.6, "cures": ["groblad", "serum"]},
+                   tracks=trk("orm", 600.0, stride=1.5), nat=nat(0.0)),
+    "baver": eco(fell={"everySecs": 1800.0, "cap": 6, "reach": 24, "dam": ["stock"],
+                       "spare": ["dod_stam", "mossig_stam"]},
+                 tracks=trk("tass", 1200.0), nat=nat(0.6),
+                 loot=small_game((2, 3), "pals")),
+    "lax": eco(catch=[ftrap(0.8), net(0.9)], nat=nat(0.8), loot=fish((2, 4))),
+    "oring": eco(catch=[ftrap(0.6), net(0.7)], nat=nat(0.8), loot=fish()),
+    "roding": eco(catch=[ftrap(0.6), net(0.7)], nat=nat(0.8), loot=fish()),
+    "gadda": eco(catch=[ftrap(0.5), net(0.6)], nat=nat(0.6), loot=fish((2, 3))),
+    "abborre": eco(catch=[ftrap(0.7), net(0.8)], nat=nat(0.5), loot=fish()),
+    "stromming": eco(catch=[net(1.0)], nat=nat(0.3), loot=fish((1, 3))),
+    "torsk": eco(catch=[net(0.8)], nat=nat(0.6), loot=fish((2, 4))),
+    "al_fisk": eco(catch=[ftrap(0.7)], nat=nat(0.8), loot=fish()),
+    "krafta": eco(catch=[ftrap(1.0)], nat=nat(0.3), loot=[cut("krafta", 1, 3)]),
+    "utter": eco(tracks=trk("tass", 1200.0), nat=nat(0.8), loot=small_game((1, 2), "pals")),
+    "vikare": eco(nat=nat(1.0, [1, 3]), loot=big_game((3, 6), None)),
+    "valross": eco(nat=nat(1.2, [3, 5]), loot=big_game((6, 12), "tand")),
+    "val": eco(nat=nat(2.0, [4, 6], True), loot=[cut("kott", 8, 16), cut("spack", 4, 8, 1.0, True)]),
+}
+for c, _ in MOBS:
+    if c["id"] in ECOLOGY:
+        c["ecology"] = ECOLOGY[c["id"]]
+
+
 def write():
     cfgs = [c for c, _ in MOBS]
     out = os.path.join(ROOT, "assets/norrcraft")

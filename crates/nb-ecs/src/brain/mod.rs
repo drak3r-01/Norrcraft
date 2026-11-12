@@ -51,6 +51,8 @@ pub const ENCIRCLE_RADIUS: f64 = 5.0;
 pub const ENCIRCLE_TIME: f32 = 6.0;
 /// Distance au gîte au-delà de laquelle l'errance ramène vers lui.
 pub const HOME_LEASH: f64 = 48.0;
+/// Rayon de la couronne du cercle défensif (bœuf musqué).
+pub const CIRCLE_RADIUS: f64 = 2.6;
 /// Rayon de garde (mise bas, territoire).
 pub const GUARD_LEASH: f64 = 6.0;
 /// Les congénères se connaissent dans ce rayon (harde, meute).
@@ -985,6 +987,12 @@ fn opportunity(s: StateKind, b: &Brain, f: &Frame<'_>) -> f32 {
                 0.0
             }
         }
+        // Le cercle se forme dès qu'une menace est à portée de charge et que le troupeau est
+        // là : sans congénères, l'animal fuit ou charge seul.
+        Circle => match threat_entity {
+            Some(d) if pc.pack_size >= 3 && d < THREATEN_RANGE * 1.5 => 1.0,
+            _ => 0.0,
+        },
     }
 }
 
@@ -1418,6 +1426,26 @@ fn act(
                 }
             }
         }
+        Circle => {
+            // Couronne de rayon CIRCLE_RADIUS autour du doyen du troupeau (le congénère
+            // d'identifiant le plus petit ; il reste en place) ; tous font face à la menace.
+            let centre = b.percepts.leader.map(|l| current_pos(actors, l));
+            if let Some(c) = centre {
+                let n = f64::from(b.percepts.pack_size.max(2) - 1);
+                let k = f64::from(b.percepts.pack_rank.max(1) - 1);
+                let a = std::f64::consts::TAU * k / n;
+                let slot = c + DVec3::new(a.cos(), 0.0, a.sin()) * CIRCLE_RADIUS;
+                if go_to(t, v, f, slot, sp.walk, 0.6) > 0.6 {
+                    return;
+                }
+            }
+            stop(v);
+            if let Some((p, id, d)) = threat_point(b) {
+                face(t, p);
+                // Un coup de corne à qui s'approche trop.
+                strike(b, id, d, false, effects);
+            }
+        }
         Build => {
             if go_to(t, v, f, b.home, sp.walk, 1.5) <= 1.5 {
                 let home = IVec3::new(floor_i(b.home.x), floor_i(b.home.y), floor_i(b.home.z));
@@ -1476,6 +1504,9 @@ fn apply(
                 }
             }
             provoke(world, target, Some(me));
+            if let Some(v) = cfg.ecology.as_ref().and_then(|e| e.venom.as_ref()) {
+                crate::ecology::envenom(world, me, target, v);
+            }
             if killed && hunting {
                 if let Some(b) = world.get_mut::<Brain>(me) {
                     b.needs.hunger = (b.needs.hunger - 0.7).max(0.0);

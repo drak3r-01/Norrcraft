@@ -73,10 +73,13 @@ pub enum StateKind {
     Steal,
     /// Construire.
     Build,
+    /// Former le cercle défensif (bœuf musqué) : les adultes se rangent en couronne face à la
+    /// menace, les jeunes au centre.
+    Circle,
 }
 
 impl StateKind {
-    pub const COUNT: usize = 24;
+    pub const COUNT: usize = 25;
     pub const ALL: [StateKind; Self::COUNT] = [
         StateKind::Wander,
         StateKind::Graze,
@@ -102,6 +105,7 @@ impl StateKind {
         StateKind::Scavenge,
         StateKind::Steal,
         StateKind::Build,
+        StateKind::Circle,
     ];
 
     /// Besoin qui nourrit l'état quand le profil n'en précise pas.
@@ -112,7 +116,7 @@ impl StateKind {
             Drink => Need::Thirst,
             Sleep => Need::Rest,
             Perch => Need::Fatigue,
-            Flee | Threaten | Charge | Burrow => Need::Fear,
+            Flee | Threaten | Charge | Burrow | Circle => Need::Fear,
             Wander | Guard | Follow | Migrate | Hibernate | Display | Fly | Swim | Build => {
                 Need::Constant
             }
@@ -147,6 +151,7 @@ impl StateKind {
             Scavenge => "charogner",
             Steal => "voler de la nourriture",
             Build => "construire",
+            Circle => "former le cercle",
         }
     }
 }

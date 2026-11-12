@@ -59,6 +59,89 @@
         "avoid": {
           "fire": 8
         }
+      },
+      "ecology": {
+        "browse": {
+          "eats": [
+            "blabar",
+            "lingon",
+            "ris",
+            "ljung"
+          ],
+          "fences": [
+            "staket"
+          ]
+        },
+        "tracks": {
+          "print": "klov",
+          "ttl": 1800.0,
+          "droppings": 0.4,
+          "debark": true
+        },
+        "catch": [
+          {
+            "trap": "pit",
+            "chance": 0.25
+          }
+        ],
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": false,
+          "breeding": [
+            4,
+            5
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 4,
+            "max": 8,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          },
+          {
+            "item": "horn",
+            "min": 1,
+            "max": 2,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -130,6 +213,90 @@
           "wander": 24,
           "materialize": 96
         }
+      },
+      "ecology": {
+        "browse": {
+          "eats": [
+            "ris",
+            "ljung"
+          ],
+          "months": [
+            5,
+            9
+          ],
+          "fences": [
+            "staket"
+          ]
+        },
+        "tracks": {
+          "print": "klov",
+          "ttl": 1800.0,
+          "droppings": 0.3
+        },
+        "catch": [
+          {
+            "trap": "pit",
+            "chance": 0.3
+          }
+        ],
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": false,
+          "breeding": [
+            4,
+            5
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 3,
+            "max": 6,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          },
+          {
+            "item": "horn",
+            "min": 1,
+            "max": 2,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -186,6 +353,80 @@
           0.9
         ],
         "timeOfDay": "crepuscular"
+      },
+      "ecology": {
+        "browse": {
+          "eats": [
+            "blabar",
+            "lingon",
+            "ris",
+            "ljung"
+          ],
+          "fences": [
+            "staket"
+          ]
+        },
+        "tracks": {
+          "print": "klov",
+          "ttl": 1800.0,
+          "droppings": 0.3
+        },
+        "catch": [
+          {
+            "trap": "pit",
+            "chance": 0.3
+          }
+        ],
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": false,
+          "breeding": [
+            4,
+            5
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 2,
+            "max": 4,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          }
+        ]
       }
     },
     {
@@ -239,6 +480,70 @@
           1
         ],
         "timeOfDay": "diurnal"
+      },
+      "ecology": {
+        "tracks": {
+          "print": "klov",
+          "ttl": 2400.0
+        },
+        "naturfrid": {
+          "worth": 1.2,
+          "sacred": false,
+          "breeding": [
+            4,
+            5
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 5,
+            "max": 9,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          },
+          {
+            "item": "horn",
+            "min": 1,
+            "max": 2,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -298,6 +603,44 @@
           1
         ],
         "timeOfDay": "crepuscular"
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 1500.0
+        },
+        "catch": [
+          {
+            "trap": "snare",
+            "chance": 0.6
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.6,
+          "sacred": false,
+          "breeding": [
+            3,
+            7
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 1,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -406,6 +749,46 @@
           0.6
         ],
         "timeOfDay": "crepuscular"
+      },
+      "ecology": {
+        "fell": {
+          "everySecs": 1800.0,
+          "cap": 6,
+          "reach": 24,
+          "dam": [
+            "stock"
+          ],
+          "spare": [
+            "dod_stam",
+            "mossig_stam"
+          ]
+        },
+        "tracks": {
+          "print": "tass",
+          "ttl": 1200.0
+        },
+        "naturfrid": {
+          "worth": 0.6,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 2,
+            "max": 3,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "pals",
+            "min": 1,
+            "max": 1,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -462,6 +845,28 @@
           0.8
         ],
         "timeOfDay": "diurnal"
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "snare",
+            "chance": 0.15
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.3,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -573,6 +978,40 @@
           1
         ],
         "timeOfDay": "crepuscular"
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 900.0
+        },
+        "catch": [
+          {
+            "trap": "snare",
+            "chance": 0.3
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.3,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 1,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -643,6 +1082,58 @@
           "wander": 90,
           "materialize": 96
         }
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 2400.0
+        },
+        "naturfrid": {
+          "worth": 0.4,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 2,
+            "max": 4,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          }
+        ]
       }
     },
     {
@@ -703,6 +1194,64 @@
           "fire": 12,
           "player": 40
         }
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 3600.0,
+          "debark": true,
+          "droppings": 0.2
+        },
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": true,
+          "breeding": [
+            0,
+            2
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 5,
+            "max": 10,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          }
+        ]
       }
     },
     {
@@ -761,6 +1310,58 @@
         "avoid": {
           "player": 40
         }
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 2400.0
+        },
+        "naturfrid": {
+          "worth": 0.5,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          }
+        ]
       }
     },
     {
@@ -818,6 +1419,58 @@
         "avoid": {
           "player": 40
         }
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 2400.0
+        },
+        "naturfrid": {
+          "worth": 0.5,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          }
+        ]
       }
     },
     {
@@ -875,6 +1528,34 @@
           1
         ],
         "timeOfDay": "crepuscular"
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 1800.0
+        },
+        "naturfrid": {
+          "worth": 0.4,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 1,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1101,6 +1782,26 @@
           "rain": 0.3,
           "clear": 1.0
         }
+      },
+      "ecology": {
+        "venom": {
+          "damagePerSec": 0.5,
+          "seconds": 20.0,
+          "chance": 0.6,
+          "cures": [
+            "groblad",
+            "serum"
+          ]
+        },
+        "tracks": {
+          "print": "orm",
+          "ttl": 600.0,
+          "stride": 1.5
+        },
+        "naturfrid": {
+          "worth": 0.0,
+          "sacred": false
+        }
       }
     },
     {
@@ -1158,6 +1859,44 @@
         "avoid": {
           "fire": 8
         }
+      },
+      "ecology": {
+        "tracks": {
+          "print": "fagel",
+          "ttl": 1200.0
+        },
+        "catch": [
+          {
+            "trap": "snare",
+            "chance": 0.4
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false,
+          "breeding": [
+            4,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 2,
+            "max": 3,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1215,6 +1954,44 @@
         "avoid": {
           "fire": 8
         }
+      },
+      "ecology": {
+        "tracks": {
+          "print": "fagel",
+          "ttl": 1200.0
+        },
+        "catch": [
+          {
+            "trap": "snare",
+            "chance": 0.5
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false,
+          "breeding": [
+            4,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1269,6 +2046,44 @@
           1
         ],
         "timeOfDay": "diurnal"
+      },
+      "ecology": {
+        "tracks": {
+          "print": "fagel",
+          "ttl": 1200.0
+        },
+        "catch": [
+          {
+            "trap": "snare",
+            "chance": 0.6
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false,
+          "breeding": [
+            4,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1329,6 +2144,40 @@
           "rain": 0.6,
           "mist": 0.5
         }
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "net",
+            "chance": 0.1
+          }
+        ],
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": true,
+          "breeding": [
+            3,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 2,
+            "max": 3,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1383,6 +2232,34 @@
           0.6
         ],
         "timeOfDay": "diurnal"
+      },
+      "ecology": {
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": true,
+          "breeding": [
+            3,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 3,
+            "max": 5,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1443,6 +2320,40 @@
           "rain": 0.6,
           "mist": 0.5
         }
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "net",
+            "chance": 0.2
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false,
+          "breeding": [
+            3,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 2,
+            "max": 4,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -1497,6 +2408,40 @@
           0.7
         ],
         "timeOfDay": "diurnal"
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "net",
+            "chance": 0.2
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false,
+          "breeding": [
+            4,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "fjader",
+            "min": 2,
+            "max": 5,
+            "chance": 0.9,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2008,6 +2953,32 @@
           0.7,
           0.1
         ]
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 0.8
+          },
+          {
+            "trap": "net",
+            "chance": 0.9
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 2,
+            "max": 4,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2061,6 +3032,32 @@
           1,
           1,
           0.8
+        ]
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 0.6
+          },
+          {
+            "trap": "net",
+            "chance": 0.7
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
         ]
       }
     },
@@ -2116,6 +3113,32 @@
           1,
           1
         ]
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 0.6
+          },
+          {
+            "trap": "net",
+            "chance": 0.7
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2169,6 +3192,32 @@
           1,
           1,
           0.7
+        ]
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 0.5
+          },
+          {
+            "trap": "net",
+            "chance": 0.6
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.6,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 2,
+            "max": 3,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
         ]
       }
     },
@@ -2225,6 +3274,32 @@
           0.9
         ],
         "timeOfDay": "diurnal"
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 0.7
+          },
+          {
+            "trap": "net",
+            "chance": 0.8
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.5,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2279,6 +3354,28 @@
           1,
           0.7
         ]
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "net",
+            "chance": 1.0
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.3,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 1,
+            "max": 3,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2332,6 +3429,28 @@
           0.3,
           0.4,
           0.7
+        ]
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "net",
+            "chance": 0.8
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.6,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 2,
+            "max": 4,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
         ]
       }
     },
@@ -2390,6 +3509,28 @@
           0.2
         ],
         "timeOfDay": "nocturnal"
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 0.7
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "fisk",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2444,6 +3585,28 @@
           0.3
         ],
         "timeOfDay": "nocturnal"
+      },
+      "ecology": {
+        "catch": [
+          {
+            "trap": "fishTrap",
+            "chance": 1.0
+          }
+        ],
+        "naturfrid": {
+          "worth": 0.3,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "krafta",
+            "min": 1,
+            "max": 3,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2605,6 +3768,58 @@
           0.7,
           0.9
         ]
+      },
+      "ecology": {
+        "naturfrid": {
+          "worth": 1.0,
+          "sacred": false,
+          "breeding": [
+            1,
+            3
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 3,
+            "max": 6,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          }
+        ]
       }
     },
     {
@@ -2660,6 +3875,66 @@
         "avoid": {
           "fire": 8
         }
+      },
+      "ecology": {
+        "naturfrid": {
+          "worth": 1.2,
+          "sacred": false,
+          "breeding": [
+            3,
+            5
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 6,
+            "max": 12,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "ben",
+            "min": 1,
+            "max": 2,
+            "chance": 0.8,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "vinterskinn",
+            "min": 1,
+            "max": 1,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              10,
+              3
+            ]
+          },
+          {
+            "item": "skinn",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5,
+            "months": [
+              4,
+              9
+            ]
+          },
+          {
+            "item": "tand",
+            "min": 1,
+            "max": 2,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2770,6 +4045,34 @@
           1
         ],
         "timeOfDay": "crepuscular"
+      },
+      "ecology": {
+        "tracks": {
+          "print": "tass",
+          "ttl": 1200.0
+        },
+        "naturfrid": {
+          "worth": 0.8,
+          "sacred": false
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 1,
+            "max": 2,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "pals",
+            "min": 1,
+            "max": 1,
+            "chance": 0.9,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
+        ]
       }
     },
     {
@@ -2875,6 +4178,34 @@
           0.8,
           1,
           1
+        ]
+      },
+      "ecology": {
+        "naturfrid": {
+          "worth": 2.0,
+          "sacred": true,
+          "breeding": [
+            4,
+            6
+          ]
+        },
+        "loot": [
+          {
+            "item": "kott",
+            "min": 8,
+            "max": 16,
+            "chance": 1.0,
+            "needsKnife": false,
+            "knifeBonus": 1.5
+          },
+          {
+            "item": "spack",
+            "min": 4,
+            "max": 8,
+            "chance": 1.0,
+            "needsKnife": true,
+            "knifeBonus": 1.5
+          }
         ]
       }
     },

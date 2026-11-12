@@ -102,6 +102,10 @@ pub fn hit_mob_damage(
     h.health -= damage;
     if h.health <= 0.0 {
         h.alive = false;
+        // Le coup mortel garde son auteur : la naturfrid (session 5.8) sait qui a tué.
+        if let Some(b) = world.get_mut::<crate::brain::Brain>(mob) {
+            b.provoker = player;
+        }
     } else if world.has::<PassiveAi>(mob) {
         trigger_player_flee(world, mob, mobs, rng);
     } else if world.has::<crate::brain::Brain>(mob) {

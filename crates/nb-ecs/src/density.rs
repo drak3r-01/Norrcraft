@@ -98,6 +98,8 @@ impl Survey {
 pub struct Moment {
     pub clock: Clock,
     pub sky: Sky,
+    /// Facteur de la naturfrid (réputation du joueur, session 5.8) : 1 = respectueux.
+    pub nature: f32,
 }
 
 impl Moment {
@@ -105,6 +107,7 @@ impl Moment {
         Self {
             clock: Clock::of(cfg, env.map(|e| e.sun)),
             sky: env.map(sky_of).unwrap_or_default(),
+            nature: 1.0,
         }
     }
 }
@@ -136,12 +139,17 @@ pub fn climate_factor(book: &BehaviorBook, cfg: &MobConfig, rules: &SpawnRules, 
         (None, Some(p)) => book.cycle_factor(p, m.clock.year),
         (None, None) => 1.0,
     };
-    season * hour * weather * light * cycle * naturfrid(rules)
+    season * hour * weather * light * cycle * naturfrid(rules, m)
 }
 
-/// Réputation du joueur (doc 04 §7) : pas encore branchée, neutre pour l'instant.
-fn naturfrid(_rules: &SpawnRules) -> f32 {
-    1.0
+/// Réputation du joueur (doc 03 §5, session 5.8) : les espèces de gibier raréfient avec elle ;
+/// les domestiques et les hardes déjà matérialisées n'en dépendent pas.
+fn naturfrid(rules: &SpawnRules, m: &Moment) -> f32 {
+    if rules.persistence == Persistence::Ephemeral {
+        m.nature
+    } else {
+        1.0
+    }
 }
 
 /// Cible complète de l'espèce dans la zone relevée.
@@ -231,7 +239,8 @@ pub fn run(world: &mut EntityWorld, ctx: &mut TickCtx<'_>, origin: (i32, i32), p
     }
     let book = BehaviorBook::builtin();
     let radius = ctx.config.mob_spawn_radius.max(MIN_DISTANCE as i32 + 1);
-    let moment = Moment::of(ctx.config, ctx.environment);
+    let mut moment = Moment::of(ctx.config, ctx.environment);
+    moment.nature = crate::ecology::nature_factor(world);
     let survey = Survey::take(&*ctx.blocks, origin.0, origin.1, radius);
     if survey.is_empty() {
         return;

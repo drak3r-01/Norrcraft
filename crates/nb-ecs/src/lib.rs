@@ -25,6 +25,7 @@ pub mod command;
 pub mod components;
 pub mod density;
 pub mod crafting;
+pub mod ecology;
 pub mod health;
 pub mod herd;
 pub mod husbandry;
@@ -41,6 +42,7 @@ pub mod survival;
 pub mod world;
 
 pub use brain::{AnimalAct, Brain, BrainSystem, Carrying, Crouching, Emitter};
+pub use ecology::{Carcass, EcologyHandle, EcologySystem, Poisoned, Standing};
 pub use herd::{HerdHandle, HerdMember, HerdSystem};
 pub use husbandry::{Domestic, HusbandrySystem};
 pub use blocks::{BlockAccess, MemoryBlocks, WorldBlocks};

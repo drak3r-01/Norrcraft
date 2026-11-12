@@ -525,7 +525,7 @@
       "needs": { "hunger": 0.004, "thirst": 0.003, "fatigue": 0.003, "coldBelow": -0.9 },
       "courage": 0.85,
       "herd": true,
-      "fears": ["player"],
+      "fears": ["player", "flockjagare", "allatare"],
       "reactions": { "fire": { "fear": 0.2, "keepAway": 4 }, "surstromming": { "fear": 0.8 } },
       "seasons": { "birth": [4, 5] },
       "states": [
@@ -538,6 +538,7 @@
         { "state": "charge", "weight": 1.3 },
         { "state": "guard", "weight": 0.4 },
         { "state": "follow", "weight": 0.5 },
+        { "state": "circle", "weight": 1.6 },
         { "state": "swim", "weight": 2.0 }
       ]
     },

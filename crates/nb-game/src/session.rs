@@ -132,6 +132,8 @@ pub struct WorldSession {
     biomes: Arc<dyn BiomeSource>,
     /// Hardes persistantes du monde (session 5.3), partagées avec `HerdSystem`.
     herds: nb_ecs::HerdHandle,
+    /// Traces, pièges et colonies (session 5.8), partagés avec `EcologySystem`.
+    ecology: nb_ecs::EcologyHandle,
 }
 
 impl std::fmt::Debug for WorldSession {
@@ -181,6 +183,13 @@ impl WorldSession {
             after_ai.saturating_add(2),
             Box::new(nb_ecs::HusbandrySystem::default()),
         );
+        // Écologie (broutage, castors, traces, pièges, carcasses, naturfrid) : avant la santé,
+        // qui détruit les morts.
+        let ecology: nb_ecs::EcologyHandle = Arc::default();
+        sim.schedule.insert(
+            after_ai.saturating_add(3),
+            Box::new(nb_ecs::EcologySystem::new(ecology.clone())),
+        );
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,
@@ -191,7 +200,13 @@ impl WorldSession {
             environment: None,
             biomes,
             herds,
+            ecology,
         }
+    }
+
+    /// Traces lisibles, pièges posés et colonies de castors du monde.
+    pub fn ecology(&self) -> nb_ecs::EcologyHandle {
+        self.ecology.clone()
     }
 
     pub fn biomes(&self) -> Arc<dyn BiomeSource> {
@@ -250,7 +265,19 @@ impl WorldSession {
             survival: Some(&regs.survival),
             environment: self.environment.as_ref(),
         };
+        let first = ctx.events.len();
         self.sim.tick(&mut ctx, dt);
+        // Une digue de castors cassée vide l'étang en amont (doc 03 §4.5, session 5.8).
+        let broken: Vec<_> = ctx.events[first.min(ctx.events.len())..]
+            .iter()
+            .filter_map(|e| match e {
+                EcsEvent::BlockBroken { pos, block } => Some((*pos, *block)),
+                _ => None,
+            })
+            .collect();
+        for (pos, block) in broken {
+            nb_ecs::ecology::dam_broken(ctx.blocks, &regs.blocks, &regs.mobs, pos, block);
+        }
     }
 
     /// `CommandProcessor.executeCommand`.

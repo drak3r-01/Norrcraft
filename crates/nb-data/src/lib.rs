@@ -6,6 +6,7 @@
 
 pub mod behavior;
 pub mod blocks;
+pub mod ecology;
 pub mod husbandry;
 pub mod items;
 pub mod keys;
@@ -23,6 +24,7 @@ pub use blocks::{
     BLOCKS_JSON, CRAFT_BLOCKS_JSON, UNASSIGNED_ID,
 };
 pub use behavior::{BehaviorBook, Profile, StateKind, Stimulus};
+pub use ecology::Ecology;
 pub use husbandry::{Husbandry, Role as HusbandryRole};
 pub use spawn_rules::{Avoid, HerdMotion, HerdRules, Persistence, Sky, SpawnRules};
 pub use universe::WorldKind;
