@@ -144,6 +144,25 @@ impl System for MobSpawnSystem {
     }
 }
 
+/// Hauteur d'apparition de `cfg` dans la colonne `(x, z)` (−1 : aucune), telle que la voit le
+/// système d'apparition : milieu, canopée, altitude, sol. Sert aux tests d'habitat.
+pub fn spawn_column_y(
+    blocks: &dyn BlockAccess,
+    reg: &BlockRegistry,
+    cfg: &MobConfig,
+    x: i32,
+    z: i32,
+) -> i32 {
+    Spawner {
+        blocks,
+        reg,
+        origin_x: x,
+        origin_z: z,
+        radius: 0,
+    }
+    .find_spawn_y(cfg, x, z)
+}
+
 pub(crate) struct Spawner<'a> {
     pub(crate) blocks: &'a dyn BlockAccess,
     pub(crate) reg: &'a BlockRegistry,
@@ -222,7 +241,21 @@ impl Spawner<'_> {
 
     pub(crate) fn find_spawn_y(&self, cfg: &MobConfig, x: i32, z: i32) -> i32 {
         let y = match cfg.medium {
-            MobMedium::Land => find_surface_y(self.blocks, self.reg, x, z),
+            MobMedium::Land => {
+                let y = find_surface_y(self.blocks, self.reg, x, z);
+                // Une espèce à règles de densité (Norrcraft) ne naît pas sur une canopée.
+                let canopy = cfg.spawn.is_some()
+                    && y > 0
+                    && self
+                        .reg
+                        .from_id(self.blocks.block(x, y - 1, z))
+                        .leaves_tinted;
+                if canopy {
+                    -1
+                } else {
+                    y
+                }
+            }
             MobMedium::Water => {
                 find_water_y(self.blocks, self.reg, x, z, cfg.spawn_min_water_depth)
             }

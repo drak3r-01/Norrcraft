@@ -180,7 +180,10 @@ fn norrcraft_registries_hold_nothing_from_vanilla() {
     let survival = SurvivalData::for_kind(WorldKind::Norrcraft, &blocks, &items);
     assert!(survival.block_rule(blocks.get("granit").id).is_none());
     let mobs = nb_data::MobRegistry::builtin_for(WorldKind::Norrcraft);
-    assert!(mobs.all().is_empty());
+    // Le bestiaire Norrcraft (phase 5) ne reprend aucun mob de vanilla.
+    assert!(!mobs.all().is_empty());
+    let vanilla = nb_data::MobRegistry::builtin_for(WorldKind::Vanilla);
+    assert!(mobs.all().iter().all(|m| vanilla.get(&m.id).is_none()));
     assert_eq!(mobs.kind(), WorldKind::Norrcraft);
     assert!(!nb_data::MobRegistry::builtin_for(WorldKind::Vanilla).all().is_empty());
 }

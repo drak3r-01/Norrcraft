@@ -23,6 +23,11 @@ const NB_DEFAULTS_JSON: &str = include_str!("../../../assets/vanilla/mobs_nb.jso
 const NB_GEOMETRY_JSON: &str = include_str!("../../../assets/vanilla/mob_geometry_nb.json");
 /// Rigs d'animation (os, clips, démarches) de tous les mobs intégrés, générés par `scripts/gen_mobs.py`.
 const RIGS_JSON: &str = include_str!("../../../assets/vanilla/mob_rigs.json");
+/// Bestiaire Norrcraft (session 5.4) : réglages, géométrie et rigs, générés par
+/// `scripts/gen_norr_mobs.py`.
+const NORR_DEFAULTS_JSON: &str = include_str!("../../../assets/norrcraft/mobs.json");
+const NORR_GEOMETRY_JSON: &str = include_str!("../../../assets/norrcraft/mob_geometry.json");
+const NORR_RIGS_JSON: &str = include_str!("../../../assets/norrcraft/mob_rigs.json");
 
 /// Identifiants des trois mobs d'origine, dans l'ordre de l'enum Java `MobType`.
 pub const BUILTIN_MOB_IDS: [&str; 3] = ["reindeer", "fish", "orca"];
@@ -277,13 +282,13 @@ impl MobRegistry {
         }
     }
 
-    /// Mobs intégrés d'un univers : les 48 de vanilla, aucun pour Norrcraft pour l'instant
-    /// (son bestiaire arrive en phase 5 du plan).
+    /// Mobs intégrés d'un univers : les 48 de vanilla ; pour Norrcraft, le bestiaire de la
+    /// phase 5 (lot terrestre de la session 5.4, les autres lots suivent).
     pub fn builtin_for(kind: WorldKind) -> Self {
         match kind {
             WorldKind::Vanilla => Self::builtin(),
             WorldKind::Norrcraft => Self {
-                configs: Vec::new(),
+                configs: norr_configs().expect("données de mobs Norrcraft invalides"),
                 kind,
             },
         }
@@ -352,7 +357,9 @@ impl MobRegistry {
     }
 
     pub fn is_built_in(id: &str) -> bool {
-        BUILTIN_MOB_IDS.contains(&id) || builtin_mob_ids().iter().any(|b| b == id)
+        BUILTIN_MOB_IDS.contains(&id)
+            || builtin_mob_ids().iter().any(|b| b == id)
+            || norr_mob_ids().iter().any(|b| b == id)
     }
 
     pub fn id_exists(&self, id: &str) -> bool {
@@ -442,6 +449,49 @@ fn builtin_configs() -> Result<Vec<MobConfig>> {
         configs.push(cfg);
     }
     Ok(configs)
+}
+
+/// Bestiaire de l'univers Norrcraft, dans l'ordre du fichier.
+fn norr_configs() -> Result<Vec<MobConfig>> {
+    #[derive(Deserialize)]
+    struct File {
+        mobs: Vec<MobConfig>,
+    }
+    let file: File = serde_json::from_str(NORR_DEFAULTS_JSON)
+        .map_err(|e| Error::data("norrcraft/mobs.json", e))?;
+    let geometry: HashMap<String, Vec<[f32; 10]>> = serde_json::from_str(NORR_GEOMETRY_JSON)
+        .map_err(|e| Error::data("norrcraft/mob_geometry.json", e))?;
+    let raw: HashMap<String, nb_anim::RigDef> = serde_json::from_str(NORR_RIGS_JSON)
+        .map_err(|e| Error::data("norrcraft/mob_rigs.json", e))?;
+    let rigs: RigMap = raw
+        .into_iter()
+        .map(|(k, v)| (k, std::sync::Arc::new(v)))
+        .collect();
+    let mut configs = Vec::with_capacity(file.mobs.len());
+    for mut cfg in file.mobs {
+        let boxes = geometry.get(&cfg.id).cloned().ok_or_else(|| {
+            Error::data(
+                "norrcraft/mob_geometry.json",
+                format!("géométrie manquante: {}", cfg.id),
+            )
+        })?;
+        cfg.rig = rig_for(&rigs, &cfg.id, boxes.len());
+        cfg.geometry = Some(MobGeometry { boxes });
+        configs.push(cfg);
+    }
+    Ok(configs)
+}
+
+/// Identifiants des mobs intégrés de Norrcraft.
+pub fn norr_mob_ids() -> &'static [String] {
+    static IDS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    IDS.get_or_init(|| {
+        norr_configs()
+            .expect("données de mobs Norrcraft invalides")
+            .into_iter()
+            .map(|c| c.id)
+            .collect()
+    })
 }
 
 /// Identifiants de tous les mobs intégrés (d'origine puis phase 9).
@@ -538,8 +588,9 @@ mod tests {
     fn every_builtin_mob_has_a_sound_rig() {
         use nb_anim::{AnimInput, Animator, Mat34, Rig, Scratch};
         let reg = MobRegistry::builtin();
+        let norr = MobRegistry::builtin_for(WorldKind::Norrcraft);
         let mut sc = Scratch::new();
-        for c in reg.all() {
+        for c in reg.all().iter().chain(norr.all()) {
             let def = c
                 .rig
                 .as_ref()

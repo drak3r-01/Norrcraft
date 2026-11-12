@@ -26,7 +26,7 @@ pub use spawn_rules::{Avoid, HerdMotion, HerdRules, Persistence, Sky, SpawnRules
 pub use universe::WorldKind;
 pub use items::{ItemId, ItemInfo, ItemRegistry, FIRST_PURE_ITEM, ITEMS_JSON, STACK_MAX};
 pub use mobs::{
-    builtin_mob_ids, Gait, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,
+    builtin_mob_ids, norr_mob_ids, Gait, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,
     BUILTIN_MOB_IDS,
 };
 pub use pack::PackMeta;

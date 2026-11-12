@@ -42,7 +42,8 @@ noms de blocs dont la position est l'identifiant écrit dans les chunks.
 * Budget : 254 identifiants par monde, socle compris (décision D2 du plan : u8 d'abord).
 * `Registries::for_world(kind, palette)` (nb-game) construit blocs, objets, recettes, survie et
   mobs de l'univers. Norrcraft n'a pour l'instant ni objets purs, ni recettes, ni règles de
-  survie, ni mobs.
+  survie ; ses mobs arrivent par lots (19 espèces terrestres depuis la 5.4, voir
+  `BESTIAIRE_TERRESTRE.md`).
 
 Quand les registres changent (monde d'un autre univers ou d'une autre palette), `Game` demande à
 la plateforme `PlatformRequest::RebuildBlockTable` : l'atlas reste, la table de maillage, les

@@ -124,7 +124,7 @@ fn norrcraft_world_is_created_saved_reloaded_and_vanilla_is_restored() {
     assert_eq!(g.regs.kind, WorldKind::Norrcraft);
     assert_ne!(g.regs.blocks.get("granit").id, 0);
     assert_eq!(g.regs.blocks.ids().stone, UNASSIGNED_ID, "pas de pierre vanilla");
-    assert!(g.regs.mobs.all().is_empty(), "pas de mob vanilla");
+    assert!(g.regs.mobs.get("reindeer").is_none(), "pas de mob vanilla");
     assert_eq!(g.world().profile().kind, WorldKind::Norrcraft);
     assert!(
         g.take_requests().contains(&PlatformRequest::RebuildBlockTable),
@@ -245,7 +245,7 @@ fn lan_guest_adopts_the_hosts_universe_and_block_ids() {
     assert_eq!(b.regs.kind, WorldKind::Norrcraft);
     assert_eq!(b.world().profile().kind, WorldKind::Norrcraft);
     assert_eq!(b.regs.block_palette(), a.regs.block_palette());
-    assert!(b.regs.mobs.all().is_empty());
+    assert!(b.regs.mobs.get("reindeer").is_none());
 
     // Un bloc posé par l'hôte est le même bloc chez l'invité.
     let granit = a.regs.blocks.get("granit").id;

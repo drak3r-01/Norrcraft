@@ -225,6 +225,16 @@ impl Driver {
                     self.game.set_block_atlas(b.scene().block_atlas());
                     let icons = item_icons(b.scene(), &self.game.regs);
                     self.game.set_item_icons(icons);
+                    // Le renderer est créé au démarrage avec les mobs de vanilla : le bestiaire
+                    // d'un autre univers (Norrcraft) n'y a pas encore de modèle.
+                    for cfg in self.game.regs.mobs.all() {
+                        if b.scene().mob_model_counts(&cfg.id).is_none() {
+                            let desc = MobModelDesc::from_config(cfg);
+                            if let Err(e) = b.scene_mut().reload_mob_model(&desc) {
+                                eprintln!("modèle du mob {} : {e}", cfg.id);
+                            }
+                        }
+                    }
                 }
                 PlatformRequest::ReloadMobModels => {
                     // `applyAndLeave` : modèle rechargé pour chaque mob qui n'en a pas.
