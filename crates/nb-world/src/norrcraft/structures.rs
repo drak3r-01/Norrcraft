@@ -36,6 +36,7 @@ use std::sync::{Arc, Mutex};
 use nb_data::{BlockId, BlockRegistry};
 
 use super::biomes::NorrBiome;
+use super::buildings::{self, Building, Mat};
 use super::hydro::{WaterColumn, WaterKind};
 use super::math::{hash01, hash64};
 use super::subsoil::SiteProbe;
@@ -297,10 +298,10 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         "by",
         Major,
         44,
-        &[(B::Hagmark, 0.30), (B::Bokskog, 0.25)],
+        &[(B::Hagmark, 0.40), (B::Bokskog, 0.35)],
         t(7, 2, 70, Wet::Dry, Extra::None),
         true,
-        false,
+        true,
     ),
     rule(
         K::Stavkyrka,
@@ -379,27 +380,27 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Hagmark, 0.12), (B::Sjoland, 0.10), (B::Urskog, 0.04)],
         t(3, 2, 80, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Fabod,
         "fäbod",
         Medium,
         16,
-        &[(B::Fjallbjorkskog, 0.07), (B::Urskog, 0.02)],
+        &[(B::Fjallbjorkskog, 0.12), (B::Urskog, 0.04)],
         t(4, 40, FAR, Wet::Dry, Extra::None),
         true,
-        false,
+        true,
     ),
     rule(
         K::Fiskelage,
         "fiskeläge",
         Medium,
         18,
-        &[(B::Skargard, 0.14), (B::Fjord, 0.10), (B::Klintkust, 0.08)],
+        &[(B::Skargard, 0.22), (B::Fjord, 0.15), (B::Klintkust, 0.12)],
         t(5, 0, 40, Wet::Shore(Shore::Sea, 6), Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Kata,
@@ -413,7 +414,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         ],
         t(3, 10, FAR, Wet::Dry, Extra::None),
         true,
-        false,
+        true,
     ),
     rule(
         K::Fjallstuga,
@@ -423,7 +424,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Fjallhed, 0.06), (B::Kalfjall, 0.06)],
         t(3, 20, FAR, Wet::Dry, Extra::None),
         true,
-        false,
+        true,
     ),
     rule(
         K::Gravhog,
@@ -464,10 +465,10 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         "bastu",
         Medium,
         8,
-        &[(B::Sjoland, 0.08), (B::Skargard, 0.06)],
+        &[(B::Sjoland, 0.12), (B::Skargard, 0.08)],
         t(4, 0, 60, Wet::Shore(Shore::Any, 6), Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Skeppssattning,
@@ -587,7 +588,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Hagmark, 0.02), (B::Strandang, 0.03), (B::Myr, 0.015)],
         t(2, 1, 60, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Vindskydd,
@@ -597,7 +598,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Urskog, 0.012), (B::Sjoland, 0.012)],
         t(3, 2, 100, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Sejte,
@@ -864,6 +865,8 @@ pub struct StructBlocks {
     /// Gravier des gués.
     pub ford: BlockId,
     pub water: BlockId,
+    /// Blocs des bâtiments, indexés par [`Mat`].
+    mats: [BlockId; Mat::COUNT],
     /// Plantes et feuilles qu'un chemin ou un cairn écarte.
     clearable: [bool; 256],
 }
@@ -881,14 +884,27 @@ impl StructBlocks {
                 clearable[usize::from(b.id)] = true;
             }
         }
+        let mut mats = [AIR; Mat::COUNT];
+        for m in Mat::ALL {
+            if m != Mat::Air {
+                mats[m as usize] = id(m.block());
+            }
+        }
         Self {
             cairn: [id("rosesten"), id("klappersten")],
             boards: id("planka"),
             path: id("stig"),
             ford: id("grus"),
             water: id("water"),
+            mats,
             clearable,
         }
+    }
+
+    /// Bloc d'un matériau de bâtiment.
+    #[inline]
+    pub fn mat(&self, m: Mat) -> BlockId {
+        self.mats[m as usize]
     }
 
     /// Bloc qu'un chemin ou un cairn remplace sans façon : air, plante, feuille.
@@ -1008,11 +1024,13 @@ fn line4(a: (i32, i32), b: (i32, i32), out: &mut Vec<(i32, i32)>) {
 struct Plan {
     routes: Vec<Arc<Route>>,
     sites: Vec<StructSite>,
+    buildings: Vec<Arc<Building>>,
 }
 
 impl Plan {
     fn reserves(&self, x: i32, z: i32) -> bool {
         self.routes.iter().any(|r| r.reserves(x, z))
+            || self.buildings.iter().any(|b| b.reserves(x, z))
             || self.sites.iter().any(|s| {
                 s.has_cairn() && (s.x - x).abs() <= MARK_RADIUS && (s.z - z).abs() <= MARK_RADIUS
             })
@@ -1035,6 +1053,7 @@ pub struct Structures {
     sites: Arc<Mutex<HashMap<Key, Option<StructSite>>>>,
     routes: Arc<Mutex<HashMap<RouteKey, Option<Arc<Route>>>>>,
     plans: PlanCache,
+    buildings: Arc<Mutex<HashMap<(i32, i32), Option<Arc<Building>>>>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -1059,7 +1078,22 @@ impl Structures {
             sites: Arc::default(),
             routes: Arc::default(),
             plans: Arc::default(),
+            buildings: Arc::default(),
         }
+    }
+
+    /// Bâtiment d'un site (mémoïsé) : `None` pour un type sans bâtiment ou un terrain impropre.
+    pub fn building(&self, s: &StructSite, probe: &SiteProbe) -> Option<Arc<Building>> {
+        if !s.rule().built || s.kind == K::Rosen {
+            return None;
+        }
+        let key = (s.x, s.z);
+        if let Some(b) = lock(&self.buildings).get(&key) {
+            return b.clone();
+        }
+        let out = buildings::build(s, probe).map(Arc::new);
+        remember(&self.buildings, key, out.clone());
+        out
     }
 
     pub fn blocks(&self) -> &StructBlocks {
@@ -1557,6 +1591,18 @@ impl Structures {
                 .into_iter()
                 .filter(StructSite::has_cairn)
                 .collect(),
+            buildings: self
+                .sites_in(
+                    probe,
+                    x0 - buildings::REACH,
+                    z0 - buildings::REACH,
+                    x1 + buildings::REACH,
+                    z1 + buildings::REACH,
+                )
+                .iter()
+                .filter_map(|s| self.building(s, probe))
+                .filter(|b| b.touches(x0 - 2, z0 - 2, x1 + 2, z1 + 2))
+                .collect(),
         });
         remember(&self.plans, (cx, cz), Arc::clone(&plan));
         plan
@@ -1583,6 +1629,73 @@ impl Structures {
         }
         for s in &plan.sites {
             self.stamp_cairn(chunk, s.x, s.y, s.z, s.cairn_profile(), s.seed, x0, z0);
+        }
+        for bld in &plan.buildings {
+            self.stamp_building(chunk, bld, x0, z0);
+        }
+    }
+
+    /// Écrit les pièces d'un bâtiment qui touchent le chunk : déblai de l'emprise, fondation de
+    /// pierre sous le plancher (sentier tassé en surface), blocs, puis pieux.
+    fn stamp_building(&self, chunk: &mut Chunk, bld: &Building, x0: i32, z0: i32) {
+        let b = &self.blocks;
+        let (cw, cd, ch) = (
+            CHUNK_SIZE_X as i32,
+            CHUNK_SIZE_Z as i32,
+            CHUNK_SIZE_Y as i32,
+        );
+        let inside = |x: i32, z: i32| x >= x0 && x < x0 + cw && z >= z0 && z < z0 + cd;
+        for part in &bld.parts {
+            let [bx0, bz0, bx1, bz1] = part.bbox;
+            if bx0 > x0 + cw - 1 || bx1 < x0 || bz0 > z0 + cd - 1 || bz1 < z0 {
+                continue;
+            }
+            let [px0, pz0, px1, pz1] = part.pad;
+            if px0 <= px1 && pz0 <= pz1 {
+                for z in pz0.max(z0)..=pz1.min(z0 + cd - 1) {
+                    for x in px0.max(x0)..=px1.min(x0 + cw - 1) {
+                        let (lx, lz) = (x - x0, z - z0);
+                        for y in part.floor.max(0)..(part.floor + part.height).min(ch) {
+                            if chunk.block(lx, y, lz) != AIR {
+                                chunk.set_block(lx, y, lz, AIR);
+                            }
+                        }
+                        let mut y = part.floor - 1;
+                        while y >= 1 && y > part.floor - 9 && y < ch {
+                            let cur = chunk.block(lx, y, lz);
+                            if !b.soft(cur) && cur != b.water {
+                                break;
+                            }
+                            let id = if y == part.floor - 1 {
+                                b.path
+                            } else {
+                                b.mat(Mat::Stone)
+                            };
+                            chunk.set_block(lx, y, lz, id);
+                            y -= 1;
+                        }
+                    }
+                }
+            }
+            for &(x, y, z, m) in &part.voxels {
+                if inside(x, z) && (0..ch).contains(&y) {
+                    chunk.set_block(x - x0, y, z - z0, b.mat(m));
+                }
+            }
+            for &(x, z, top) in &part.piles {
+                if !inside(x, z) {
+                    continue;
+                }
+                let mut y = top.min(ch - 1);
+                while y >= 1 {
+                    let cur = chunk.block(x - x0, y, z - z0);
+                    if cur != b.water && !b.soft(cur) {
+                        break;
+                    }
+                    chunk.set_block(x - x0, y, z - z0, b.mat(Mat::Log));
+                    y -= 1;
+                }
+            }
         }
     }
 
@@ -1763,7 +1876,8 @@ mod tests {
     #[test]
     fn cairns_are_rule_driven() {
         assert!(RULES[K::Rosen as usize].built);
-        assert!(RULES.iter().filter(|r| r.built).count() == 1);
+        // Rösen + les neuf types d'habitat de la session 4.2.
+        assert!(RULES.iter().filter(|r| r.built).count() == 10);
         assert!(RULES.iter().filter(|r| r.track).all(|r| r.class != Minor));
     }
 

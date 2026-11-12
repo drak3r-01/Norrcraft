@@ -39,6 +39,17 @@ fn sites(t: &NorrcraftTerrain, r: i32) -> Vec<StructSite> {
     t.with_probe(|p| t.structures().sites_in(p, -r, -r, r, r))
 }
 
+/// Un bâtiment (session 4.2) occupe-t-il la colonne ? Il a priorité sur la piste qui le traverse.
+fn in_building(t: &NorrcraftTerrain, x: i32, z: i32) -> bool {
+    t.with_probe(|p| {
+        t.structures()
+            .sites_in(p, x - 50, z - 50, x + 50, z + 50)
+            .iter()
+            .filter_map(|s| t.structures().building(s, p))
+            .any(|b| b.reserves(x, z))
+    })
+}
+
 fn routes(t: &NorrcraftTerrain, r: i32) -> Vec<Arc<Route>> {
     t.with_probe(|p| t.structures().routes_in(p, -r, -r, r, r))
 }
@@ -243,7 +254,7 @@ fn route_cells_are_stamped_and_cleared() {
             let near_end = [route.a, route.b]
                 .iter()
                 .any(|s| (s.x - c.x).abs() <= 4 && (s.z - c.z).abs() <= 4);
-            if near_end {
+            if near_end || in_building(&t, c.x, c.z) {
                 continue;
             }
             let under = ch.block(lx, c.y - 1, lz);
@@ -260,8 +271,10 @@ fn route_cells_are_stamped_and_cleared() {
                 continue;
             }
             checked += 1;
-            assert!(solid_free(&r, ch.block(lx, c.y, lz)), "dégagement 1");
-            assert!(solid_free(&r, ch.block(lx, c.y + 1, lz)), "dégagement 2");
+            // Le jalon d'un autre site peut empiéter sur la piste : il a priorité.
+            let free = |id: BlockId| solid_free(&r, id) || id == b.structs.cairn[0] || id == b.structs.cairn[1];
+            assert!(free(ch.block(lx, c.y, lz)), "dégagement 1");
+            assert!(free(ch.block(lx, c.y + 1, lz)), "dégagement 2");
             assert!(
                 !b.trees.is_tree_block(ch.block(lx, c.y, lz))
                     && !b.trees.is_tree_block(ch.block(lx, c.y + 1, lz))
@@ -309,6 +322,9 @@ fn cairns_stand_on_mountain_routes_and_at_markers() {
     let mut route_cairns = 0;
     for route in routes(&t, REACH) {
         for &(x, z, y) in &route.cairns {
+            if in_building(&t, x, z) {
+                continue;
+            }
             let ch = chunk(&t, x.div_euclid(16), z.div_euclid(16));
             let (lx, lz) = (x.rem_euclid(16), z.rem_euclid(16));
             // Une faille ouverte sous le centre (colonne vue pleine par `surface_height`) ou

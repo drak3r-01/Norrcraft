@@ -29,6 +29,7 @@
 //! entre refuges, camps et villages, cairns, caillebotis ; les bâtiments viennent en 4.2 à 4.4).
 
 pub mod biomes;
+pub mod buildings;
 pub mod climate;
 pub mod config;
 pub mod fields;

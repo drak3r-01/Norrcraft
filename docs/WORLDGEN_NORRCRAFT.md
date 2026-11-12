@@ -651,7 +651,7 @@ faille ouverte sous un cairn.
 **Provisoire.** Les sites dont le bâtiment n'existe pas encore (`Rule::built == false`) portent un
 **jalon** : cairn de 2 (mineur), 4 (moyen) ou 6 blocs (majeur), sauf les sites flottants.
 `structures::PLACEHOLDERS = false` les retire ; chaque session 4.x passe `built` à `true` pour ses
-types et remplace le jalon. Seul le röse (`rösen`) est construit.
+types et remplace le jalon. Le röse (4.1) et les neuf types d'habitat (4.2) sont construits.
 
 Trois blocs neufs (ids 129 à 131), textures vanilla réutilisées (`mossy_cobblestone`,
 `spruce_planks`, `dirt_path_*`) : `rosesten`, `planka`, `stig`.
@@ -659,6 +659,38 @@ Trois blocs neufs (ids 129 à 131), textures vanilla réutilisées (`mossy_cobbl
 Mesures (graine 12345, Norrland) : 1 208 sites à moins de 2,6 km de l'origine ; sur une carte de
 8 × 8 km, 43 pistes (10 819 cellules, dont 36 mouillées) et 271 cairns de piste ; coût de
 génération inchangé (2,8 ms par chunk sur la machine de mesure, avec ou sans structures).
+
+## Bâtiments d'habitat (session 4.2, doc 02 §10.1)
+
+`norrcraft/buildings.rs` construit neuf types : **torp**, **by**, **lada**, **fäbod**, **fiskeläge**,
+**bastu**, **fjällstuga**, **vindskydd**, **kåta** (`Rule::built = true`, leur jalon de la 4.1 disparaît).
+Un `Building` est une liste de `Part` en coordonnées absolues, fonction pure de (site, sondes
+`SiteProbe`), mémoïsée par `Structures::building`. Chaque pièce a **son propre sol** (sonde de relief
+au centre de l'emprise) : elle est omise si l'emprise est mouillée ou si un point d'échantillon
+s'écarte de plus de 4 blocs (5 à 6 pour les enclos et la place). `Structures::pass` pose, après les
+pistes : déblai de l'emprise, fondation (`grundsten`, sentier en surface) jusqu'à 8 blocs sous le
+plancher, blocs de la pièce dans l'ordre, puis les pieux des pontons. Les arbres s'écartent de la boîte
+du bâtiment (+ 2 blocs) ; `REACH = 48` : le plan d'un chunk regarde les sites jusqu'à 48 blocs autour.
+
+* Torp : maison rouge de Falun (angles blancs, toit de tourbe, poêle, lit, table), étable grise avec
+  foin, mât de la Saint-Jean, tertre de cellier (la partie enterrée n'existe pas), potager.
+* By : 4 à 8 fermes sur un anneau de rayon 28, tournées vers la place ; place de sentier avec puits,
+  forge, four commun, clocher de rondins séparé. La piste traverse la place.
+* Lada : grange grise de 5 × 7, porte de 3 de large, foin. Fäbod : 3 cabanes basses, laiterie de
+  pierre, enclos. Kåta : 2 à 4 huttes de tourbe rondes autour d'un foyer, enclos à rennes, njalla.
+* Fiskeläge : le rivage marin est cherché sur les quatre axes, le hameau est tourné vers l'eau ;
+  3 sjöbodar goudronnées, fumoir, séchoir, barque, ponton de planches (pieux tous les 3 blocs) et
+  cabane sur pilotis au bout. Bastu : cabane de rondins, poêle, bancs, ponton vers l'eau voisine.
+* Fjällstuga : poêle, deux couchettes, bois de chauffe, fanal. Vindskydd : appentis, foin, foyer.
+
+Blocs 132 à 146 (textures vanilla) : `faluroed vitkant stock torvtak halm gratra tjarbrada eldstad
+kakelugn glasruta grundsten sang bord bjorkplanka fackla`. `eldstad` (14), `kakelugn` (8) et
+`fackla` (14) émettent de la lumière.
+
+**Poids relevés** (3 graines, ±2600 blocs) : by 40/35 % (Hagmark/Bokskog), fäbod 12/4 %, fiskeläge
+22/15/12 %, bastu 12/8 %. Écarts : le cellier est un tertre sans cave ; pas de portes, de lits
+orientés ni d'habitants (7.4) ; les toits ne portent pas la neige saisonnière ; une piste qui
+traverse un bâtiment est écrasée par lui. Tests : `tests/norrcraft_buildings.rs`.
 
 ## Outil `worldmap`
 
