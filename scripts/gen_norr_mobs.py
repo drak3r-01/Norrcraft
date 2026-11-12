@@ -253,6 +253,124 @@ add("huggorm", "Huggorm", viper(),
     behavior="AGGRESSIVE", aggro=0.0, damage=1.0, reach=1.1, cooldown=1.5, knock=0.2, detect=0.0, aflee=0.0)
 
 
+# -- Oiseaux (doc 03 §3.3, session 5.5) ------------------------------------------------------------
+SUMMER = [0, 0, 0.6, 1, 1, 1, 0.25, 0]  # migrateur : absent de novembre à février, parti en septembre
+BIRD_AIR = dict(medium="AIR", speed=(1.4, 2.6), flee=6.0, move=(2.0, 6.0), pause=(1.0, 4.0))
+
+add("tjader", "Tjäder",
+    biped(13, 9, "#3a3a40", "#5a4a40", "#5a4a40", (3.8, 4, 4.6), "#2e2e34", (2.4, 2, 2.8, "#d8d0b8"), legh=7,
+          neck_h=4, tail=(7, 3, 8, "#2a2a30"), wing=(1, 8, 8, "#4a3a2e"), crest=(3, 1.4, 2, "#b8302a"), leg_w=1.8, L=15),
+    "tjaderfagel",
+    sp({"URSKOG": 0.20, "TALLHED": 0.20}, [0.7, 0.7, 1, 1, 1, 1, 1, 0.8], "diurnal", avoid={"fire": 8}),
+    hp=4.0, speed=(0.7, 1.4), flee=5.2, count=30, group=(1, 2), move=(0.8, 3.0), behavior="AGGRESSIVE", aggro=0.0,
+    damage=1.0, reach=1.5, cooldown=2.0, knock=1.2, detect=0.0, aflee=0.0)
+
+add("orre", "Orre",
+    biped(9, 6, "#1e2230", "#2a2e3e", "#4a3a30", (3, 3.2, 3.6), "#1e2230", (1.8, 1.4, 2, "#2a2a2a"), legh=5,
+          neck_h=2, tail=(6, 4, 6, "#161a26"), wing=(1, 6, 6, "#2e3244"), crest=(3, 1, 2, "#b8302a"), leg_w=1.4, L=11),
+    "orrfagel",
+    sp({"MYR": 0.20, "BRANNFALT": 0.15}, [0.8, 0.8, 1, 1, 1, 1, 1, 0.9], "crepuscular", avoid={"fire": 8}),
+    hp=3.0, speed=(0.7, 1.4), flee=5.0, count=40, group=(3, 7), move=(0.8, 3.0), herding=True)
+
+add("ripa", "Fjällripa",
+    biped(7, 5, "#a89c88", "#f0eee6", "#e8e6de", (3, 3, 3.2), "#a89c88", (1.4, 1.2, 1.6, "#2a2a2a"), legh=3,
+          neck_h=1, tail=(3, 2, 3, "#e8e6de"), wing=(1, 4, 5, "#f4f2ea"), crest=(2.4, 0.8, 2, "#c0342c"), leg_w=1.6, L=9),
+    "snohona",
+    sp({"FJALLHED": 0.30, "FJALLBJORKSKOG": 0.25}, [1, 1, 1, 1, 1, 1, 1, 1], "diurnal"),
+    hp=2.0, speed=(0.6, 1.2), flee=5.0, count=50, group=(2, 5), move=(0.8, 3.0), herding=True)
+
+add("trana", "Trana",
+    biped(10, 6, "#8c8f94", "#a8aaae", "#3a3a3e", (3, 3, 4), "#3a3a3e", (1.4, 1.2, 5, "#7a7a6a"), legh=20,
+          neck_h=16, tail=(5, 4, 4, "#2a2a2e"), wing=(1, 8, 12, "#9a9da2"), neck_col="#d8d8d4", crest=(2.4, 1, 2.4, "#b8302a"),
+          leg_w=1.2, L=15),
+    "flyttfagel",
+    sp({"MYR": 0.08, "STRANDANG": 0.08, "HAGMARK": 0.05}, SUMMER, "diurnal", weather={"clear": 1.0, "rain": 0.6, "mist": 0.5}),
+    tune=dict(one_leg=True),
+    hp=6.0, group=(2, 4), count=24, herding=True, **BIRD_AIR)
+
+add("sangsvan", "Sångsvan",
+    biped(10, 9, "#f4f2ec", "#fafaf6", "#2a2a2a", (3.4, 3.4, 4), "#f0eee8", (2, 1.6, 4, "#e6b830"), legh=3,
+          neck_h=16, tail=(5, 3, 4, "#f0eee6"), wing=(1, 8, 12, "#faf8f2"), neck_col="#f2f0ea", leg_w=1.8, L=16),
+    "svan",
+    sp({"SJOLAND": 0.08, "BOTTENHAV": 0.05}, [0.3, 0.3, 0.8, 1, 1, 1, 1, 0.6], "diurnal"),
+    hp=10.0, speed=(0.6, 1.2), flee=3.6, count=16, group=(2, 2), move=(1.0, 4.0), pause=(2.0, 6.0), medium="AMPHIBIAN",
+    behavior="AGGRESSIVE", aggro=0.0, damage=2.5, reach=1.8, cooldown=1.6, knock=3.0, detect=0.0, aflee=0.0)
+
+add("grasgas", "Grågås",
+    biped(8, 6, "#8a7e72", "#c8beb0", "#d89860", (3, 3, 3.6), "#8a7e72", (1.8, 1.4, 3, "#e0a050"), legh=5,
+          neck_h=6, tail=(4, 2, 3, "#e8e4dc"), wing=(1, 6, 9, "#7a6e62"), neck_col="#948878", leg_w=1.4, L=12),
+    "flyttfagel",
+    sp({"STRANDANG": 0.15, "SKARGARD": 0.12, "HAGMARK": 0.05}, SUMMER, "diurnal", weather={"clear": 1.0, "rain": 0.6, "mist": 0.5}),
+    hp=5.0, group=(4, 9), count=40, herding=True, **BIRD_AIR)
+
+add("ejder", "Ejder",
+    biped(8, 7, "#f2eee6", "#2a2a30", "#8a8a7a", (3.4, 3.6, 4), "#f4f0e8", (2, 1.8, 3.4, "#b8c070"), legh=2,
+          neck_h=3, tail=(4, 2, 3, "#2a2a30"), wing=(1, 6, 8, "#f6f4ee"), leg_w=1.6, L=14),
+    "ejderfagel",
+    sp({"SKARGARD": 0.30, "FJORD": 0.15}, [0.5, 0.5, 0.9, 1, 1, 1, 1, 0.7], "diurnal"),
+    hp=4.0, speed=(0.6, 1.2), flee=3.6, count=40, group=(3, 8), move=(1.0, 4.0), medium="AMPHIBIAN", herding=True)
+
+add("lunne", "Lunne",
+    biped(6, 4, "#1e2026", "#f4f2ee", "#e8782a", (3, 3.2, 3.6), "#2a2a30", (2.4, 2.4, 2.6, "#e86a28"), legh=2,
+          neck_h=0, tail=(2, 1, 2, "#1e2026"), wing=(1, 5, 7, "#1e2026"), foot="#e8782a", leg_w=1.2, L=8),
+    "havsfagel",
+    sp({"FJORD": 0.20, "KLINTKUST": 0.30, "LAVAFALT": 0.05}, [0, 0, 0.2, 1, 1, 1, 0.4, 0], "diurnal", altitude=3),
+    hp=2.0, group=(3, 8), count=40, herding=True, **{**BIRD_AIR, "speed": (1.8, 3.0)})
+
+add("havsorn", "Havsörn",
+    biped(10, 8, "#5a4630", "#7a6244", "#e0b030", (3.8, 4, 4.4), "#f4f0e8", (2.2, 2.8, 3.2, "#e8c030"), legh=5,
+          neck_h=0, tail=(5, 2, 6, "#f6f4ee"), wing=(1, 9, 14, "#4a3822"), foot="#e0b030", leg_w=1.8, L=13),
+    "rovfagel",
+    sp({"FJORD": 0.04, "SKARGARD": 0.05, "ALV": 0.03}, [1, 1, 1, 1, 1, 1, 1, 1], "diurnal", altitude=20, avoid={"fire": 8}),
+    hp=10.0, group=(1, 1), count=10, **{**BIRD_AIR, "speed": (1.6, 2.8)})
+
+add("fjalluggla", "Fjälluggla",
+    biped(10, 8, "#f2f0ea", "#f8f6f0", "#e8e6de", (4.6, 4.6, 4), "#f6f4ee", (1.2, 1.4, 1.4, "#2a2a2a"), legh=3,
+          neck_h=0, tail=(4, 2, 5, "#e6e4dc"), wing=(1, 8, 10, "#e8e6de"), foot="#e8e6de", leg_w=1.8, L=12),
+    "nattrovfagel",
+    sp({"FJALLHED": 0.04}, [1, 1, 1, 1, 1, 1, 1, 1], "always", altitude=8),
+    hp=6.0, group=(1, 1), count=10, **{**BIRD_AIR, "speed": (1.4, 2.4)})
+
+add("kattuggla", "Kattuggla",
+    biped(8, 7, "#7a6246", "#c8b896", "#a89878", (4.6, 4.4, 4), "#8a7050", (1.2, 1.4, 1.4, "#c8a040"), legh=3,
+          neck_h=0, tail=(4, 2, 5, "#6a523a"), wing=(1, 7, 9, "#6a523a"), leg_w=1.6, L=10),
+    "uggla",
+    sp({"BOKSKOG": 0.08, "URSKOG": 0.06}, [1, 1, 1, 1, 1, 1, 1, 1], "nocturnal", altitude=6),
+    hp=3.0, group=(1, 1), count=16, **{**BIRD_AIR, "speed": (1.2, 2.2)})
+
+add("korp", "Korp",
+    biped(8, 6, "#14161c", "#1e2028", "#14161c", (3.4, 3.6, 4.2), "#16181e", (2.6, 2.2, 3.6, "#101216"), legh=4,
+          neck_h=1, tail=(4, 2, 7, "#101216"), wing=(1, 7, 11, "#14161c"), foot="#14161c", leg_w=1.4, L=13),
+    "korp",
+    sp({"URSKOG": 0.05, "TALLHED": 0.05, "FJALLBJORKSKOG": 0.05, "FJALLHED": 0.04, "BERGSLAG": 0.05, "HAGMARK": 0.04,
+        "ALVAR": 0.03, "BRANNFALT": 0.03, "KALFJALL": 0.02, "LAVAFALT": 0.02},
+       [1, 1, 1, 1, 1, 1, 1, 1], "diurnal", altitude=14),
+    hp=4.0, group=(1, 2), count=24, **BIRD_AIR)
+
+add("hackspett", "Spillkråka",
+    biped(7, 5, "#16181e", "#22242c", "#4a4a4a", (3, 3.2, 3.6), "#16181e", (1.2, 1.2, 3.4, "#d8d4c0"), legh=3,
+          neck_h=0, tail=(3, 2, 4, "#101216"), wing=(1, 5, 7, "#16181e"), crest=(2.6, 1.4, 2.2, "#c0302a"), leg_w=1.2, L=9),
+    "skogsfagel",
+    sp({"URSKOG": 0.15, "BRANNFALT": 0.15}, [0.8, 0.8, 1, 1, 1, 1, 1, 0.9], "diurnal", altitude=4),
+    hp=2.0, group=(1, 1), count=30, **{**BIRD_AIR, "speed": (1.0, 2.0), "move": (1.0, 4.0)})
+
+add("mas", "Mås",
+    biped(6, 5, "#f4f4f2", "#fafaf8", "#e0a040", (3, 3.2, 3.6), "#f6f6f4", (1.6, 1.6, 3, "#e8b830"), legh=3,
+          neck_h=1, tail=(3, 2, 3, "#f0f0ee"), wing=(1, 6, 11, "#aab0b8"), foot="#e0a040", leg_w=1.2, L=11),
+    "havsfagel",
+    sp({"SKARGARD": 0.40, "KLINTKUST": 0.30, "FJORD": 0.30, "STRANDANG": 0.20, "BOTTENHAV": 0.20, "VASTERHAV": 0.10,
+        "HOGKUST": 0.20},
+       [0.7, 0.7, 1, 1, 1, 1, 1, 0.8], "diurnal", altitude=10),
+    hp=3.0, group=(2, 6), count=50, herding=True, **BIRD_AIR)
+
+add("goken", "Gök",
+    biped(6, 4, "#8a8e98", "#d8d4cc", "#e8c040", (2.8, 3, 3.6), "#7e828c", (1.2, 1.2, 2.2, "#2a2a2a"), legh=3,
+          neck_h=0, tail=(3, 2, 8, "#6e727c"), wing=(1, 5, 8, "#74788a"), leg_w=1.0, L=10),
+    "skogsfagel",
+    sp({"HAGMARK": 0.08, "FJALLBJORKSKOG": 0.08}, [0, 0, 0, 0.5, 1, 1, 0.1, 0], "diurnal", altitude=6),
+    hp=2.0, group=(1, 1), count=16, **{**BIRD_AIR, "speed": (1.4, 2.4)})
+
+
 def write():
     cfgs = [c for c, _ in MOBS]
     out = os.path.join(ROOT, "assets/norrcraft")

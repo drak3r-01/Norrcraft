@@ -179,6 +179,211 @@
         { "state": "flee", "weight": 0.6 }
       ]
     },
+    "tjaderfagel": {
+      "activity": "diurnal",
+      "nightVision": 0.3,
+      "senses": { "sight": 28, "fov": 300, "hearing": 28, "smell": 6 },
+      "needs": { "hunger": 0.005, "thirst": 0.003, "fatigue": 0.003, "coldBelow": -0.9 },
+      "courage": 0.2,
+      "rutCourage": 1.0,
+      "fears": ["flockjagare", "rovfagel", "nattrovfagel", "mardjakt", "rav", "ahus", "player"],
+      "reactions": { "fire": { "fear": 0.6, "keepAway": 6 } },
+      "seasons": { "rut": [3, 4], "birth": [5, 6] },
+      "states": [
+        { "state": "wander", "weight": 0.2 },
+        { "state": "graze", "weight": 0.9 },
+        { "state": "drink", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.2 },
+        { "state": "display", "weight": 0.9 },
+        { "state": "threaten", "weight": 1.0 },
+        { "state": "charge", "weight": 1.1 }
+      ]
+    },
+    "orrfagel": {
+      "activity": "crepuscular",
+      "nightVision": 0.5,
+      "senses": { "sight": 26, "fov": 300, "hearing": 32, "smell": 6 },
+      "needs": { "hunger": 0.005, "thirst": 0.003, "fatigue": 0.003, "coldBelow": -0.9 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["flockjagare", "rovfagel", "nattrovfagel", "mardjakt", "rav", "player"],
+      "reactions": { "fire": { "fear": 0.6, "keepAway": 6 } },
+      "seasons": { "rut": [3, 4] },
+      "states": [
+        { "state": "wander", "weight": 0.2 },
+        { "state": "graze", "weight": 0.9 },
+        { "state": "drink", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.2 },
+        { "state": "follow", "weight": 0.4 },
+        { "state": "display", "weight": 1.0 }
+      ]
+    },
+    "snohona": {
+      "activity": "diurnal",
+      "nightVision": 0.4,
+      "senses": { "sight": 22, "fov": 320, "hearing": 24, "smell": 6 },
+      "needs": { "hunger": 0.005, "thirst": 0.003, "fatigue": 0.004, "coldBelow": -1.2, "winterCoat": 0.4 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["flockjagare", "rovfagel", "nattrovfagel", "fjallrav", "vessla", "player"],
+      "seasons": { "coat": [10, 3] },
+      "states": [
+        { "state": "wander", "weight": 0.2 },
+        { "state": "graze", "weight": 0.9 },
+        { "state": "sleep", "weight": 0.7 },
+        { "state": "burrow", "weight": 0.9 },
+        { "state": "flee", "weight": 1.3 }
+      ]
+    },
+    "flyttfagel": {
+      "activity": "diurnal",
+      "locomotion": "fly",
+      "nightVision": 0.3,
+      "senses": { "sight": 40, "fov": 300, "hearing": 36, "smell": 6 },
+      "needs": { "hunger": 0.005, "thirst": 0.004, "fatigue": 0.004, "coldBelow": -0.5 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["flockjagare", "rav", "rovfagel", "nattrovfagel", "player"],
+      "reactions": { "fire": { "fear": 0.4, "keepAway": 6 } },
+      "seasons": { "migrate": [[2, 4], [8, 9]], "rut": [3, 4] },
+      "heading": [0.0, -1.0],
+      "cruise": 22,
+      "states": [
+        { "state": "fly", "weight": 0.3 },
+        { "state": "perch", "weight": 0.7 },
+        { "state": "graze", "weight": 0.9 },
+        { "state": "drink", "weight": 0.7 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.3 },
+        { "state": "follow", "weight": 0.5 },
+        { "state": "migrate", "weight": 0.8 },
+        { "state": "display", "weight": 0.6 }
+      ]
+    },
+    "svan": {
+      "activity": "diurnal",
+      "nightVision": 0.3,
+      "senses": { "sight": 36, "fov": 300, "hearing": 24, "smell": 6 },
+      "needs": { "hunger": 0.004, "thirst": 0.002, "fatigue": 0.003, "coldBelow": -1.0 },
+      "courage": 0.5,
+      "rutCourage": 1.0,
+      "fears": ["flockjagare", "rovfagel", "player"],
+      "seasons": { "rut": [3, 5], "birth": [5, 6] },
+      "states": [
+        { "state": "wander", "weight": 0.15 },
+        { "state": "graze", "weight": 0.8 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.0 },
+        { "state": "guard", "weight": 0.5 },
+        { "state": "threaten", "weight": 1.0 },
+        { "state": "charge", "weight": 1.1 },
+        { "state": "display", "weight": 0.4 },
+        { "state": "swim", "weight": 2.0 }
+      ]
+    },
+    "ejderfagel": {
+      "activity": "diurnal",
+      "nightVision": 0.3,
+      "senses": { "sight": 32, "fov": 310, "hearing": 24, "smell": 6 },
+      "needs": { "hunger": 0.004, "thirst": 0.002, "fatigue": 0.003, "coldBelow": -1.4 },
+      "courage": 0.1,
+      "herd": true,
+      "fears": ["flockjagare", "rav", "rovfagel", "player"],
+      "seasons": { "birth": [4, 6] },
+      "states": [
+        { "state": "wander", "weight": 0.15 },
+        { "state": "graze", "weight": 0.8 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.1 },
+        { "state": "follow", "weight": 0.4 },
+        { "state": "guard", "weight": 0.5 },
+        { "state": "swim", "weight": 2.0 }
+      ]
+    },
+    "havsfagel": {
+      "activity": "diurnal",
+      "locomotion": "fly",
+      "nightVision": 0.3,
+      "senses": { "sight": 48, "fov": 300, "hearing": 24, "smell": 8 },
+      "needs": { "hunger": 0.006, "thirst": 0.002, "fatigue": 0.004, "coldBelow": -1.0 },
+      "courage": 0.4,
+      "herd": true,
+      "hunts": ["fisk"],
+      "fears": ["rovfagel", "player"],
+      "reactions": { "carrion": { "attract": 0.6 }, "food": { "attract": 0.5 } },
+      "seasons": { "birth": [4, 6] },
+      "cruise": 12,
+      "states": [
+        { "state": "fly", "weight": 0.4 },
+        { "state": "perch", "weight": 0.6 },
+        { "state": "dive", "weight": 1.0 },
+        { "state": "scavenge", "weight": 0.5 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "flee", "weight": 0.9 },
+        { "state": "guard", "weight": 0.5 },
+        { "state": "swim", "weight": 1.0 }
+      ]
+    },
+    "korp": {
+      "activity": "diurnal",
+      "locomotion": "fly",
+      "nightVision": 0.3,
+      "senses": { "sight": 56, "fov": 300, "hearing": 36, "smell": 24 },
+      "needs": { "hunger": 0.005, "thirst": 0.003, "fatigue": 0.004, "coldBelow": -1.0 },
+      "courage": 0.3,
+      "fears": ["rovfagel", "player"],
+      "reactions": { "carrion": { "attract": 1.0 }, "food": { "attract": 0.8 }, "fire": { "fear": 0.3, "keepAway": 6 } },
+      "cruise": 16,
+      "states": [
+        { "state": "fly", "weight": 0.35 },
+        { "state": "perch", "weight": 0.7 },
+        { "state": "scavenge", "weight": 1.1 },
+        { "state": "steal", "weight": 0.9 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "flee", "weight": 0.8 },
+        { "state": "follow", "weight": 0.3 }
+      ]
+    },
+    "uggla": {
+      "activity": "nocturnal",
+      "locomotion": "fly",
+      "nightVision": 1.0,
+      "senses": { "sight": 44, "fov": 200, "hearing": 44, "smell": 4 },
+      "needs": { "hunger": 0.006, "thirst": 0.002, "fatigue": 0.004, "coldBelow": -0.9 },
+      "courage": 0.3,
+      "hunts": ["gnagare", "smavilt"],
+      "fears": ["player"],
+      "cruise": 8,
+      "states": [
+        { "state": "fly", "weight": 0.3 },
+        { "state": "perch", "weight": 0.7 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "dive", "weight": 1.1 },
+        { "state": "flee", "weight": 0.6 }
+      ]
+    },
+    "skogsfagel": {
+      "activity": "diurnal",
+      "locomotion": "fly",
+      "nightVision": 0.3,
+      "senses": { "sight": 32, "fov": 300, "hearing": 36, "smell": 4 },
+      "needs": { "hunger": 0.006, "thirst": 0.003, "fatigue": 0.004, "coldBelow": -0.5 },
+      "courage": 0.1,
+      "fears": ["rovfagel", "nattrovfagel", "mardjakt", "player"],
+      "seasons": { "migrate": [[3, 4], [8, 8]], "rut": [3, 5] },
+      "heading": [0.0, -1.0],
+      "cruise": 6,
+      "states": [
+        { "state": "fly", "weight": 0.3 },
+        { "state": "perch", "weight": 0.9 },
+        { "state": "graze", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.0 },
+        { "state": "display", "weight": 0.5 }
+      ]
+    },
     "fisk": {
       "activity": "always",
       "locomotion": "swim",
