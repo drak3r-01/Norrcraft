@@ -257,6 +257,18 @@ pub fn apply_column(
     }
 }
 
+/// Part des cellules de glace qui restent en eau libre pendant la débâcle.
+pub const BREAKUP_OPEN: f64 = 0.28;
+
+/// Cellule `(wx, wz)` d'un chenal de débâcle : plaques de 4×4 environ, certaines manquantes,
+/// fissures éparses entre les autres. Pure et déterministe, donc stable d'un chunk à l'autre.
+pub fn is_channel(wx: i32, wz: i32) -> bool {
+    let patch = hash01(wx.div_euclid(4), 0x1CE, wz.div_euclid(4)) < 0.12;
+    let border = wx.rem_euclid(4) == 0 || wz.rem_euclid(4) == 0;
+    let crack = hash01(wx, 0x1CF, wz) < if border { 0.45 } else { 0.05 };
+    patch || crack
+}
+
 /// Glace d'une colonne d'eau : la cellule du dessus gèle selon le rang de la glace.
 fn freeze(
     chunk: &mut Chunk,
@@ -281,7 +293,12 @@ fn freeze(
         return;
     }
     let site = site_at(c.macros, w.level, c.sea_level);
-    let e = rules.ice(step, &site, kind);
+    let (e, breaking) = rules.ice_status(step, &site, kind);
+    // Débâcle (session 6.1) : la glace qui fond se fragmente en plaques séparées par des chenaux
+    // d'eau libre.
+    if breaking && is_channel(c.wx, c.wz) {
+        return;
+    }
     let block = match (kind, e) {
         (_, 0) => return,
         (IceWater::Lake, 1) => b.new_ice,
@@ -290,4 +307,28 @@ fn freeze(
         _ => b.sea_ice,
     };
     chunk.set_block(x, y, z, block);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn breakup_channels_are_a_stable_minority() {
+        let mut open = 0;
+        let n = 200 * 200;
+        for x in 0..200 {
+            for z in 0..200 {
+                assert_eq!(is_channel(x, z), is_channel(x, z));
+                if is_channel(x, z) {
+                    open += 1;
+                }
+            }
+        }
+        let share = f64::from(open) / f64::from(n);
+        assert!((0.2..0.4).contains(&share), "part d'eau libre {share}");
+        // Négatifs et positifs sont continus au passage de zéro (pas de couture).
+        let neg = (-200..0).filter(|&x| is_channel(x, 5)).count();
+        assert!(neg > 20 && neg < 120, "{neg}");
+    }
 }

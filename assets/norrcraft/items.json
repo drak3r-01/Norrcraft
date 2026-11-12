@@ -1,1 +1,14 @@
-[]
+[
+ {"id": 256, "name": "isborr", "texture": "item_stick"},
+ {"id": 257, "name": "pimpel", "texture": "item_stick"},
+ {"id": 258, "name": "angeldon", "texture": "item_stick"},
+ {"id": 259, "name": "issag", "texture": "item_iron_ingot"},
+ {"id": 260, "name": "isdubbar", "texture": "item_iron_ingot"},
+ {"id": 261, "name": "isnot", "texture": "item_stick"},
+ {"id": 262, "name": "isblock", "texture": "item_aurora_shard"},
+ {"id": 263, "name": "abborre", "texture": "item_brick"},
+ {"id": 264, "name": "gadda", "texture": "item_brick"},
+ {"id": 265, "name": "sik", "texture": "item_brick"},
+ {"id": 266, "name": "roding", "texture": "item_brick"},
+ {"id": 267, "name": "harr", "texture": "item_brick"}
+]

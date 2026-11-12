@@ -239,6 +239,13 @@ impl SeasonRules {
 
     /// Rang de la glace (0 libre, 1 neuve, 2 portante, 3 épaisse) au centre du pas `step`.
     pub fn ice(&self, step: u8, site: &Site, water: IceWater) -> u8 {
+        self.ice_status(step, site, water).0
+    }
+
+    /// Rang de la glace et drapeau de **débâcle** (session 6.1) : vrai quand la glace fond (son
+    /// épaisseur baisse au centre du pas). Elle est alors plafonnée au rang 1 et le terrain la
+    /// fragmente en plaques séparées par des chenaux.
+    pub fn ice_status(&self, step: u8, site: &Site, water: IceWater) -> (u8, bool) {
         let r = &self.ice;
         let thr = match water {
             IceWater::Lake => r.lake_threshold,
@@ -272,7 +279,7 @@ impl SeasonRules {
         if e > 1 && h < prev {
             e = 1;
         }
-        e
+        (e, e >= 1 && h < prev)
     }
 
     /// Part des feuilles de feuillus restée à la branche, 0..1.
@@ -412,6 +419,26 @@ mod tests {
         }
         // La débâcle fragilise la glace au printemps.
         assert!(r.ice(2, &s, IceWater::Lake) <= 1);
+    }
+
+    #[test]
+    fn breakup_flags_melting_ice_only() {
+        let r = SeasonRules::builtin();
+        for mean in [0.25, 0.32, 0.40] {
+            let s = site(mean);
+            let flags: Vec<(u8, bool)> = (0..STEPS)
+                .map(|k| r.ice_status(k, &s, IceWater::Lake))
+                .collect();
+            for (k, &(e, br)) in flags.iter().enumerate() {
+                assert_eq!(e, r.ice(k as u8, &s, IceWater::Lake));
+                if br {
+                    assert_eq!(e, 1, "la glace en débâcle est neuve (pas {k}, T {mean})");
+                }
+            }
+            // Gel plein : pas de débâcle ; au moins un pas de débâcle dans l'année.
+            assert!(!flags[0].1, "T {mean}");
+            assert!(flags.iter().any(|f| f.1), "T {mean} : {flags:?}");
+        }
     }
 
     #[test]

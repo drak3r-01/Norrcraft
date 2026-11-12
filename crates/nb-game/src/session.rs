@@ -134,6 +134,8 @@ pub struct WorldSession {
     herds: nb_ecs::HerdHandle,
     /// Traces, pièges et colonies (session 5.8), partagés avec `EcologySystem`.
     ecology: nb_ecs::EcologyHandle,
+    /// Lignes de pêche sur glace (session 6.1), partagées avec `IceSystem`.
+    ice: nb_ecs::IceHandle,
 }
 
 impl std::fmt::Debug for WorldSession {
@@ -190,6 +192,12 @@ impl WorldSession {
             after_ai.saturating_add(3),
             Box::new(nb_ecs::EcologySystem::new(ecology.clone())),
         );
+        // Glace jouable (craquement, chute, remontée, lignes de pêche) : sans effet hors glace.
+        let ice: nb_ecs::IceHandle = Arc::default();
+        sim.schedule.insert(
+            after_ai.saturating_add(4),
+            Box::new(nb_ecs::IceSystem::new(ice.clone(), regs.items.id_of("isdubbar"))),
+        );
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,
@@ -201,10 +209,16 @@ impl WorldSession {
             biomes,
             herds,
             ecology,
+            ice,
         }
     }
 
     /// Traces lisibles, pièges posés et colonies de castors du monde.
+    /// Lignes de pêche posées sur la glace.
+    pub fn ice(&self) -> nb_ecs::IceHandle {
+        self.ice.clone()
+    }
+
     pub fn ecology(&self) -> nb_ecs::EcologyHandle {
         self.ecology.clone()
     }

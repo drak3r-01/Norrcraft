@@ -123,6 +123,10 @@ pub enum EcsEvent {
     Hurt { cold: bool },
     /// Une culture est passée au stade suivant.
     CropGrew { pos: IVec3, block: BlockId },
+    /// La glace sous un pied craque : elle ne portera pas la charge (6.1).
+    IceCrack { pos: IVec3 },
+    /// La glace a cédé en `pos` (6.1).
+    IceBroke { pos: IVec3 },
     /// Acte d'un animal Norrcraft sur le monde (broutage, construction, vol, mise à mort).
     AnimalAct {
         entity: EntityId,
