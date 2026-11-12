@@ -12,8 +12,9 @@
 //! Une structure d'une classe plus petite qui chevauche une plus grande est supprimée : le
 //! résultat est une fonction pure de (graine, cellule), indépendante de l'ordre des chunks.
 //!
-//! La table [`RULES`] décrit déjà tout le catalogue du doc 02 §10.1 ; seuls les **rösen** sont
-//! construits par cette session. Les autres sites portent un *jalon* provisoire (un tas de pierres
+//! La table [`RULES`] décrit déjà tout le catalogue du doc 02 §10.1 ; les **rösen** (4.1), l'habitat
+//! (4.2) et le patrimoine (4.3) sont construits (`buildings`).
+//! Les autres sites portent un *jalon* provisoire (un tas de pierres
 //! plus ou moins haut selon la classe, voir [`PLACEHOLDERS`]) que les sessions 4.2 à 4.4 remplacent
 //! par leur bâtiment (champ [`Rule::built`]).
 //!
@@ -311,7 +312,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Fjord, 0.10), (B::Hagmark, 0.12)],
         t(4, 2, 70, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Gruva,
@@ -338,10 +339,10 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         "fornborg",
         Major,
         26,
-        &[(B::Alvar, 0.25), (B::Hogkust, 0.15)],
+        &[(B::Alvar, 0.60), (B::Hogkust, 0.40)],
         t(4, 2, 90, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Bergasal,
@@ -434,7 +435,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Hagmark, 0.06), (B::Alvar, 0.08)],
         t(3, 2, 80, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Fyr,
@@ -442,13 +443,13 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         Medium,
         8,
         &[
-            (B::Skargard, 0.04),
-            (B::Klintkust, 0.04),
-            (B::Hogkust, 0.04),
+            (B::Skargard, 0.08),
+            (B::Klintkust, 0.08),
+            (B::Hogkust, 0.08),
         ],
         t(6, 0, 80, Wet::Shore(Shore::Sea, 10), Extra::LocalMax(16)),
         false,
-        false,
+        true,
     ),
     rule(
         K::Langhus,
@@ -458,7 +459,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Hagmark, 0.04), (B::Fjord, 0.04)],
         t(3, 2, 60, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Bastu,
@@ -475,20 +476,20 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         "skeppssättning",
         Medium,
         16,
-        &[(B::Alvar, 0.03), (B::Strandang, 0.04), (B::Klintkust, 0.02)],
+        &[(B::Alvar, 0.10), (B::Strandang, 0.10), (B::Klintkust, 0.06)],
         t(3, 2, 40, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Vaderkvarn,
         "väderkvarn",
         Medium,
         8,
-        &[(B::Alvar, 0.04), (B::Strandang, 0.05)],
+        &[(B::Alvar, 0.10), (B::Strandang, 0.10)],
         t(3, 2, 60, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Hallristning,
@@ -498,7 +499,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Hogkust, 0.05), (B::Skargard, 0.03), (B::Hagmark, 0.03)],
         t(3, 2, 70, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Skeppsvrak,
@@ -508,7 +509,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Bottenhav, 0.06), (B::Vasterhav, 0.04)],
         t(6, -60, 0, Wet::Afloat(6, 30), Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Bro,
@@ -578,7 +579,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         ],
         t(2, 2, 140, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Lada,
@@ -615,10 +616,10 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         "trojaborg",
         Minor,
         7,
-        &[(B::Skargard, 0.02), (B::Strandang, 0.02)],
+        &[(B::Skargard, 0.05), (B::Strandang, 0.04)],
         t(2, 0, 12, Wet::Shore(Shore::Sea, 12), Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Flyttblock,
@@ -1877,8 +1878,8 @@ mod tests {
     #[test]
     fn cairns_are_rule_driven() {
         assert!(RULES[K::Rosen as usize].built);
-        // Rösen + les neuf types d'habitat de la session 4.2.
-        assert!(RULES.iter().filter(|r| r.built).count() == 10);
+        // Rösen + les neuf types d'habitat de la session 4.2 et les onze du patrimoine de la 4.3.
+        assert!(RULES.iter().filter(|r| r.built).count() == 21);
         assert!(RULES.iter().filter(|r| r.track).all(|r| r.class != Minor));
     }
 

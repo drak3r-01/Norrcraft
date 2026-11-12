@@ -651,7 +651,7 @@ faille ouverte sous un cairn.
 **Provisoire.** Les sites dont le bâtiment n'existe pas encore (`Rule::built == false`) portent un
 **jalon** : cairn de 2 (mineur), 4 (moyen) ou 6 blocs (majeur), sauf les sites flottants.
 `structures::PLACEHOLDERS = false` les retire ; chaque session 4.x passe `built` à `true` pour ses
-types et remplace le jalon. Le röse (4.1) et les neuf types d'habitat (4.2) sont construits.
+types et remplace le jalon. Le röse (4.1), les neuf types d'habitat (4.2) et les onze types de patrimoine (4.3) sont construits.
 
 Trois blocs neufs (ids 129 à 131), textures vanilla réutilisées (`mossy_cobblestone`,
 `spruce_planks`, `dirt_path_*`) : `rosesten`, `planka`, `stig`.
@@ -691,6 +691,46 @@ kakelugn glasruta grundsten sang bord bjorkplanka fackla`. `eldstad` (14), `kake
 22/15/12 %, bastu 12/8 %. Écarts : le cellier est un tertre sans cave ; pas de portes, de lits
 orientés ni d'habitants (7.4) ; les toits ne portent pas la neige saisonnière ; une piste qui
 traverse un bâtiment est écrasée par lui. Tests : `tests/norrcraft_buildings.rs`.
+
+## Bâtiments de patrimoine (session 4.3, doc 02 §10.1)
+
+`norrcraft/buildings.rs` construit onze types de plus : **runsten**, **gravhög**, **skeppssättning**,
+**fornborg**, **stavkyrka**, **väderkvarn**, **fyr**, **trojaborg**, **hällristning**, **långhus** et
+**skeppsvrak** (`Rule::built = true`, leur jalon disparaît ; vingt et un types sont désormais
+construits avec le röse). Mêmes règles qu'en 4.2 (pièces à sol propre, déblai, fondation, arbres
+écartés). Les formes rondes ou longues (enceinte, trojaborg) sont posées **dalle par dalle**
+(`tiles`, dalles de 3 ou 4 blocs avec leur propre sol : l'ouvrage suit le relief, une dalle mouillée
+ou trop inclinée manque), les alignements de menhirs colonne par colonne (`pillar`).
+
+* Runsten : menhir de 3 à 4 blocs, base de roche, fût de pierre runique gravée, pierres au pied.
+* Gravhög : dôme de tourbe de rayon 8 (6 blocs de haut), chambre de pierre moussue 3 × 3 avec
+  coffre et fanaux, couloir voûté vers `+z` fermé par un linteau, pierres runiques au seuil.
+* Skeppssättning : 26 menhirs en coque de 25 × 9 (largeur `isqrt((144 − z²)/9)`, étrave et étambot de
+  4 blocs, 8 % de pierres manquantes), mât central, pierre de proue gravée (le cadran des solstices).
+* Fornborg : enceinte de pierres sèches (couronne r² ∈ [400, 506], 2 à 3 blocs, ruinée à 8 %), porte
+  à poteaux vers `+z`, puits au centre, trois fondations de maisons arasées.
+* Stavkyrka : déambulatoire sur poteaux, nef haute (7 blocs), toits étagés de goudron, clocher à
+  cloche (bloc `skatt`), flèche blanche, têtes de dragon aux faîtes, autel et fanaux.
+* Väderkvarn : moulin à pivot blanc sur pied de rondins, toit goudronné, escalier de planches, sacs
+  de foin, voiles en croix de Saint-André (`segel`).
+* Fyr : tour octogonale de 13 blocs à bandes blanches et rouges, escalier en colimaçon (16 marches
+  en huit cellules), galerie à garde-corps, lanterne vitrée avec le feu `fyrljus`, maison du gardien.
+* Trojaborg : trois anneaux de galets à fleur de sol (entrées alternées), menhir au centre.
+* Hällristning : dalle d'affleurement de 9 × 7 en `menhir`, navire et cerfs en `hallristad` (rouge).
+* Långhus : halle de 7 × 19 à bouts arrondis, murs de tourbe ébréchés, poteaux, fosse à feu, banquettes,
+  coffre ; la ruine est un tirage par colonne (`hash01`).
+* Skeppsvrak : quille, membrures cassées, ponts épars, mâts rompus et coffre dans la cale, posés sur
+  des étais de rondins qui descendent au fond (6 à 30 blocs d'eau).
+
+Sept blocs neufs (ids 147 à 153, textures vanilla) : `runblock menhir fyrljus segel hallristad skatt
+kammarsten` ; `fyrljus` émet 15. **Poids relevés** (3 graines, 8 km autour de l'origine) : les
+biomes des fornborg (Alvar, Högkust) sont presque absents à cette échelle, d'où des poids portés à
+0,60 et 0,40 ; skeppssättning 0,10 / 0,10 / 0,06 ; väderkvarn 0,10 / 0,10 ; fyr 0,08 ; trojaborg 0,05
+et 0,04. Le test de présence élargit la zone à ±7 km pour les types rares. Écarts : pas de chambre
+du Lindorm ni de cadran fonctionnel (8.3), le moulin ne moud pas (6.8), les runes n'enseignent rien
+(7.2), le coffre et la cloche sont des blocs pleins, les épaves sont un décor et non le navire de
+guerre complet du doc, la lanterne n'a ni lentille ni rotation. Tests : `tests/norrcraft_buildings.rs`
+(vingt types, pièces conformes à plus de 97 %).
 
 ## Outil `worldmap`
 

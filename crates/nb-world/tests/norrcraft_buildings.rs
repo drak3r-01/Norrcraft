@@ -1,5 +1,7 @@
-//! Tests d'acceptation des bâtiments d'habitat Norrcraft (session 4.2 ; GDD doc 02 §10.1) :
-//! torp, by, lada, fäbod, fiskeläge, bastu, fjällstuga, vindskydd, kåta.
+//! Tests d'acceptation des bâtiments Norrcraft (sessions 4.2 et 4.3 ; GDD doc 02 §10.1) :
+//! habitat (torp, by, lada, fäbod, fiskeläge, bastu, fjällstuga, vindskydd, kåta) et patrimoine
+//! (runsten, gravhög, skeppssättning, fornborg, stavkyrka, väderkvarn, fyr, trojaborg, hällristning,
+//! långhus, skeppsvrak).
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -12,7 +14,9 @@ use nb_world::{Chunk, TerrainGenerator};
 
 const SEEDS: [i64; 3] = [12345, -98765, 20261111];
 const REACH: i32 = 2600;
-const KINDS: [StructKind; 9] = [
+/// Zone élargie pour les types rares.
+const WIDE: i32 = 7000;
+const KINDS: [StructKind; 20] = [
     StructKind::Torp,
     StructKind::By,
     StructKind::Lada,
@@ -22,6 +26,17 @@ const KINDS: [StructKind; 9] = [
     StructKind::Fjallstuga,
     StructKind::Vindskydd,
     StructKind::Kata,
+    StructKind::Runsten,
+    StructKind::Gravhog,
+    StructKind::Skeppssattning,
+    StructKind::Fornborg,
+    StructKind::Stavkyrka,
+    StructKind::Vaderkvarn,
+    StructKind::Fyr,
+    StructKind::Trojaborg,
+    StructKind::Hallristning,
+    StructKind::Langhus,
+    StructKind::Skeppsvrak,
 ];
 
 fn reg() -> BlockRegistry {
@@ -44,9 +59,14 @@ fn chunk(t: &NorrcraftTerrain, cx: i32, cz: i32) -> Chunk {
 
 /// Tous les bâtiments de la zone d'étude : `(site, bâtiment)`.
 fn all(t: &NorrcraftTerrain) -> Vec<(StructSite, Arc<Building>)> {
+    all_in(t, REACH)
+}
+
+/// Idem sur un carré de demi-côté `r` (les types rares demandent une zone plus large).
+fn all_in(t: &NorrcraftTerrain, r: i32) -> Vec<(StructSite, Arc<Building>)> {
     t.with_probe(|p| {
         t.structures()
-            .sites_in(p, -REACH, -REACH, REACH, REACH)
+            .sites_in(p, -r, -r, r, r)
             .into_iter()
             .filter_map(|s| t.structures().building(&s, p).map(|b| (s, b)))
             .collect()
@@ -82,6 +102,29 @@ fn every_habitat_kind_gets_buildings_on_some_seed() {
             *voxels.entry(s.kind.name()).or_default() += b.voxel_count();
         }
     }
+    // Types liés à des biomes rares (alvar, högkust) : on élargit la zone avant de conclure.
+    for k in KINDS {
+        if count.contains_key(k.name()) {
+            continue;
+        }
+        for seed in SEEDS {
+            let t = terrain(seed);
+            t.with_probe(|p| {
+                for s in t.structures().sites_in(p, -WIDE, -WIDE, WIDE, WIDE) {
+                    if s.kind != k {
+                        continue;
+                    }
+                    if let Some(b) = t.structures().building(&s, p) {
+                        *count.entry(k.name()).or_default() += 1;
+                        *voxels.entry(k.name()).or_default() += b.voxel_count();
+                    }
+                }
+            });
+            if count.contains_key(k.name()) {
+                break;
+            }
+        }
+    }
     for k in KINDS {
         let n = count.get(k.name()).copied().unwrap_or(0);
         println!("{:<10} {n:>4} bâtiments sur {:>4} sites, {} blocs", k.name(), sites.get(k.name()).copied().unwrap_or(0), voxels.get(k.name()).copied().unwrap_or(0));
@@ -104,9 +147,17 @@ fn buildings_are_pure_functions_of_seed_and_terrain() {
 #[test]
 fn stamped_blocks_match_the_blueprint() {
     let r = reg();
-    let t = terrain(SEEDS[0]);
     let mut seen: BTreeMap<&str, bool> = BTreeMap::new();
-    for (s, b) in all(&t) {
+    let mut sets = Vec::new();
+    for (seed, reach) in [(SEEDS[0], REACH), (SEEDS[1], REACH), (SEEDS[2], REACH), (SEEDS[0], WIDE), (SEEDS[1], WIDE), (SEEDS[2], WIDE)] {
+        sets.push((seed, reach));
+    }
+    for (seed, reach) in sets {
+        if seen.len() == KINDS.len() {
+            break;
+        }
+        let t = terrain(seed);
+        for (s, b) in all_in(&t, reach) {
         if seen.contains_key(s.kind.name()) {
             continue;
         }
@@ -137,6 +188,7 @@ fn stamped_blocks_match_the_blueprint() {
         seen.insert(s.kind.name(), true);
         if seen.len() == KINDS.len() {
             break;
+        }
         }
     }
     assert_eq!(seen.len(), KINDS.len(), "types vus : {:?}", seen.keys());
@@ -194,4 +246,20 @@ fn no_trees_grow_inside_buildings() {
         }
     }
     assert!(checked > 0);
+}
+
+/// Lieux à visiter pour les aperçus 3D (`-- --ignored --nocapture`) : le premier bâtiment de
+/// patrimoine de chaque type, par graine.
+#[test]
+#[ignore]
+fn locate_heritage_spots() {
+    for seed in SEEDS {
+        let t = terrain(seed);
+        let mut seen = std::collections::BTreeSet::new();
+        for (s, _) in all(&t) {
+            if KINDS[9..].contains(&s.kind) && seen.insert(s.kind.name()) {
+                println!("graine {seed}: {} en {},{} y {}", s.kind.name(), s.x, s.z, s.y);
+            }
+        }
+    }
 }

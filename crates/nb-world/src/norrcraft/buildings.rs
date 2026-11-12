@@ -48,10 +48,24 @@ pub enum Mat {
     Torch,
     Path,
     Water,
+    /// Pierre runique.
+    Rune,
+    /// Menhir.
+    Menhir,
+    /// Feu de phare.
+    Beacon,
+    /// Voile de moulin.
+    Sail,
+    /// Roche gravée.
+    Carved,
+    /// Coffre au trésor.
+    Treasure,
+    /// Maçonnerie de chambre funéraire.
+    Chamber,
 }
 
 impl Mat {
-    pub const COUNT: usize = 19;
+    pub const COUNT: usize = 26;
 
     pub const ALL: [Mat; Mat::COUNT] = [
         Mat::Air,
@@ -73,6 +87,13 @@ impl Mat {
         Mat::Torch,
         Mat::Path,
         Mat::Water,
+        Mat::Rune,
+        Mat::Menhir,
+        Mat::Beacon,
+        Mat::Sail,
+        Mat::Carved,
+        Mat::Treasure,
+        Mat::Chamber,
     ];
 
     /// Nom du bloc Norrcraft (vide pour l'air).
@@ -97,6 +118,13 @@ impl Mat {
             Mat::Torch => "fackla",
             Mat::Path => "stig",
             Mat::Water => "water",
+            Mat::Rune => "runblock",
+            Mat::Menhir => "menhir",
+            Mat::Beacon => "fyrljus",
+            Mat::Sail => "segel",
+            Mat::Carved => "hallristad",
+            Mat::Treasure => "skatt",
+            Mat::Chamber => "kammarsten",
         }
     }
 }
@@ -401,6 +429,15 @@ const STONE: Style = Style {
     floor: Mat::Stone,
     glass: false,
 };
+/// Moulin à pivot : bois blanchi, toit goudronné.
+const MILL: Style = Style {
+    wall: Mat::Trim,
+    post: Mat::Trim,
+    roof: Mat::Tar,
+    gable: Mat::Trim,
+    floor: Mat::Plank,
+    glass: false,
+};
 /// Sauna : rondins, plancher de bouleau.
 const SAUNA: Style = Style {
     wall: Mat::Log,
@@ -526,6 +563,17 @@ pub fn build(site: &StructSite, probe: &SiteProbe) -> Option<Building> {
         StructKind::Fjallstuga => fjallstuga(probe, root, &mut parts),
         StructKind::Vindskydd => vindskydd(probe, root, &mut parts),
         StructKind::Kata => kata(probe, site, &mut parts),
+        StructKind::Runsten => runsten(probe, root, site, &mut parts),
+        StructKind::Gravhog => gravhog(probe, root, &mut parts),
+        StructKind::Skeppssattning => skeppssattning(probe, root, site, &mut parts),
+        StructKind::Fornborg => fornborg(probe, root, site, &mut parts),
+        StructKind::Stavkyrka => stavkyrka(probe, root, &mut parts),
+        StructKind::Vaderkvarn => vaderkvarn(probe, root, &mut parts),
+        StructKind::Fyr => fyr(probe, site, &mut parts),
+        StructKind::Trojaborg => trojaborg(probe, root, &mut parts),
+        StructKind::Hallristning => hallristning(probe, root, site, &mut parts),
+        StructKind::Langhus => langhus(probe, root, site, &mut parts),
+        StructKind::Skeppsvrak => skeppsvrak(probe, root, site, &mut parts),
         _ => return None,
     };
     if !ok || parts.is_empty() {
@@ -943,5 +991,582 @@ fn kata(probe: &SiteProbe, site: &StructSite, out: &mut Vec<Part>) -> bool {
         p.set(0, 4, 1, Mat::Air);
         p.fill(-2, 6, -2, 2, 6, 2, Mat::Plank);
     });
+    true
+}
+
+// ---------------------------------------------------------------------------------------------
+// Patrimoine (session 4.3)
+// ---------------------------------------------------------------------------------------------
+
+/// Racine entière.
+fn isqrt(n: i32) -> i32 {
+    let mut r = 0;
+    while (r + 1) * (r + 1) <= n {
+        r += 1;
+    }
+    r
+}
+
+/// Pose, dalle par dalle (`step` blocs de côté), une forme qui épouse le terrain : chaque dalle a
+/// son propre sol, et manque si elle est mouillée ou trop inclinée. Renvoie le nombre de dalles.
+#[allow(clippy::too_many_arguments)]
+fn tiles(
+    probe: &SiteProbe,
+    out: &mut Vec<Part>,
+    xf: Xf,
+    (lo, hi, step): (i32, i32, i32),
+    height: i32,
+    dev: i32,
+    want: &dyn Fn(i32, i32) -> bool,
+    cell: &dyn Fn(&mut P, i32, i32),
+) -> usize {
+    let mut n = 0;
+    let mut tz = lo;
+    while tz <= hi {
+        let mut tx = lo;
+        while tx <= hi {
+            let rect = [tx, tz, tx + step - 1, tz + step - 1];
+            let any = (rect[1]..=rect[3]).any(|z| (rect[0]..=rect[2]).any(|x| want(x, z)));
+            if any
+                && land_part(probe, out, xf, rect, height, dev, |p| {
+                    for z in rect[1]..=rect[3] {
+                        for x in rect[0]..=rect[2] {
+                            if want(x, z) {
+                                cell(p, x, z);
+                            }
+                        }
+                    }
+                })
+            {
+                n += 1;
+            }
+            tx += step;
+        }
+        tz += step;
+    }
+    n
+}
+
+/// Colonne isolée de hauteur `h`, posée sur son propre sol.
+fn pillar(
+    probe: &SiteProbe,
+    out: &mut Vec<Part>,
+    root: Xf,
+    dx: i32,
+    dz: i32,
+    h: i32,
+    m: Mat,
+) -> bool {
+    land_part(probe, out, root.child(dx, dz, 0), [-1, -1, 1, 1], h + 2, 3, |p| {
+        p.fill(0, 0, 0, 0, h - 1, 0, m);
+    })
+}
+
+/// Pierre runique : un menhir gravé, quelques pierres à son pied.
+fn runsten(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let h = 3 + (site.seed % 2) as i32;
+    land_part(probe, out, root, [-2, -2, 2, 2], h + 2, 2, |p| {
+        p.set(0, 0, 0, Mat::Menhir);
+        p.fill(0, 1, 0, 0, h - 1, 0, Mat::Rune);
+        for (x, z) in [(1, 1), (-1, 1), (1, -1)] {
+            if hash01(site.seed, x, z, 51) < 0.6 {
+                p.set(x, 0, z, Mat::Stone);
+            }
+        }
+    })
+}
+
+/// Tumulus : dôme de tourbe, chambre funéraire voûtée et couloir d'entrée vers `+z`.
+fn gravhog(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    land_part(probe, out, root, [-8, -8, 8, 10], 9, 3, |p| {
+        for z in -8..=8 {
+            for x in -8..=8 {
+                let d2 = x * x + z * z;
+                if d2 >= 64 {
+                    continue;
+                }
+                let h = (64 - d2) * 6 / 64;
+                if h >= 1 {
+                    p.fill(x, 0, z, x, h - 1, z, Mat::Turf);
+                }
+            }
+        }
+        p.fill(-2, 0, -2, 2, 2, 2, Mat::Chamber);
+        p.fill(-1, 0, -1, 1, 1, 1, Mat::Air);
+        for x in [-1, 1] {
+            p.fill(x, 0, 3, x, 1, 8, Mat::Chamber);
+        }
+        p.fill(-1, 2, 3, 1, 2, 8, Mat::Chamber);
+        p.fill(0, 0, 2, 0, 1, 8, Mat::Air);
+        p.set(0, 0, -1, Mat::Treasure);
+        p.set(-1, 0, 1, Mat::Torch);
+        p.set(1, 0, 1, Mat::Torch);
+        // Pierres de seuil gravées.
+        p.set(-2, 0, 9, Mat::Rune);
+        p.set(2, 0, 9, Mat::Rune);
+    })
+}
+
+/// Navire de pierres : deux files de menhirs en coque, étrave et étambot plus hauts, mât au centre.
+fn skeppssattning(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let mut n = 0;
+    for z in (-12..=12).step_by(2) {
+        let w = isqrt((144 - z * z) / 9);
+        let end = z.abs() == 12;
+        for side in [-1, 1] {
+            if w == 0 && side == 1 {
+                continue;
+            }
+            let x = side * w;
+            if !end && hash01(site.seed, x, z, 52) < 0.08 {
+                continue;
+            }
+            let h = if end {
+                4
+            } else {
+                2 + (hash01(site.seed, x, z, 53) * 2.0) as i32
+            };
+            if pillar(probe, out, root, x, z, h, Mat::Menhir) {
+                n += 1;
+            }
+        }
+    }
+    // Mât central et pierre de proue gravée : le cadran des solstices.
+    pillar(probe, out, root, 0, 0, 3, Mat::Menhir);
+    pillar(probe, out, root, 0, -8, 1, Mat::Rune);
+    n >= 8
+}
+
+/// Enceinte circulaire de pierres sèches (ruinée), porte vers `+z`, puits et fondations de maisons.
+fn fornborg(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let s = site.seed;
+    let want = |x: i32, z: i32| {
+        let d2 = x * x + z * z;
+        (400..=506).contains(&d2) && !(z > 0 && x.abs() <= 2)
+    };
+    let cell = |p: &mut P, x: i32, z: i32| {
+        // Poteaux de la porte.
+        if z > 0 && x.abs() == 3 {
+            p.fill(x, 0, z, x, 3, z, Mat::Log);
+            return;
+        }
+        let u = hash01(s, x, z, 54);
+        let h = if u < 0.08 {
+            0
+        } else if u < 0.4 {
+            1
+        } else if u < 0.85 {
+            2
+        } else {
+            3
+        };
+        if h > 0 {
+            let m = if hash01(s, x, z, 55) < 0.3 {
+                Mat::Chamber
+            } else {
+                Mat::Stone
+            };
+            p.fill(x, 0, z, x, h - 1, z, m);
+        }
+    };
+    let n = tiles(probe, out, root, (-24, 23, 4), 6, 3, &want, &cell);
+    if n < 10 {
+        return false;
+    }
+    // Puits au centre.
+    land_part(probe, out, root, [-3, -3, 3, 3], 5, 4, |p| {
+        p.ring(-1, -1, 1, 1, 0, 0, Mat::Stone);
+        p.fill(0, -2, 0, 0, -1, 0, Mat::Water);
+    });
+    // Fondations de maisons, à demi arasées.
+    for rect in [[-13, -11, -6, -5], [5, -12, 12, -6], [-12, 6, -5, 12]] {
+        land_part(probe, out, root, rect, 4, 4, |p| {
+            let (x0, z0, x1, z1) = (rect[0] + 1, rect[1] + 1, rect[2] - 1, rect[3] - 1);
+            for z in z0..=z1 {
+                for x in x0..=x1 {
+                    if x == x0 || x == x1 || z == z0 || z == z1 {
+                        let u = hash01(s, x, z, 56);
+                        if u > 0.3 {
+                            p.fill(x, 0, z, x, if u > 0.75 { 1 } else { 0 }, z, Mat::Stone);
+                        }
+                    } else {
+                        p.set(x, -1, z, Mat::Path);
+                    }
+                }
+            }
+        });
+    }
+    true
+}
+
+/// Église en bois debout : déambulatoire, nef haute, toits étagés, clocher à cloche, têtes de dragon.
+fn stavkyrka(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    land_part(probe, out, root, [-5, -9, 5, 7], 21, 4, |p| {
+        let tar = Mat::Tar;
+        let log = Mat::Log;
+        p.fill(-4, -1, -8, 4, -1, 6, Mat::Plank);
+        p.ring(-4, -8, 4, 6, 0, 2, tar);
+        for z in (-8..=6).step_by(2) {
+            for x in [-4, 4] {
+                p.fill(x, 0, z, x, 2, z, log);
+            }
+        }
+        for x in (-4..=4).step_by(2) {
+            for z in [-8, 6] {
+                p.fill(x, 0, z, x, 2, z, log);
+            }
+        }
+        for z in [-5, -1, 3] {
+            p.set(-4, 1, z, Mat::Glass);
+            p.set(4, 1, z, Mat::Glass);
+        }
+        // Toit bas, en gradins ; porche devant la porte.
+        for k in 0..4 {
+            p.ring(-5 + k, -9 + k, 5 - k, 7 - k, 3 + k, 3 + k, tar);
+        }
+        for x in [-1, 1] {
+            p.fill(x, 0, 7, x, 2, 7, log);
+        }
+        // Nef haute sur poteaux d'angle.
+        p.ring(-2, -5, 2, 3, 3, 6, tar);
+        for (x, z) in [(-2, -5), (2, -5), (-2, 3), (2, 3), (-2, -1), (2, -1)] {
+            p.fill(x, 0, z, x, 6, z, log);
+        }
+        for z in [-3, 1] {
+            p.set(-2, 4, z, Mat::Glass);
+            p.set(2, 4, z, Mat::Glass);
+        }
+        for k in 0..3 {
+            p.fill(-3 + k, 7 + k, -6 + k, 3 - k, 7 + k, 4 - k, tar);
+        }
+        p.fill(0, 10, -3, 0, 10, 1, tar);
+        // Clocher.
+        p.ring(-1, -2, 1, 0, 8, 13, tar);
+        for (x, z) in [(0, -2), (0, 0), (-1, -1), (1, -1)] {
+            p.fill(x, 11, z, x, 12, z, Mat::Air);
+        }
+        p.set(0, 11, -1, Mat::Treasure);
+        p.fill(-2, 14, -3, 2, 14, 1, tar);
+        p.fill(-1, 15, -2, 1, 15, 0, tar);
+        p.set(0, 16, -1, tar);
+        p.fill(0, 17, -1, 0, 19, -1, Mat::Trim);
+        // Têtes de dragon aux faîtes.
+        for (z, y) in [(-3, 11), (1, 11), (-6, 8), (4, 8)] {
+            p.fill(0, y, z, 0, y + 1, z, Mat::Trim);
+        }
+        // Porte, autel et fanaux.
+        p.fill(0, 0, 6, 0, 1, 6, Mat::Air);
+        table(p, 0, -6);
+        for x in [-3, 3] {
+            p.set(x, 0, -6, Mat::Torch);
+        }
+    })
+}
+
+/// Moulin à pivot : bâti sur un pied de bois, voiles en croix de Saint-André vers `+x`.
+fn vaderkvarn(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    land_part(probe, out, root, [-3, -3, 5, 6], 13, 3, |p| {
+        p.fill(0, 0, 0, 0, 2, 0, Mat::Log);
+        p.fill(-2, 0, 0, 2, 0, 0, Mat::Log);
+        p.fill(0, 0, -2, 0, 0, 2, Mat::Log);
+        for (x, z) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
+            p.set(x, 1, z, Mat::Log);
+        }
+        p.fill(-2, 3, -1, 2, 3, 1, Mat::Plank);
+        p.ring(-2, -1, 2, 1, 4, 6, Mat::Trim);
+        roof(p, -2, -1, 2, 1, 7, &MILL);
+        p.fill(0, 4, 1, 0, 5, 1, Mat::Air);
+        p.set(-2, 5, 0, Mat::Glass);
+        p.set(-1, 4, 0, Mat::Hay);
+        p.set(-1, 4, -1, Mat::Hay);
+        p.set(1, 4, -1, Mat::Table);
+        // Escalier de planches jusqu'à la porte.
+        for (i, z) in (2..=5).enumerate() {
+            let y = 3 - i as i32;
+            p.set(0, y, z, Mat::Plank);
+            if y > 0 {
+                p.fill(0, 0, z, 0, y - 1, z, Mat::Log);
+            }
+        }
+        // Axe et voiles.
+        p.set(2, 6, 0, Mat::Log);
+        p.set(3, 6, 0, Mat::Log);
+        for (sy, sz) in [(1, 1), (1, -1), (-1, 1), (-1, -1)] {
+            for k in 1..=4 {
+                p.set(3, 6 + sy * k, sz * k, Mat::Log);
+                if k >= 2 {
+                    p.set(3, 6 + sy * k, sz * (k - 1), Mat::Sail);
+                    p.set(3, 6 + sy * (k - 1), sz * k, Mat::Sail);
+                }
+            }
+        }
+    })
+}
+
+/// Cellule du mur de la tour du phare (octogone creux de rayon 2).
+fn tower_wall(x: i32, z: i32) -> bool {
+    (4..=5).contains(&(x * x + z * z))
+}
+
+/// Phare de pierre à bandes, escalier en colimaçon, lanterne à feu, maison du gardien.
+fn fyr(probe: &SiteProbe, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    const SPIRAL: [(i32, i32); 8] = [
+        (0, 1),
+        (-1, 1),
+        (-1, 0),
+        (-1, -1),
+        (0, -1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+    ];
+    let root = Xf {
+        x: site.x,
+        z: site.z,
+        rot: 0,
+    };
+    let tower = land_part(probe, out, root, [-3, -3, 3, 3], 21, 6, |p| {
+        p.fill(-2, -1, -2, 2, -1, 2, Mat::Stone);
+        for z in -4..=4 {
+            for x in -4..=4 {
+                let d2 = x * x + z * z;
+                if tower_wall(x, z) {
+                    for y in 0..13 {
+                        let m = if y < 3 {
+                            Mat::Stone
+                        } else if (y / 2) % 2 == 0 {
+                            Mat::Trim
+                        } else {
+                            Mat::Wall
+                        };
+                        p.set(x, y, z, m);
+                    }
+                    // Lanterne vitrée.
+                    p.fill(x, 14, z, x, 15, z, Mat::Glass);
+                }
+                // Galerie : plancher et garde-corps.
+                if d2 <= 10 && !(x == 0 && z == -1) {
+                    let m = if tower_wall(x, z) { Mat::Stone } else { Mat::Plank };
+                    p.set(x, 13, z, m);
+                }
+                if (9..=10).contains(&d2) && !(z == -3 && x.abs() <= 1) {
+                    p.set(x, 14, z, Mat::Log);
+                }
+            }
+        }
+        // Escalier en colimaçon dans le puits de la tour.
+        for i in 0..13 {
+            let (cx, cz) = SPIRAL[(i % 8) as usize];
+            p.set(cx, i, cz, Mat::Plank);
+        }
+        p.fill(0, 0, 2, 0, 1, 2, Mat::Air);
+        p.fill(0, 14, -2, 0, 15, -2, Mat::Air);
+        p.fill(0, 14, 0, 0, 15, 0, Mat::Beacon);
+        // Toit de la lanterne.
+        for z in -3..=3 {
+            for x in -3..=3 {
+                let d2 = x * x + z * z;
+                if d2 <= 6 {
+                    p.set(x, 16, z, Mat::Tar);
+                }
+                if d2 <= 2 {
+                    p.set(x, 17, z, Mat::Tar);
+                }
+            }
+        }
+        p.set(0, 18, 0, Mat::Trim);
+    });
+    if !tower {
+        return false;
+    }
+    // Maison du gardien, porte vers la tour.
+    let xf = root.child(9, 3, face_center(9, 3));
+    land_part(probe, out, xf, [-4, -3, 4, 3], 7, 4, |p| {
+        cabin(p, -3, -2, 3, 2, 3, &FALU, 1, 2);
+        stove(p, -2, -1, 6);
+        p.set(2, 0, -1, Mat::Bed);
+        p.set(2, 0, 0, Mat::Bed);
+        table(p, 0, -1);
+    });
+    true
+}
+
+/// Labyrinthe de pierres (trojaborg) : trois anneaux de galets posés à fleur de sol, aux ouvertures
+/// alternées, et une pierre au centre.
+fn trojaborg(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    let want = |x: i32, z: i32| {
+        if x == 0 && z == 0 {
+            return true;
+        }
+        let r = x.abs().max(z.abs());
+        if !matches!(r, 2 | 4 | 6) {
+            return false;
+        }
+        // Entrée en `+z` sur les anneaux 6 et 2, en `-z` sur l'anneau 4.
+        let gap = x == 0 && ((r != 4 && z == r) || (r == 4 && z == -r));
+        !gap
+    };
+    let cell = |p: &mut P, x: i32, z: i32| {
+        if x == 0 && z == 0 {
+            p.fill(0, 0, 0, 0, 1, 0, Mat::Menhir);
+        } else {
+            p.set(x, -1, z, Mat::Stone);
+        }
+    };
+    tiles(probe, out, root, (-6, 6, 3), 4, 3, &want, &cell) >= 6
+}
+
+/// Roche gravée : une dalle d'affleurement, un navire et des cerfs peints en rouge.
+fn hallristning(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    const ART: [&str; 7] = [
+        "....#....",
+        "...###...",
+        "....#....",
+        ".#######.",
+        "..#####..",
+        "#.#...#.#",
+        ".#.......",
+    ];
+    land_part(probe, out, root, [-5, -4, 5, 4], 4, 2, |p| {
+        for (j, row) in ART.iter().enumerate() {
+            for (i, c) in row.bytes().enumerate() {
+                let (x, z) = (i as i32 - 4, j as i32 - 3);
+                if c == b'#' {
+                    p.set(x, 0, z, Mat::Carved);
+                } else {
+                    p.set(x, 0, z, Mat::Menhir);
+                    if hash01(site.seed, x, z, 57) > 0.82 {
+                        p.set(x, 1, z, Mat::Menhir);
+                    }
+                }
+            }
+        }
+    })
+}
+
+/// Halle viking en ruine : murs de tourbe ébréchés, poteaux, longue fosse à feu, banquettes, coffre.
+fn langhus(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let s = site.seed;
+    let half = |z: i32| -> i32 {
+        match z.abs() {
+            0..=6 => 3,
+            7..=8 => 2,
+            9 => 1,
+            _ => -1,
+        }
+    };
+    let inside = |x: i32, z: i32| {
+        let w = half(z);
+        w >= 0 && x.abs() <= w
+    };
+    land_part(probe, out, root, [-5, -11, 5, 11], 8, 4, |p| {
+        for z in -9..=9 {
+            for x in -3..=3 {
+                if !inside(x, z) {
+                    continue;
+                }
+                let edge = !(inside(x + 1, z)
+                    && inside(x - 1, z)
+                    && inside(x, z + 1)
+                    && inside(x, z - 1));
+                if edge {
+                    if (x == 3 && (1..=2).contains(&z)) || hash01(s, x, z, 31) < 0.2 {
+                        continue;
+                    }
+                    let h = 1 + (hash01(s, x, z, 32) * 3.0) as i32;
+                    p.set(x, 0, z, Mat::Turf);
+                    if h > 1 {
+                        p.fill(x, 1, z, x, h - 1, z, Mat::Log);
+                    }
+                } else {
+                    p.set(x, -1, z, Mat::Path);
+                }
+            }
+        }
+        for z in [-6, -2, 2, 6] {
+            for x in [-1, 1] {
+                if hash01(s, x, z, 33) > 0.2 {
+                    let h = 3 + (hash01(s, x, z, 34) * 2.0) as i32;
+                    p.fill(x, 0, z, x, h - 1, z, Mat::Log);
+                }
+            }
+        }
+        for z in -5_i32..=5 {
+            for x in [-2, 2] {
+                if z.abs() != 2 && hash01(s, x, z, 35) > 0.3 {
+                    p.set(x, 0, z, Mat::Plank);
+                }
+            }
+        }
+        p.ring(-1, -1, 1, 1, 0, 0, Mat::Stone);
+        p.set(0, 0, 0, Mat::Hearth);
+        p.set(1, 0, -7, Mat::Treasure);
+    })
+}
+
+/// Épave d'un navire de guerre : quille, membrures cassées, ponts épars, mâts rompus, coffre dans
+/// la cale. Les cales reposent sur des étais qui descendent jusqu'au fond.
+fn skeppsvrak(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let c = (probe.water)(site.x, site.z);
+    if !c.is_wet() {
+        return false;
+    }
+    let s = site.seed;
+    let mut p = P::raw(root, c.top);
+    let half = |z: i32| -> i32 {
+        match z.abs() {
+            0..=5 => 3,
+            6..=8 => 2,
+            _ => 1,
+        }
+    };
+    for z in -10..=10 {
+        let hw = half(z);
+        for x in -hw..=hw {
+            let edge = x.abs() == hw || z.abs() == 10;
+            let u = hash01(s, x, z, 41);
+            if edge {
+                if u >= 0.15 {
+                    let h = 1 + (hash01(s, x, z, 42) * 3.0) as i32;
+                    p.fill(x, 0, z, x, h - 1, z, Mat::Tar);
+                    if z % 3 == 0 {
+                        p.pile(x, z, -1);
+                    }
+                }
+            } else {
+                if u < 0.9 {
+                    p.set(x, 0, z, Mat::Tar);
+                }
+                if hash01(s, x, z, 43) < 0.2 {
+                    p.set(x, 2, z, Mat::Plank);
+                }
+            }
+            if x == 0 {
+                p.set(0, 0, z, Mat::Log);
+                if z % 2 == 0 {
+                    p.pile(0, z, -1);
+                }
+            }
+        }
+    }
+    // Étrave, château arrière, mâts rompus.
+    p.fill(0, 1, -10, 0, 4, -10, Mat::Log);
+    for x in -1..=1 {
+        if hash01(s, x, 10, 45) > 0.2 {
+            p.fill(x, 1, 10, x, 3, 10, Mat::Tar);
+        }
+        for z in 8..=9 {
+            p.set(x, 2, z, Mat::Plank);
+        }
+    }
+    for (z, base) in [(-3, 5), (3, 7)] {
+        let h = base + (hash01(s, z, 0, 44) * 4.0) as i32;
+        p.fill(0, 1, z, 0, h, z, Mat::Log);
+        if h >= 7 {
+            p.fill(-2, 6, z, 2, 6, z, Mat::Log);
+        }
+    }
+    p.set(0, 1, 5, Mat::Treasure);
+    out.push(p.finish());
     true
 }
