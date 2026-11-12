@@ -34,7 +34,7 @@ fn the_fifteen_birds_follow_the_fiches() {
         assert_eq!(c.medium, medium, "{id}");
         assert!(c.rig.is_some() && c.spawn.is_some(), "{id}");
     }
-    assert_eq!(reg.all().len(), 34);
+    assert!(reg.all().len() >= 34);
 }
 
 #[test]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bestiaire terrestre de Norrcraft (session 5.4, doc 03 §3.1 et §3.2).
+"""Bestiaire de Norrcraft (sessions 5.4 à 5.6, doc 03 §3.1 à §3.5).
 
 Écrit, pour l'univers `norrcraft` :
   * `assets/norrcraft/mobs.json`           réglages + blocs `behavior` / `spawn` (même format que vanilla),
@@ -369,6 +369,181 @@ add("goken", "Gök",
     "skogsfagel",
     sp({"HAGMARK": 0.08, "FJALLBJORKSKOG": 0.08}, [0, 0, 0, 0.5, 1, 1, 0.1, 0], "diurnal", altitude=6),
     hp=2.0, group=(1, 1), count=16, **{**BIRD_AIR, "speed": (1.4, 2.4)})
+
+
+
+# -- Faune aquatique, amphibie et insectes (doc 03 §3.4 et §3.5, session 5.6) -------------------
+RUN = [0, 0, 0.1, 0.4, 1, 1, 0.7, 0.1]  # remontée de juin à septembre
+LATE = [0, 0, 0, 0.1, 0.5, 1, 0.7, 0.1]  # fin d'été
+SUMMER_ONLY = [0, 0, 0, 0.3, 1, 1, 0.2, 0]  # insectes de juin à août
+FISH_WATER = dict(medium="WATER", flee_dur=(1.5, 3.0), move=(1.5, 5.0), pause=(0.2, 1.5))
+
+add("lax", "Lax",
+    fish(10, 3.6, 2.2, "#8f9ca6", belly="#e4dcd2", fin="#6e7a86", tail="#6e7a86", stripes=("#4a5560", 2)),
+    "lax",
+    sp({"ALV": 0.30, "BOTTENHAV": 0.12, "VASTERHAV": 0.06, "FJORD": 0.05}, RUN, "always"),
+    hp=3.0, speed=(0.9, 1.8), flee=3.8, count=30, group=(3, 6), herding=True, **FISH_WATER)
+
+add("oring", "Öring",
+    fish(8, 3, 2, "#7a8a58", belly="#e6e0c0", fin="#6a7a4a", stripes=("#3e4a2a", 3)),
+    "fisk",
+    sp({"ALV": 0.35, "SJOLAND": 0.20, "FJALLBJORKSKOG": 0.08}, [0.5, 0.5, 0.8, 1, 1, 1, 1, 0.8], "always"),
+    hp=2.0, speed=(0.7, 1.5), flee=3.4, count=30, group=(1, 3), **FISH_WATER)
+
+add("roding", "Röding",
+    fish(8, 3, 2, "#56687a", belly="#e8683a", fin="#e8683a", stripes=None),
+    "fisk",
+    sp({"FJALLHED": 0.18, "KALFJALL": 0.12, "FJALLBJORKSKOG": 0.10}, [1, 1, 1, 1, 1, 1, 1, 1], "always"),
+    hp=2.0, speed=(0.6, 1.3), flee=3.2, count=24, group=(1, 3), **FISH_WATER)
+
+add("gadda", "Gädda",
+    fish(14, 3.8, 2.4, "#5e7a3e", belly="#cdd2a0", fin="#4a6030", snout=(2.6, 1.8, 3, "#5e7a3e"), stripes=("#3e5a2a", 3)),
+    "gaddhane",
+    sp({"SJOLAND": 0.22, "BOTTENHAV": 0.08, "ALV": 0.05}, [0.3, 0.3, 0.8, 1, 1, 1, 1, 0.7], "always"),
+    hp=6.0, speed=(0.7, 1.4), flee=3.2, chase=4.8, count=14, group=(1, 1), behavior="AGGRESSIVE", aggro=0.0,
+    damage=1.5, reach=1.3, cooldown=1.2, knock=0.5, detect=0.0, aflee=0.0, **FISH_WATER)
+
+add("abborre", "Abborre",
+    fish(6, 3.2, 1.8, "#6a7a3a", belly="#e8d890", fin="#d8502a", stripes=("#2a3a1a", 4)),
+    "fisk",
+    sp({"SJOLAND": 0.40, "BOTTENHAV": 0.20, "ALV": 0.10}, [0.7, 0.7, 0.9, 1, 1, 1, 1, 0.9], "diurnal"),
+    hp=1.0, speed=(0.6, 1.3), flee=3.2, count=40, group=(3, 7), herding=True, **FISH_WATER)
+
+add("stromming", "Strömming",
+    fish(6, 2.4, 1.4, "#8aa0b0", belly="#e8eef0", fin="#6c8294"),
+    "stim",
+    sp({"BOTTENHAV": 0.60, "VASTERHAV": 0.30, "SKARGARD": 0.40}, [0.5, 0.5, 0.8, 1, 1, 1, 1, 0.7], "always"),
+    hp=1.0, speed=(0.9, 1.6), flee=3.8, count=90, group=(6, 14), herding=True, **FISH_WATER)
+
+add("torsk", "Torsk",
+    fish(14, 4.6, 2.8, "#8a7a5a", belly="#e8e0c8", fin="#6e6048", stripes=("#5e5238", 2)),
+    "skrei",
+    sp({"FJORD": 0.25, "VASTERHAV": 0.12, "HOGKUST": 0.05}, [1, 1, 0.9, 0.4, 0.3, 0.3, 0.4, 0.7], "always"),
+    hp=5.0, speed=(0.7, 1.4), flee=3.4, count=30, group=(2, 5), herding=True, **FISH_WATER)
+
+add("al_fisk", "Ål",
+    fish(18, 1.6, 1.4, "#3a3a2a", belly="#c8c070", fin="#2e2e22", dorsal=False),
+    "fisk",
+    sp({"BOKSKOG": 0.15, "ALV": 0.08, "SJOLAND": 0.04, "HOGKUST": 0.06, "STRANDANG": 0.05}, [0, 0, 0.2, 0.6, 1, 1, 0.8, 0.2], "nocturnal"),
+    hp=2.0, speed=(0.5, 1.1), flee=2.8, count=20, group=(1, 2), **FISH_WATER)
+
+add("krafta", "Kräfta",
+    crab(6, 5, "#4a3a2c", "#5a4638", "#6a523e"),
+    "kraftdjur",
+    sp({"SJOLAND": 0.20, "ALV": 0.20}, [0, 0, 0.3, 0.7, 1, 1, 1, 0.3], "nocturnal"),
+    hp=2.0, speed=(0.4, 0.9), flee=2.4, count=40, group=(2, 4), medium="AMPHIBIAN", depth=1)
+
+add("brannmanet", "Brännmanet",
+    jelly(6, 9, "#d8946a", "#c86a4a", 0.62),
+    "manet",
+    sp({"VASTERHAV": 0.10, "FJORD": 0.10, "SKARGARD": 0.05}, LATE, "always"),
+    hp=2.0, speed=(0.25, 0.6), flee=1.0, chase=0.8, count=20, group=(2, 5), scatter=5, behavior="AGGRESSIVE", aggro=0.0,
+    damage=1.0, reach=1.3, cooldown=2.0, knock=0.0, detect=0.0, aflee=0.0, move=(1.5, 4.0), pause=(0.3, 1.5),
+    medium="WATER")
+
+add("grasal", "Gråsäl",
+    quad(18, 7.4, 6.5, 1.6, "#6e6e74", leg="#5a5a60", belly="#a8a8ac", legw=2.4, head=(5, 4.8, 6), head_col="#76767c",
+         snout=(2.6, 2, 2.2, "#3a3a3e"), nose=(1.4, 1, "#101010"), tail=(2, 2, 3, "#5a5a60", 0.8)),
+    "sal",
+    sp({"SKARGARD": 0.22, "VASTERHAV": 0.05, "KLINTKUST": 0.06}, [1, 1, 1, 1, 1, 1, 1, 1], "always"),
+    tune=dict(graze=False, sniff=True, heavy=0.8, paw=False),
+    hp=12.0, speed=(0.5, 1.1), flee=3.6, count=24, group=(2, 5), herding=True, medium="AMPHIBIAN")
+
+add("vikare", "Vikare",
+    quad(13, 6, 5.4, 1.4, "#5a5e66", leg="#464a52", belly="#c8ccd2", legw=2, head=(4.4, 4.2, 5), head_col="#62666e",
+         snout=(2.2, 1.8, 2, "#2e3036"), nose=(1.2, 0.9, "#101010"), tail=(1.8, 1.8, 2.4, "#464a52", 0.6),
+         spots=("#c8ccd2", [(0.1, 3, 3, 1.6), (0.9, 3, 7, 1.6), (0.1, 3, 10, 1.4)])),
+    "sal",
+    sp({"PACKIS": 0.06, "BOTTENHAV": 0.04}, [1, 1, 0.9, 0.6, 0.5, 0.5, 0.7, 0.9], "always"),
+    tune=dict(graze=False, sniff=True, heavy=0.7, paw=False),
+    hp=8.0, speed=(0.4, 0.9), flee=3.2, count=16, group=(1, 3), medium="ICE")
+
+add("valross", "Valross",
+    quad(30, 14, 11, 2.5, "#8a6a52", leg="#74563f", belly="#9a7a62", legw=4.4, head=(8, 8, 8), head_col="#8e6e56",
+         snout=(7, 5, 3, "#a08060"), nose=(3, 1.4, "#181410"), tail=(2.4, 2.4, 2.6, "#74563f", 0.8))
+    + [B(-3.4, 4.0, 22, 1.0, 5.0, 1.0, "#efe8d0", bone="head"), B(2.4, 4.0, 22, 1.0, 5.0, 1.0, "#efe8d0", bone="head")],
+    "valross",
+    sp({"PACKIS": 0.030}, [1, 1, 0.9, 0.7, 0.6, 0.6, 0.8, 1], "always", avoid={"fire": 8}),
+    tune=dict(graze=False, sniff=True, heavy=1.6, a_walk=24.0, attack=True),
+    hp=40.0, speed=(0.5, 0.9), flee=0.0, chase=3.8, count=12, group=(3, 6), herding=True, medium="ICE",
+    behavior="AGGRESSIVE", aggro=0.0, damage=5.0, reach=2.4, cooldown=1.8, knock=7.0, detect=0.0, aflee=0.0)
+
+add("tumlare", "Tumlare",
+    fish(16, 5, 3.4, "#5e6a78", belly="#d8dee4", fin="#4e5a68", snout=(2, 1.8, 3, "#5e6a78"), vertical=True),
+    "delfin",
+    sp({"VASTERHAV": 0.08, "BOTTENHAV": 0.05, "FJORD": 0.04}, [0.8, 0.8, 0.9, 1, 1, 1, 1, 0.9], "diurnal"),
+    hp=8.0, speed=(1.4, 2.6), flee=4.0, count=16, group=(2, 5), herding=True, depth=3, **FISH_WATER)
+
+add("utter", "Utter",
+    quad(14, 4.4, 4.6, 2.2, "#5a4030", leg="#46301f", belly="#d8c8a8", head=(4, 4, 4.6), head_col="#5e4434",
+         snout=(2, 1.6, 1.8, "#d8c8a8"), nose=(1.2, 0.9, "#101010"), ears=(1, 1, 0.8, "#46301f", 1.2),
+         tail=(2.2, 2.2, 9, "#4a3524", 0.8)),
+    "utter",
+    sp({"ALV": 0.15, "SJOLAND": 0.12, "FJORD": 0.08}, [0.9, 0.9, 1, 1, 1, 1, 1, 1], "crepuscular"),
+    tune=dict(graze=False, sniff=True, run_style="bound", hop_h=2.0, paw=False),
+    hp=6.0, speed=(0.9, 1.7), flee=4.6, count=14, group=(1, 3), medium="AMPHIBIAN")
+
+add("hakarl", "Hákarl",
+    fish(40, 10, 7, "#5a5a64", belly="#a8a8b0", fin="#46464e", snout=(4, 3.4, 4, "#5a5a64")),
+    "djuphav",
+    sp({"DJUPHAV": 0.015, "FJORD": 0.010}, [1, 1, 1, 1, 1, 1, 1, 1], "always"),
+    hp=30.0, speed=(0.3, 0.7), flee=1.2, count=4, group=(1, 1), depth=8, **FISH_WATER)
+
+add("val", "Rätval",
+    fish(96, 26, 24, "#2e343e", belly="#d8dce2", fin="#262b34", snout=(10, 6, 8, "#2e343e"), vertical=True),
+    "val",
+    sp({"VASTERHAV": 0.010, "DJUPHAV": 0.015}, [0.8, 0.8, 0.6, 0.7, 0.7, 0.8, 1, 1], "always"),
+    hp=80.0, speed=(0.5, 1.0), flee=1.4, count=4, group=(1, 1), depth=10, **FISH_WATER)
+
+# Insectes (§3.5) : des nuées sans dégâts ; la démangeaison et la visée arrivent avec la survie nordique.
+TINY_AIR = dict(medium="AIR", speed=(0.8, 1.6), flee=4.0, move=(1.0, 3.0), pause=(0.5, 2.0), herding=True)
+
+add("mygg", "Mygg",
+    biped(1.2, 1, "#3a3a3a", "#6a6a6a", "#2a2a2a", (1, 1, 1.2), "#3a3a3a", (0.2, 0.2, 1, "#2a2a2a"), legh=0.5,
+          wing=(0.3, 1.2, 2.2, "#d0d8e0"), L=2.4, leg_w=0.3),
+    "skymning",
+    sp({"MYR": 0.80, "PALSMYR": 0.60, "URSKOG": 0.50, "FJALLBJORKSKOG": 0.40}, SUMMER_ONLY, "crepuscular",
+       weather={"wind": 0.1, "rain": 0.4, "clear": 1.0}, altitude=2),
+    hp=1.0, count=120, group=(6, 14), **TINY_AIR)
+
+add("knott", "Knott",
+    biped(1, 0.9, "#1e1e22", "#3a3a40", "#1e1e22", (0.9, 0.9, 1), "#1e1e22", (0.2, 0.2, 0.8, "#1e1e22"), legh=0.4,
+          wing=(0.3, 1, 1.8, "#c8d0d8"), L=2, leg_w=0.3),
+    "skymning",
+    sp({"ALV": 0.80, "FJALLBJORKSKOG": 0.30, "BERGSLAG": 0.30}, [0, 0, 0, 0.2, 1, 1, 0.4, 0], "diurnal",
+       weather={"wind": 0.2, "rain": 0.3, "clear": 1.0}, nearFeature="water", altitude=2),
+    hp=1.0, count=80, group=(5, 12), **TINY_AIR)
+
+add("bi", "Bi",
+    biped(1.6, 1.4, "#e0b428", "#2a2418", "#2a2418", (1.4, 1.4, 1.4), "#e0b428", (0.3, 0.3, 0.6, "#2a2418"), legh=0.5,
+          wing=(0.3, 1.4, 2.6, "#d8e8f0"), L=2.8, leg_w=0.3),
+    "insekt",
+    sp({"HAGMARK": 0.60, "BOKSKOG": 0.40, "STRANDANG": 0.40, "ALVAR": 0.40, "URSKOG": 0.10}, [0, 0, 0.1, 0.8, 1, 1, 0.5, 0],
+       "diurnal", weather={"rain": 0.1, "mist": 0.4, "wind": 0.3, "clear": 1.0}, altitude=2),
+    hp=1.0, count=60, group=(1, 3), **TINY_AIR)
+
+add("fjaril", "Fjäril",
+    biped(1.4, 1.2, "#3a2e22", "#e08a2a", "#2a2018", (1.2, 1.2, 1.2), "#3a2e22", (0.2, 0.2, 0.8, "#2a2018"), legh=3.5,
+          wing=(0.3, 3.6, 4.4, "#e8902e"), L=3, leg_w=0.3),
+    "insekt",
+    sp({"HAGMARK": 0.50, "STRANDANG": 0.40, "ALVAR": 0.30, "BOKSKOG": 0.30, "FJALLHED": 0.10}, [0, 0, 0.1, 0.7, 1, 1, 0.4, 0],
+       "diurnal", weather={"rain": 0.05, "mist": 0.3, "wind": 0.3, "clear": 1.0}, altitude=2),
+    hp=1.0, count=60, group=(1, 2), **TINY_AIR)
+
+add("trollslanda", "Trollslända",
+    biped(1.2, 1.2, "#2e8a8a", "#7ad0d0", "#1e5a5a", (1.4, 1.4, 1.6), "#2e8a8a", (0.3, 0.3, 0.6, "#1e5a5a"), legh=0.5,
+          tail=(0.8, 0.8, 5, "#2e8a8a"), wing=(0.3, 1.2, 4.4, "#cfe6f0"), L=3, leg_w=0.3),
+    "insekt",
+    sp({"SJOLAND": 0.40, "ALV": 0.30, "MYR": 0.30, "STRANDANG": 0.20}, SUMMER_ONLY, "diurnal",
+       weather={"rain": 0.1, "mist": 0.4, "clear": 1.0}, altitude=2),
+    hp=1.0, count=50, group=(1, 2), **{**TINY_AIR, "herding": False, "speed": (1.2, 2.4)})
+
+add("lysmask", "Lysmask",
+    lizard(1.2, 5, "#3a3a2a", "#a0e040", "#c8f060"),
+    "lysmask",
+    sp({"HAGMARK": 0.50, "BOKSKOG": 0.40, "URSKOG": 0.30, "STRANDANG": 0.30, "ALVAR": 0.20}, [0, 0, 0, 0.2, 1, 0.4, 0, 0],
+       "nocturnal"),
+    hp=1.0, speed=(0.1, 0.3), flee=0.6, count=50, group=(2, 6), move=(1.0, 3.0), pause=(3.0, 8.0))
 
 
 def write():

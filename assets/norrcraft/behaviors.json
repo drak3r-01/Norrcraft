@@ -680,6 +680,259 @@
         { "state": "burrow", "weight": 0.8 },
         { "state": "swim", "weight": 0.5 }
       ]
+    },
+    "lax": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.6,
+      "senses": { "sight": 12, "fov": 300, "hearing": 8, "smell": 14 },
+      "needs": { "hunger": 0.0, "thirst": 0.0, "fatigue": 0.0, "coldBelow": -1.0 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["rovfagel", "allatare", "player"],
+      "seasons": { "migrate": [[5, 8]] },
+      "heading": [0.0, -1.0],
+      "states": [
+        { "state": "swim", "weight": 0.3 },
+        { "state": "flee", "weight": 1.0 },
+        { "state": "migrate", "weight": 0.8 }
+      ]
+    },
+    "stim": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.6,
+      "senses": { "sight": 12, "fov": 320, "hearing": 10, "smell": 10 },
+      "needs": { "hunger": 0.0, "thirst": 0.0, "fatigue": 0.0, "coldBelow": -1.0 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["rovfagel", "havsfagel", "sal", "delfin", "player"],
+      "seasons": { "migrate": [[3, 6]] },
+      "heading": [1.0, 0.0],
+      "states": [
+        { "state": "swim", "weight": 0.4 },
+        { "state": "follow", "weight": 0.5 },
+        { "state": "flee", "weight": 1.2 },
+        { "state": "migrate", "weight": 0.6 }
+      ]
+    },
+    "skrei": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.6,
+      "senses": { "sight": 12, "fov": 300, "hearing": 10, "smell": 10 },
+      "needs": { "hunger": 0.0, "thirst": 0.0, "fatigue": 0.0, "coldBelow": -1.0 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["sal", "delfin", "player"],
+      "seasons": { "migrate": [[0, 2]] },
+      "heading": [0.0, 1.0],
+      "states": [
+        { "state": "swim", "weight": 0.4 },
+        { "state": "follow", "weight": 0.4 },
+        { "state": "flee", "weight": 1.0 },
+        { "state": "migrate", "weight": 0.7 }
+      ]
+    },
+    "gaddhane": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.8,
+      "senses": { "sight": 14, "fov": 200, "hearing": 14, "smell": 10 },
+      "needs": { "hunger": 0.005, "thirst": 0.0, "fatigue": 0.002, "coldBelow": -1.0 },
+      "courage": 0.7,
+      "hunts": ["fisk", "stim", "lax"],
+      "fears": ["player"],
+      "states": [
+        { "state": "swim", "weight": 0.3 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "stalk", "weight": 1.3 },
+        { "state": "pursue", "weight": 1.0 },
+        { "state": "attack", "weight": 1.4 },
+        { "state": "flee", "weight": 0.8 }
+      ]
+    },
+    "kraftdjur": {
+      "activity": "nocturnal",
+      "nightVision": 0.9,
+      "senses": { "sight": 8, "fov": 300, "hearing": 8, "smell": 14 },
+      "needs": { "hunger": 0.003, "thirst": 0.0, "fatigue": 0.003, "coldBelow": -1.0 },
+      "courage": 0.1,
+      "fears": ["utter", "allatare", "player"],
+      "reactions": { "carrion": { "attract": 0.8 } },
+      "states": [
+        { "state": "wander", "weight": 0.3 },
+        { "state": "sleep", "weight": 0.8 },
+        { "state": "scavenge", "weight": 0.5 },
+        { "state": "flee", "weight": 1.2 },
+        { "state": "swim", "weight": 1.5 }
+      ]
+    },
+    "manet": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.5,
+      "senses": { "sight": 6, "fov": 360, "hearing": 4, "smell": 4 },
+      "needs": { "hunger": 0.0, "thirst": 0.0, "fatigue": 0.0, "coldBelow": -1.0 },
+      "courage": 1.0,
+      "hunts": ["player"],
+      "states": [
+        { "state": "swim", "weight": 0.6 },
+        { "state": "wander", "weight": 0.2 },
+        { "state": "pursue", "weight": 0.4 },
+        { "state": "attack", "weight": 1.0 }
+      ]
+    },
+    "sal": {
+      "activity": "always",
+      "nightVision": 0.6,
+      "senses": { "sight": 26, "fov": 300, "hearing": 28, "smell": 20 },
+      "needs": { "hunger": 0.004, "thirst": 0.0, "fatigue": 0.004, "coldBelow": -1.5 },
+      "courage": 0.0,
+      "herd": true,
+      "hunts": ["fisk", "stim", "skrei"],
+      "fears": ["isrovdjur", "allatare", "player"],
+      "seasons": { "birth": [1, 3] },
+      "states": [
+        { "state": "wander", "weight": 0.2 },
+        { "state": "sleep", "weight": 1.0 },
+        { "state": "flee", "weight": 1.4 },
+        { "state": "swim", "weight": 1.6 }
+      ]
+    },
+    "valross": {
+      "activity": "always",
+      "nightVision": 0.5,
+      "senses": { "sight": 20, "fov": 300, "hearing": 26, "smell": 24 },
+      "needs": { "hunger": 0.003, "thirst": 0.0, "fatigue": 0.004, "coldBelow": -1.6 },
+      "courage": 0.8,
+      "herd": true,
+      "fears": ["isrovdjur", "player"],
+      "seasons": { "birth": [4, 5] },
+      "states": [
+        { "state": "wander", "weight": 0.15 },
+        { "state": "sleep", "weight": 1.0 },
+        { "state": "guard", "weight": 0.6 },
+        { "state": "threaten", "weight": 1.0 },
+        { "state": "charge", "weight": 1.1 },
+        { "state": "flee", "weight": 0.6 },
+        { "state": "swim", "weight": 1.4 }
+      ]
+    },
+    "delfin": {
+      "activity": "diurnal",
+      "locomotion": "swim",
+      "nightVision": 0.5,
+      "senses": { "sight": 30, "fov": 300, "hearing": 40, "smell": 4 },
+      "needs": { "hunger": 0.003, "thirst": 0.0, "fatigue": 0.002, "coldBelow": -1.5 },
+      "courage": 0.2,
+      "herd": true,
+      "hunts": ["fisk", "stim"],
+      "fears": ["player"],
+      "states": [
+        { "state": "swim", "weight": 0.5 },
+        { "state": "follow", "weight": 0.6 },
+        { "state": "flee", "weight": 0.7 },
+        { "state": "migrate", "weight": 0.3 }
+      ]
+    },
+    "utter": {
+      "activity": "crepuscular",
+      "nightVision": 0.7,
+      "senses": { "sight": 24, "fov": 300, "hearing": 28, "smell": 36 },
+      "needs": { "hunger": 0.005, "thirst": 0.0, "fatigue": 0.003, "coldBelow": -0.9 },
+      "courage": 0.2,
+      "hunts": ["fisk", "kraftdjur"],
+      "fears": ["flockjagare", "player"],
+      "seasons": { "birth": [4, 5] },
+      "states": [
+        { "state": "wander", "weight": 0.3 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "stalk", "weight": 0.8 },
+        { "state": "pursue", "weight": 0.8 },
+        { "state": "flee", "weight": 1.0 },
+        { "state": "swim", "weight": 1.6 }
+      ]
+    },
+    "djuphav": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.9,
+      "senses": { "sight": 6, "fov": 200, "hearing": 14, "smell": 40 },
+      "needs": { "hunger": 0.001, "thirst": 0.0, "fatigue": 0.001, "coldBelow": -2.0 },
+      "courage": 0.4,
+      "hunts": ["fisk", "skrei"],
+      "states": [
+        { "state": "swim", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "scavenge", "weight": 0.4 },
+        { "state": "flee", "weight": 0.2 }
+      ]
+    },
+    "val": {
+      "activity": "always",
+      "locomotion": "swim",
+      "nightVision": 0.5,
+      "senses": { "sight": 20, "fov": 300, "hearing": 60, "smell": 4 },
+      "needs": { "hunger": 0.002, "thirst": 0.0, "fatigue": 0.001, "coldBelow": -2.0 },
+      "courage": 0.0,
+      "seasons": { "migrate": [[4, 6], [9, 10]] },
+      "heading": [0.0, -1.0],
+      "states": [
+        { "state": "swim", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.4 },
+        { "state": "migrate", "weight": 0.5 },
+        { "state": "flee", "weight": 0.3 }
+      ]
+    },
+    "insekt": {
+      "activity": "diurnal",
+      "locomotion": "fly",
+      "nightVision": 0.0,
+      "senses": { "sight": 8, "fov": 300, "hearing": 6, "smell": 8 },
+      "needs": { "hunger": 0.004, "thirst": 0.0, "fatigue": 0.004, "coldBelow": 0.0 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["player"],
+      "reactions": { "smoke": { "fear": 0.9, "keepAway": 6 }, "fire": { "fear": 0.3, "keepAway": 3 } },
+      "cruise": 3,
+      "states": [
+        { "state": "fly", "weight": 0.6 },
+        { "state": "perch", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "flee", "weight": 0.5 }
+      ]
+    },
+    "skymning": {
+      "activity": "crepuscular",
+      "locomotion": "fly",
+      "nightVision": 0.4,
+      "senses": { "sight": 8, "fov": 360, "hearing": 6, "smell": 20 },
+      "needs": { "hunger": 0.004, "thirst": 0.0, "fatigue": 0.004, "coldBelow": 0.0 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": [],
+      "reactions": { "smoke": { "fear": 1.0, "keepAway": 8 }, "fire": { "fear": 0.4, "keepAway": 3 } },
+      "cruise": 2,
+      "states": [
+        { "state": "fly", "weight": 0.8 },
+        { "state": "perch", "weight": 0.4 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "flee", "weight": 0.5 }
+      ]
+    },
+    "lysmask": {
+      "activity": "nocturnal",
+      "nightVision": 1.0,
+      "senses": { "sight": 4, "fov": 300, "hearing": 4, "smell": 4 },
+      "needs": { "hunger": 0.002, "thirst": 0.0, "fatigue": 0.002, "coldBelow": 0.0 },
+      "courage": 0.0,
+      "fears": ["player"],
+      "states": [
+        { "state": "wander", "weight": 0.3 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 0.5 }
+      ]
     }
   }
 }
