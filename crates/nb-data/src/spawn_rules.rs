@@ -19,7 +19,8 @@ pub enum Persistence {
     Ephemeral,
     /// Lié à un lieu : ne disparaît que si son chunk est déchargé.
     Resident,
-    /// Membre d'une harde (session 5.3 : les hardes seront des objets du monde).
+    /// Membre d'une harde (session 5.3) : l'espèce n'est plus tirée par la densité, elle vit en
+    /// hardes persistantes décrites par [`SpawnRules::herd`].
     Herd,
     /// Au plus un exemplaire dans le monde.
     Unique,
@@ -36,9 +37,111 @@ pub struct Avoid {
     pub player: f32,
 }
 
+/// Façon dont une harde se déplace sur l'année (doc 03 §4.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HerdMotion {
+    /// Transhumance : va et vient entre un site d'été et un site d'hiver, deux fois par an
+    /// (rennes, bancs de harengs).
+    #[default]
+    Seasonal,
+    /// Territoire fixe, parcouru lentement (meutes de loups).
+    Territory,
+    /// Passage : n'existe dans la cellule que pendant une fenêtre du calendrier et la traverse
+    /// (vols de grues et d'oies, remontée des saumons).
+    Pass,
+}
+
+/// Une harde persistante : objet léger du monde, une par cellule (doc 03 §4.4).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HerdRules {
+    pub motion: HerdMotion,
+    /// Côté de la cellule en blocs : une harde de l'espèce par cellule.
+    pub cell: i32,
+    /// Effectif d'une harde pleine, tiré par cellule entre ces deux bornes.
+    pub size_min: i32,
+    pub size_max: i32,
+    /// Individus regagnés par jour de jeu après des pertes, jusqu'à l'effectif plein.
+    pub regrow_per_day: f32,
+    /// Biomes du site d'été (transhumance), du territoire (meute) ou d'arrivée (passage).
+    pub summer: Vec<String>,
+    /// Biomes du site d'hiver (transhumance) ou de départ (passage).
+    pub winter: Vec<String>,
+    /// Mois réel (0 = januari) de la montée vers le site d'été, et de la descente.
+    pub up_month: u8,
+    pub down_month: u8,
+    /// Fenêtre de passage (`Pass`) : premier et dernier mois réels, inclus.
+    pub pass_months: [u8; 2],
+    /// Cap d'un passage sans sites (x, z) ; traverse la cellule dans ce sens.
+    pub heading: [f32; 2],
+    /// Rayon (blocs) du va-et-vient d'une harde autour de sa position calendaire.
+    pub wander: f32,
+    /// Distance du joueur à laquelle la harde se matérialise en individus.
+    pub materialize: f32,
+}
+
+impl Default for HerdRules {
+    fn default() -> Self {
+        Self {
+            motion: HerdMotion::Seasonal,
+            cell: 1024,
+            size_min: 6,
+            size_max: 14,
+            regrow_per_day: 0.5,
+            summer: Vec::new(),
+            winter: Vec::new(),
+            up_month: 4,
+            down_month: 9,
+            pass_months: [3, 4],
+            heading: [0.0, -1.0],
+            wander: 24.0,
+            materialize: 96.0,
+        }
+    }
+}
+
+impl HerdRules {
+    pub fn validate(&self) -> Result<(), String> {
+        if !(256..=8192).contains(&self.cell) {
+            return Err(format!("herd.cell : {} (256 à 8192 attendus)", self.cell));
+        }
+        if self.size_min < 1 || self.size_max < self.size_min {
+            return Err("herd.sizeMin/sizeMax incohérents".into());
+        }
+        if !(self.regrow_per_day.is_finite() && self.regrow_per_day >= 0.0)
+            || !(self.wander.is_finite() && self.wander >= 0.0)
+            || !(self.materialize.is_finite() && self.materialize >= 32.0)
+        {
+            return Err("herd : regrowPerDay, wander ou materialize invalide".into());
+        }
+        if self.up_month > 11 || self.down_month > 11 || self.pass_months.iter().any(|&m| m > 11) {
+            return Err("herd : mois hors de 0 à 11".into());
+        }
+        match self.motion {
+            HerdMotion::Seasonal if self.summer.is_empty() && self.winter.is_empty() => {
+                Err("herd : aucun biome de site (summer / winter)".into())
+            }
+            HerdMotion::Territory if self.summer.is_empty() => {
+                Err("herd : territoire sans biome (summer)".into())
+            }
+            HerdMotion::Pass
+                if self.summer.is_empty()
+                    && self.winter.is_empty()
+                    && self.heading[0].hypot(self.heading[1]) < 1e-3 =>
+            {
+                Err("herd : passage sans cap ni sites".into())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SpawnRules {
+    /// Hardes persistantes (obligatoire avec `persistence: "herd"`, interdit sinon).
+    pub herd: Option<HerdRules>,
     /// Individus visés pour 64 × 64 blocs, par nom de biome. Un biome absent vaut 0.
     pub density_per_biome: BTreeMap<String, f32>,
     /// 4 à 12 facteurs répartis sur l'année à partir du solstice d'hiver (0 = absent : migrateur parti, hibernant). Vide :
@@ -66,7 +169,13 @@ pub struct SpawnRules {
 impl SpawnRules {
     /// Contrôle de cohérence ; le message nomme le champ fautif.
     pub fn validate(&self) -> Result<(), String> {
-        if self.density_per_biome.is_empty() {
+        match (&self.herd, self.persistence == Persistence::Herd) {
+            (Some(h), true) => h.validate()?,
+            (None, true) => return Err("persistence herd sans bloc herd".into()),
+            (Some(_), false) => return Err("bloc herd sans persistence herd".into()),
+            (None, false) => {}
+        }
+        if self.density_per_biome.is_empty() && self.herd.is_none() {
             return Err("densityPerBiome vide".into());
         }
         let finite = |v: f32| v.is_finite() && v >= 0.0;
@@ -197,6 +306,33 @@ mod tests {
         assert!(neg.validate().is_err());
         let w = rules(r#"{"densityPerBiome": {"MYR": 1}, "weather": {"hail": 1}}"#);
         assert!(w.validate().unwrap_err().contains("hail"));
+    }
+
+    #[test]
+    fn herd_rules_parse_and_validate() {
+        let r = rules(
+            r#"{"persistence": "herd", "herd": {"motion": "seasonal",
+                "summer": ["FJALLHED"], "winter": ["TALLHED"], "sizeMin": 8, "sizeMax": 20}}"#,
+        );
+        assert_eq!(r.validate(), Ok(()));
+        let h = r.herd.as_ref().unwrap();
+        assert_eq!((h.cell, h.up_month, h.down_month), (1024, 4, 9));
+        // Une harde sans persistance « herd » (et l'inverse) est refusée.
+        let loose = rules(r#"{"herd": {"summer": ["A"]}, "densityPerBiome": {"A": 1}}"#);
+        assert!(loose.validate().unwrap_err().contains("persistence"));
+        let bare = rules(r#"{"persistence": "herd", "densityPerBiome": {"A": 1}}"#);
+        assert!(bare.validate().unwrap_err().contains("herd"));
+        // Sans biome de site, effectif incohérent, mois hors calendrier : refus.
+        for bad in [
+            r#"{"motion": "seasonal"}"#,
+            r#"{"summer": ["A"], "sizeMin": 5, "sizeMax": 2}"#,
+            r#"{"summer": ["A"], "upMonth": 12}"#,
+            r#"{"motion": "pass", "heading": [0, 0]}"#,
+            r#"{"motion": "territory", "winter": ["A"]}"#,
+        ] {
+            let r = rules(&format!(r#"{{"persistence": "herd", "herd": {bad}}}"#));
+            assert!(r.validate().is_err(), "accepté à tort : {bad}");
+        }
     }
 
     #[test]

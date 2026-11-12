@@ -219,7 +219,12 @@ pub fn run(world: &mut EntityWorld, ctx: &mut TickCtx<'_>, origin: (i32, i32), p
         .mobs
         .all()
         .iter()
-        .filter(|c| c.spawn.is_some() && c.max_count > 0)
+        .filter(|c| {
+            c.max_count > 0
+                && c.spawn
+                    .as_ref()
+                    .is_some_and(|s| s.persistence != Persistence::Herd)
+        })
         .collect();
     if cfgs.is_empty() {
         return;

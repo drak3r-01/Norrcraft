@@ -368,7 +368,7 @@ impl Calendar {
     }
 
     /// Années de jeu écoulées (fractionnaires) depuis la création, pour la lune.
-    fn elapsed_years(&self, day: u64, time_of_day: f32) -> f64 {
+    pub fn elapsed_years(&self, day: u64, time_of_day: f32) -> f64 {
         let n = f64::from(self.days_per_year());
         let in_day = f64::from(time_of_day / DAY_SECONDS).clamp(0.0, 1.0);
         (self.absolute(day) as f64 + in_day) / n

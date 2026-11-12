@@ -145,6 +145,9 @@ pub struct WorldMetadata {
     /// Noms des biomes dans l'ordre de leurs identifiants (version 2) ; vide = table par défaut.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub biome_palette: Vec<String>,
+    /// Effectifs des hardes persistantes (session 5.3) ; vide tant qu'aucune n'a été vue.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub herds: Vec<crate::herds::HerdRecord>,
 }
 
 impl WorldMetadata {
@@ -166,6 +169,7 @@ impl WorldMetadata {
             world_kind: WorldKind::default(),
             block_palette: BlockPalette::default(),
             biome_palette: Vec::new(),
+            herds: Vec::new(),
         }
     }
 
@@ -321,6 +325,7 @@ pub fn clone_world(root: &Path, src: &WorldMetadata, new_name: &str) -> Result<W
     meta.world_kind = src.world_kind;
     meta.block_palette = src.block_palette.clone();
     meta.biome_palette = src.biome_palette.clone();
+    meta.herds = src.herds.clone();
     let dir = create_world_directory(root, &mut meta)?;
     let src_chunks = world_dir(root, &src.name).join(CHUNKS_DIR);
     if src_chunks.is_dir() {
@@ -380,6 +385,27 @@ mod tests {
 
         delete_world(r, "Beta");
         assert!(!world_name_exists(r, "Beta"));
+    }
+
+    #[test]
+    fn herd_rosters_are_saved_and_cloned() {
+        let root = TempDir::new("save-herds");
+        let r = &root.0;
+        let mut m = WorldMetadata::new("Hardes", 3, "SURVIVAL");
+        create_world_directory(r, &mut m).unwrap();
+        let text = fs::read_to_string(r.join("Hardes").join(WORLD_FILE)).unwrap();
+        assert!(!text.contains("herds"), "pas de clé vide : {text}");
+        m.herds = vec![crate::herds::HerdRecord {
+            species: "ren".into(),
+            cx: -2,
+            cz: 5,
+            count: 7.5,
+            time: 3.25,
+        }];
+        save_metadata(r, &m).unwrap();
+        let back = load_metadata(r, "Hardes").unwrap();
+        assert_eq!(back.herds, m.herds);
+        assert_eq!(clone_world(r, &back, "Copie").unwrap().herds, m.herds);
     }
 
     #[test]

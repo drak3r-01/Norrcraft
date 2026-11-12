@@ -80,8 +80,11 @@ impl System for MobSpawnSystem {
                     far || (extinct.contains(mob_id)
                         && !density::in_view(&viewers, t.pos)
                         && ctx.rngs.spawn.next_float() < density::VANISH_CHANCE)
+                } else if persistence == Persistence::Herd {
+                    // Les hardes sont réabsorbées par `HerdSystem`, qui garde leur effectif.
+                    false
                 } else {
-                    // Sédentaires, hardes, uniques : ils restent tant que leur lieu existe.
+                    // Sédentaires, uniques : ils restent tant que leur lieu existe.
                     !ctx.blocks
                         .is_chunk_loaded(floor_f(t.pos.x as f32), floor_f(t.pos.z as f32))
                 };

@@ -130,6 +130,8 @@ pub struct WorldSession {
     /// Météo vécue par le joueur local, réglée par le jeu à chaque tick (univers à météo).
     pub environment: Option<Environment>,
     biomes: Arc<dyn BiomeSource>,
+    /// Hardes persistantes du monde (session 5.3), partagées avec `HerdSystem`.
+    herds: nb_ecs::HerdHandle,
 }
 
 impl std::fmt::Debug for WorldSession {
@@ -168,6 +170,12 @@ impl WorldSession {
             .map_or(usize::MAX, |i| i + 1);
         sim.schedule
             .insert(after_ai, Box::new(nb_ecs::BrainSystem::default()));
+        // Hardes persistantes : matérialisation et réabsorption (sans effet sans espèce `herd`).
+        let herds: nb_ecs::HerdHandle = Arc::default();
+        sim.schedule.insert(
+            after_ai.saturating_add(1),
+            Box::new(nb_ecs::HerdSystem::new(seed, herds.clone())),
+        );
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,
@@ -177,6 +185,7 @@ impl WorldSession {
             allow_cheats: false,
             environment: None,
             biomes,
+            herds,
         }
     }
 
@@ -425,6 +434,11 @@ impl WorldSession {
             })
             .unwrap_or_default();
         meta.survival = self.survival_save(regs);
+        meta.herds = self
+            .herds
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .records();
         save::save_metadata(root, &meta)?;
         flushed
     }
@@ -460,6 +474,8 @@ impl WorldSession {
 
     /// `WorldSaveManager.applyPlayerState`.
     pub fn apply_player_state(&mut self, meta: &WorldMetadata, regs: &Registries) {
+        *self.herds.lock().unwrap_or_else(|e| e.into_inner()) =
+            nb_world::herds::HerdBook::from_records(meta.herds.clone());
         let p = match &meta.player {
             Some(p) => p.clone(),
             None => {

@@ -22,7 +22,7 @@ pub use blocks::{
     BLOCKS_JSON, CRAFT_BLOCKS_JSON, UNASSIGNED_ID,
 };
 pub use behavior::{BehaviorBook, Profile, StateKind, Stimulus};
-pub use spawn_rules::{Avoid, Persistence, Sky, SpawnRules};
+pub use spawn_rules::{Avoid, HerdMotion, HerdRules, Persistence, Sky, SpawnRules};
 pub use universe::WorldKind;
 pub use items::{ItemId, ItemInfo, ItemRegistry, FIRST_PURE_ITEM, ITEMS_JSON, STACK_MAX};
 pub use mobs::{
