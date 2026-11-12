@@ -12,6 +12,7 @@ mod biomemap;
 mod geomap;
 mod image_out;
 mod norr;
+mod sitemap;
 
 use std::sync::Arc;
 

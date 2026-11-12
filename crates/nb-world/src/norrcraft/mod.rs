@@ -24,6 +24,9 @@
 //!
 //! Session 2.3 : arbres ([`trees`] : 12 essences, bois mort, placement en grille jitterée,
 //! bosquets, peuplements purs par taches ; indépendants de l'ordre des chunks).
+//!
+//! Session 4.1 : structures ([`structures`] : trois grilles de placement, prédicats de site, pistes
+//! entre refuges, camps et villages, cairns, caillebotis ; les bâtiments viennent en 4.2 à 4.4).
 
 pub mod biomes;
 pub mod climate;
@@ -35,6 +38,7 @@ pub mod hydro;
 pub mod landforms;
 pub mod math;
 pub mod seasonal;
+pub mod structures;
 pub mod subsoil;
 pub mod terrain;
 pub mod trees;
@@ -51,6 +55,7 @@ pub use hydro::{Hydrography, Hydrology, Lake, LakeSet, SeaFacade, WaterColumn, W
 pub use landforms::{Coast, Forms};
 pub use subsoil::{DepositInfo, Region, SiteProbe, Sites, SubColumn, Subsoil, SubsoilBlocks};
 pub use seasonal::SeasonBlocks;
+pub use structures::{Class, Route, StructBlocks, StructKind, StructSite, Structures};
 pub use terrain::{NorrBlocks, NorrcraftTerrain};
 pub use trees::{
     Kind as TreeKind, Plant, Species, Style as TreeStyle, TreeBlocks, TreeColumn, TreeProbe, Trees,

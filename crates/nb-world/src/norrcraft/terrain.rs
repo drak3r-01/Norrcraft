@@ -37,6 +37,7 @@ use super::hydro::{seal, Hydrography, WaterColumn, WaterKind};
 use super::landforms::Coast;
 use super::math::GradField;
 use super::seasonal::{self, ColumnInput, SeasonBlocks};
+use super::structures::{StructBlocks, Structures};
 use super::subsoil::{ColumnIn, DepositInfo, Region, SiteProbe, Sites, Subsoil, SubsoilBlocks};
 use super::trees::{TreeBlocks, TreeColumn, TreeProbe, Trees};
 use crate::chunk::{Chunk, AIR, CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
@@ -69,12 +70,15 @@ pub struct NorrBlocks {
     pub trees: TreeBlocks,
     /// Surcouche saisonnière (session 3.2).
     pub season: SeasonBlocks,
+    /// Cairns, caillebotis et sentiers des pistes (session 4.1).
+    pub structs: StructBlocks,
     /// Sols des biomes, par identifiant de biome.
     pub soils: [BiomeSoil; NorrBiome::COUNT],
 }
 
 impl NorrBlocks {
     pub fn from_registry(registry: &BlockRegistry) -> Self {
+        let trees = TreeBlocks::from_registry(registry);
         Self {
             bedrock: registry.get("bedrock").id,
             granite: registry.get("granit").id,
@@ -92,7 +96,8 @@ impl NorrBlocks {
             sea_ice: registry.get("havsis").id,
             sub: SubsoilBlocks::from_registry(registry),
             flora: FloraBlocks::from_registry(registry),
-            trees: TreeBlocks::from_registry(registry),
+            structs: StructBlocks::from_registry(registry, &trees),
+            trees,
             season: SeasonBlocks::from_registry(registry),
             soils: BiomeSoil::table(registry),
         }
@@ -257,6 +262,8 @@ pub struct NorrcraftTerrain {
     subsoil: Subsoil,
     understory: Understory,
     trees: Trees,
+    /// Grilles de structures, pistes et cairns (session 4.1).
+    structures: Structures,
     leads: GradField,
     /// Pas de saison courant ([`NO_SEASON`] : état de fin d'été, sans surcouche), partagé par
     /// toutes les copies du générateur.
@@ -275,6 +282,7 @@ impl NorrcraftTerrain {
             subsoil: Subsoil::new(seed, cfg, blocks.sub),
             understory: Understory::new(seed, blocks.flora),
             trees: Trees::new(seed, cfg.sea_level, blocks.trees),
+            structures: Structures::new(seed, cfg.sea_level, blocks.structs),
             leads: GradField::new(seed, LEADS_SEED),
             season: Arc::new(AtomicU8::new(NO_SEASON)),
             biome_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -432,10 +440,13 @@ impl NorrcraftTerrain {
                 .iter()
                 .any(|&(dx, dz)| self.hydro.raw_column(x + dx, z + dz, &lakes).is_wet())
         };
+        // Ni arbre sur une piste, un cairn ou un jalon (session 4.1).
+        let blocked = |x: i32, z: i32| self.with_probe(|p| self.structures.reserved(p, x, z));
         f(&TreeProbe {
             column: &column,
             water: &water,
             wet_near: &wet_near,
+            blocked: &blocked,
         })
     }
 
@@ -489,7 +500,13 @@ impl NorrcraftTerrain {
         self.with_probe(|probe| self.subsoil.malmberg_at_cell(i, j, probe))
     }
 
-    fn with_probe<R>(&self, f: impl FnOnce(&SiteProbe) -> R) -> R {
+    /// Placement des structures, des pistes et des cairns (session 4.1).
+    pub fn structures(&self) -> &Structures {
+        &self.structures
+    }
+
+    /// Sondes pures du terrain (surface, eau, champs, biome) lues par les placements.
+    pub fn with_probe<R>(&self, f: impl FnOnce(&SiteProbe) -> R) -> R {
         let surface = |x: i32, z: i32| self.hydro.column(x, z).top;
         let water = |x: i32, z: i32| self.hydro.column(x, z);
         let macros = |x: i32, z: i32| self.heights().macro_fields().sample_lattice(x, z);
@@ -603,6 +620,8 @@ impl NorrcraftTerrain {
         // non-air comme occupé.
         self.with_tree_probe(|probe| self.trees.pass(chunk, probe));
         self.place_understory(chunk, cols, x0, z0);
+        // Pistes, cairns et jalons (session 4.1) : après tout le décor, qu'ils dégagent.
+        self.with_probe(|probe| self.structures.pass(chunk, probe));
     }
 
     /// Surcouche saisonnière du pas `step` sur tout le chunk (colonnes supposées naturelles).
@@ -788,7 +807,12 @@ impl TerrainGenerator for NorrcraftTerrain {
         // Ni sous un houppier ni dans un tronc : aucune plante à moins de 6 blocs.
         self.with_tree_probe(|probe| {
             find_spawn_location(self.sea(), |x, z| match self.dry_surface(x, z) {
-                Some(h) if !self.trees.plant_within(probe, x, z, 6) => h,
+                Some(h)
+                    if !self.trees.plant_within(probe, x, z, 6)
+                        && !(probe.blocked)(x, z) =>
+                {
+                    h
+                }
                 _ => i32::MIN,
             })
         })

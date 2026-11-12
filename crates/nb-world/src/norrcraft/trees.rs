@@ -1084,6 +1084,8 @@ pub struct TreeProbe<'a> {
     pub water: &'a dyn Fn(i32, i32) -> WaterColumn,
     /// Y a-t-il de l'eau à moins de 4 blocs ? (aulne)
     pub wet_near: &'a dyn Fn(i32, i32) -> bool,
+    /// Colonne réservée à une piste, un cairn ou un jalon : aucun arbre n'y pousse (session 4.1).
+    pub blocked: &'a dyn Fn(i32, i32) -> bool,
 }
 
 /// Choix du mélange d'un biome.
@@ -1317,6 +1319,9 @@ impl Trees {
         if hash01(self.seed, i, j, 2) >= density {
             return out;
         }
+        if (probe.blocked)(x, z) {
+            return out;
+        }
         let shape = hash01(self.seed, i, j, 5);
         let seed = (hash01(self.seed, i, j, 6) * 9_007_199_254_740_992.0) as u64;
         let lean = [
@@ -1400,6 +1405,9 @@ impl Trees {
                 };
                 let mw = if k == 0 { w } else { (probe.water)(mx, mz) };
                 if mw.is_wet() || (mw.top - w.top).abs() > 2 || mw.top <= self.sea + 1 {
+                    continue;
+                }
+                if k > 0 && (probe.blocked)(mx, mz) {
                     continue;
                 }
                 if out.iter().any(|q: &Plant| q.x == mx && q.z == mz) {

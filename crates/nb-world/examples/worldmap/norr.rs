@@ -10,7 +10,7 @@ use nb_world::norrcraft::{
 use crate::image_out::write_image;
 
 pub const MODES: &str =
-    "relief | hydro | w | h | fjord | formes | biomes | geologie | coupe | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
+    "relief | hydro | w | h | fjord | formes | biomes | geologie | coupe | sites | overview | c | o | t0 | hm | u | e | lk | gt | vr | zones | pv | theta";
 
 type Rgb = [f64; 3];
 
@@ -291,6 +291,10 @@ pub fn run(a: &[String]) {
     }
     if mode == "geologie" {
         crate::geomap::geology(seed, preset, cx, cz, size, step, &out);
+        return;
+    }
+    if mode == "sites" {
+        crate::sitemap::run(seed, preset, cx, cz, size, step, &out);
         return;
     }
     if mode == "coupe" {

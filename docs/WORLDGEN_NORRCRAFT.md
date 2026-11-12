@@ -1,4 +1,4 @@
-# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1), sous-sol (2.2), arbres (2.3)
+# Worldgen Norrcraft : champs (1.1), relief (1.2), formes (1.3), hydrographie (1.4), biomes (2.1), sous-sol (2.2), arbres (2.3), structures (4.1)
 
 Le vrai relief Norrcraft (GDD doc 02 §3 à §7 et §12 ; plan 06, sessions 1.1 à 1.4 et 2.1). La 1.1
 a posé les briques mathématiques et les champs lents ; la 1.2 construit dessus la fonction de
@@ -22,6 +22,7 @@ Tout vit dans `crates/nb-world/src/norrcraft/`.
 | `biomes.rs` (2.1) | `NorrBiome` (25 biomes), `biome_defs`/`biome_infos` (`assets/norrcraft/biomes.json`), `BiomeSoil`, `BiomeSelector::select` (règles du §7.2, étagement, frontières tramées) → `Selection { biome, fresh_water, snow, dither }`, `DISTRIBUTION_TARGETS` (§7.5) |
 | `subsoil.rs` (2.2) | `Subsoil` (provinces au treillis 4, filons de diabase, minerais, cavités, corps de la grille : `sites`, `deposits`), `SubColumn` (tirages par colonne), `SubsoilBlocks`, `Region`, `SiteProbe` ; `math.rs` gagne `GradField3` (bruit 3D) |
 | `trees.rs` (2.3) | `Species` (12 essences), `Kind`/`Style`, `Plant`, `TreeBlocks`, formes pures (`draw` via le trait `Put`), `Trees` (placement en grille de pas 5, cache de cellules, `plants_near`, `stamp`, `pass`, `plant_within`), `TreeProbe`/`TreeColumn` |
+| `structures.rs` (4.1) | `Structures` (trois grilles `Class::{Major, Medium, Minor}`, table `RULES` du catalogue du doc 02 §10.1, prédicats de site, `site`, `sites_in`, `routes_in`, `route`, `reserved`, `pass`), `StructKind` (33 types), `StructSite`, `Route`/`PathCell`/`Mode`/`Surface`, `StructBlocks` (`rosesten`, `planka`, `stig`) |
 | `flora.rs` (2.4) | `Understory::pick(&Column)` (strate basse : 37 plantes, fiches `SPECS`), `FloraBlocks`, `Ground`, `Water` |
 | `hydro.rs` (1.4) | `Hydrography` (relief + eau : `column(wx, wz)` scellée, identique aux chunks ; `raw_column`, `column_exact` pour les cartes ; `lakes(rect)`), `Hydrology` (règles), `WaterColumn { top, level, kind, stair, channel_distance, river_width, dam }`, `WaterKind` (sèche, mer, lac, rivière), `SeaFacade`, `Lake`, `LakeSet`, `seal`, `filtered_height` (Hl), `stair_level` (W) |
 
@@ -595,6 +596,70 @@ Le départ du joueur (`find_spawn`) évite les colonnes à moins de 6 blocs d'un
 * Le pin « tordu » se penche dans une direction tirée au hasard, pas encore sous le vent.
 * Aperçus : `apercu-norr/2.3/` (hêtraie, forêt primaire, pinède, bocage, boulaie de montagne).
 
+## Structures (session 4.1, doc 02 §10.2 et §10.3)
+
+La 4.1 pose la **mécanique** des structures (où, quoi, quelles pistes) ; les bâtiments arrivent
+en 4.2 (habitat), 4.3 (patrimoine) et 4.4 (industrie, nature). `structures.rs`.
+
+**Grilles.** Trois grilles hachées indépendantes (graine `0x…0801`) : majeure (pas 384), moyenne
+(96), mineure (32). La position d'une cellule est tirée avec une marge égale au plus grand rayon de
+la classe (48, 18, 7 : une structure ne déborde jamais de sa cellule). Le type est tiré parmi ceux
+que le biome de la position autorise : le poids d'un type dans un biome est sa **probabilité par
+cellule** (la somme par classe et par biome ne dépasse pas 1, le reste est vide ; un test le
+vérifie). Le catalogue entier du §10.1 est dans la table `RULES` (33 types : classe, rayon
+d'emprise, biomes et poids, prédicat, « à piste », « construit »). Les poids sont des valeurs de
+départ à régler type par type avec leur bâtiment.
+
+**Prédicat de site.** Sondes pures de `SiteProbe` (celles du sous-sol) : altitude du sol au-dessus
+de la mer, pente maximale (centre contre 8 ou 16 sondes sèches de l'empreinte), condition d'eau
+(`Dry`, `Shore(lac/mer/toute, d)` : centre à sec et eau à moins de `d`, `Afloat(min, max)`,
+`Any`) et condition particulière : `LocalMax(r)` (vårdkase, phare), `StepNear(d)` (hytta :
+marche de W ou barrage), `RiverCrossing` (bro), `Mountain(u)` (bergasal). Échec : la cellule reste
+vide. **Écart au doc** : les types qui exigent un lieu précis (eau, sommet, marche) essaient
+d'abord la position tirée puis jusqu'à 15 positions de repli tirées de la graine dans la même
+cellule (biome autorisé exigé) ; sans cela, 3 % seulement des fiskeläge ou 10 % des ponts
+trouvaient leur rive. Le calcul reste pur et borné.
+
+**Conflits entre classes.** Une petite structure qui chevauche (rayons + 4 blocs) une plus grande
+est supprimée : le résultat de la majeure ne dépend que d'elle-même, la moyenne ne dépend que des
+majeures, la mineure des deux. Même classe : les marges suffisent (rayon ≤ marge).
+
+**Pistes.** Sont « à piste » les sites de `by`, `fäbod`, `kåta` et `fjällstuga`. Entre deux sites
+à moins de 400 blocs, la piste existe si l'arête est dans le **graphe de Gabriel** (aucun autre
+site à piste dans le disque de diamètre AB, test entier exact : l'arête ne dépend que des sites
+voisins, pas d'une recherche globale). Le segment est échantillonné tous les 8 blocs (50 points au
+plus), chaque point glisse perpendiculairement dans ±12 blocs (pas de 4) vers le minimum de
+`pente² + 30 + 6 × profondeur si eau + 0,05 × décalage²`, les décalages sont lissés (1, 2, 1)/4,
+les points sont reliés en cellules 4-connexes. Par cellule : eau → **gué** (gravier au fond, si
+la traversée fait au plus 3 cellules et un bloc d'eau) ou **passerelle** de planches à fleur d'eau ;
+sol → revêtement selon le biome sous la cellule (relevé tous les 4 blocs) : **montagne nue**
+(Fjällhed, Kalfjäll, Glaciär : le sol n'est pas touché), **caillebotis** (Myr, Palsmyr) ou
+**sentier tassé**. Le sol des revêtements est **nivelé** (jamais plus d'un bloc d'une cellule à la
+suivante, déblai ou remblai de 4 blocs au plus) ; la montagne nue garde son relief. Pistes refusées :
+traversée d'eau de plus de 16 cellules ou plus de 40 % de cellules mouillées, falaise (nivelage de
+plus de 4 blocs), raccord de passerelle de plus de 3 blocs. Les piétons ont 2 blocs de dégagement
+(plantes et feuilles écartées), aucun arbre à moins de 2 blocs (`TreeProbe::blocked` = 
+`Structures::reserved`, lu par `Trees::cell_plants`). En montagne, un **cairn** (3 blocs de haut,
+`rosesten` mêlé de `klappersten`) tous les 24 blocs, à 2 blocs du sentier, côtés alternés.
+
+**Indépendance de l'ordre.** Une piste est une fonction de ses deux extrémités ; un chunk n'en
+écrit que sa part, après les arbres et la strate basse. Site, tirage, route et plan de chunk sont
+mémoïsés (caches `Arc<Mutex<HashMap>>` partagés par les copies du générateur, vidés au-delà de
+32 768 entrées). Cases où la pose est sautée : colonne non naturelle (glace de glacier, banquise),
+faille ouverte sous un cairn.
+
+**Provisoire.** Les sites dont le bâtiment n'existe pas encore (`Rule::built == false`) portent un
+**jalon** : cairn de 2 (mineur), 4 (moyen) ou 6 blocs (majeur), sauf les sites flottants.
+`structures::PLACEHOLDERS = false` les retire ; chaque session 4.x passe `built` à `true` pour ses
+types et remplace le jalon. Seul le röse (`rösen`) est construit.
+
+Trois blocs neufs (ids 129 à 131), textures vanilla réutilisées (`mossy_cobblestone`,
+`spruce_planks`, `dirt_path_*`) : `rosesten`, `planka`, `stig`.
+
+Mesures (graine 12345, Norrland) : 1 208 sites à moins de 2,6 km de l'origine ; sur une carte de
+8 × 8 km, 43 pistes (10 819 cellules, dont 36 mouillées) et 271 cairns de piste ; coût de
+génération inchangé (2,8 ms par chunk sur la machine de mesure, avec ou sans structures).
+
 ## Outil `worldmap`
 
 ```
@@ -605,7 +670,7 @@ cargo run --release -p nb-world --example worldmap -- <graine> <préréglage> <c
 `mode` : `relief` (défaut depuis la 1.2 : relief ombré, teintes hypsométriques, mer par
 profondeur) | `hydro` (1.4 : relief ombré après l'hydrographie, mer par profondeur, lacs en
 turquoise, rivières en bleu vif, élargies aux grands pas pour rester visibles) | `w` (1.4 : terres
-teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `biomes` (2.1 : une couleur par biome, sélection exacte de chaque colonne échantillonnée, trame comprise ; eau douce bleutée, neige éternelle blanche ; l'outil imprime la répartition face aux cibles du doc 02 §7.5 et la distance du plus proche représentant de chaque biome à l'origine) | `coupe` (2.2 : coupe verticale le long de x à `z = cz`, blocs réellement générés, 3 px par bloc ; le pas est en blocs par colonne) | `geologie` (2.2 : provinces rocheuses ombrées, mer, filons de diabase au pas ≤ 4, corps de minerai en carrés : Malmberg rouge, cuivre orange, cobalt bleu, tungstène noir, stéatite cyan, grotte marine jaune ; l'outil imprime les parts de provinces et le Malmberg le plus proche) | `fjord` (relief ombré ; fjords en magenta, fonds
+teintées par marche de l'escalier W, eau comme `hydro`) | `h` (altitude en fausses couleurs) | `formes` (1.3 : relief ombré et formes en couleur : îlots corail, klint crème, côte soulevée rouge, dunes sable, pré salé vert d'eau, eskers jaunes, marmites cyan, drumlins vert clair, tourbières brunes, palses violettes, glace blanche, moraines brun clair, lave rouge ; l'outil imprime aussi leurs parts) | `biomes` (2.1 : une couleur par biome, sélection exacte de chaque colonne échantillonnée, trame comprise ; eau douce bleutée, neige éternelle blanche ; l'outil imprime la répartition face aux cibles du doc 02 §7.5 et la distance du plus proche représentant de chaque biome à l'origine) | `coupe` (2.2 : coupe verticale le long de x à `z = cz`, blocs réellement générés, 3 px par bloc ; le pas est en blocs par colonne) | `geologie` (2.2 : provinces rocheuses ombrées, mer, filons de diabase au pas ≤ 4, corps de minerai en carrés : Malmberg rouge, cuivre orange, cobalt bleu, tungstène noir, stéatite cyan, grotte marine jaune ; l'outil imprime les parts de provinces et le Malmberg le plus proche) | `sites` (4.1 : biomes assombris, sites par classe en carrés — majeur rouge, moyen orange, mineur jaune —, pistes en blanc, gués et passerelles en bleu clair, cairns de piste en bleu ; l'outil imprime, par type, les tirages, les sites retenus et le rendement des prédicats, puis le nombre de pistes) | `fjord` (relief ombré ; fjords en magenta, fonds
 de vallée principale en jaune, plateaux en cyan) | `overview` (vue des champs de la 1.1 : terre par
 zone climatique, gris de la surrection, rouge = lave) | `c` | `o` | `t0` | `hm` | `u` | `e` | `lk` |
 `gt` | `vr` | `zones` | `pv` | `theta`. Le trait de côte dessiné est désormais le vrai (h = S).
@@ -698,3 +763,14 @@ zone hémiboréale (T₀ = 0,60).
   troncs 2 × 2). Les empreintes de `norrcraft_relief.rs` changent (arbres et strate basse) ;
   `norrcraft_relief.rs`, `norrcraft_hydro.rs` et `mod.rs` acceptent un tronc, une feuille ou une
   plante au-dessus du sol.
+* `nb-world/tests/norrcraft_structures.rs` (4.1) : sites identiques d'une instance et d'un ordre de
+  parcours à l'autre (3 graines, ±2,6 km, boîtes en désordre), biome du centre autorisé par la
+  fiche, **séparation entre classes** (aucun chevauchement), prédicats tenus (épave sous l'eau,
+  pont sur une rivière, vårdkase maximum local à 40 blocs, le reste à sec) ; au moins 26 des 33
+  types présents à 4 km pour 3 graines ; pistes **arêtes de Gabriel** de moins de 400 blocs entre
+  sites à piste, 4-connexes de a à b, sans marche de plus d'un bloc sur le sol nivelé, traversées
+  d'eau ≤ 16 ; pistes **posées et dégagées** (revêtement sous la cellule, deux blocs libres
+  au-dessus, aucun tronc ni feuille) ; passerelles à fleur d'eau ; cairns de piste et jalons
+  présents ; **chunks identiques** quel que soit l'ordre (avant, arrière, instance chauffée) ;
+  coût < 12 ms par chunk (mesuré 2,8, identique sans structures) ; table des classes conforme au doc.
+  Unitaires dans `structures.rs` (ordre de `RULES`, poids ≤ 1, rayons ≤ marge, ligne 4-connexe).
