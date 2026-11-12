@@ -75,10 +75,12 @@ pub enum Mat {
     Earth,
     /// Orgues basaltiques.
     Basalt,
+    /// Baratte de la laiterie d'une fäbod (marque l'estive).
+    Churn,
 }
 
 impl Mat {
-    pub const COUNT: usize = 32;
+    pub const COUNT: usize = 33;
 
     pub const ALL: [Mat; Mat::COUNT] = [
         Mat::Air,
@@ -113,6 +115,7 @@ impl Mat {
         Mat::Hot,
         Mat::Earth,
         Mat::Basalt,
+        Mat::Churn,
     ];
 
     /// Nom du bloc Norrcraft (vide pour l'air).
@@ -150,6 +153,7 @@ impl Mat {
             Mat::Hot => "hetsten",
             Mat::Earth => "torv",
             Mat::Basalt => "basaltsten",
+            Mat::Churn => "karna",
         }
     }
 }
@@ -786,6 +790,7 @@ fn fabod(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
     land_part(probe, out, root.child(5, 6, 0), [-3, -3, 3, 3], 7, 5, |p| {
         cabin(p, -2, -2, 2, 2, 3, &STONE, 1, 2);
         p.fill(-1, 0, -1, 1, 0, -1, Mat::Birch);
+        p.set(0, 1, -1, Mat::Churn);
     });
     // Enclos du bétail.
     land_part(probe, out, root.child(-8, 4, 0), [-6, -4, 6, 4], 4, 5, |p| {

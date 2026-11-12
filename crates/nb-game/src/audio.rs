@@ -411,6 +411,9 @@ impl AudioDirector {
             | EcsEvent::IceCrack { .. }
             | EcsEvent::IceBroke { .. }
             | EcsEvent::BoatSwamped { .. }
+            | EcsEvent::CropWithered { .. }
+            | EcsEvent::HayReady { .. }
+            | EcsEvent::Kulning { .. }
             | EcsEvent::BoatSank { .. } => {}
         }
     }

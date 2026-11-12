@@ -4657,7 +4657,7 @@
           "item": "mjolk",
           "perDay": 6.0,
           "capacity": 12.0,
-          "summerBonus": 1.5,
+          "summerBonus": 2.0,
           "bonusMonths": [
             5,
             7
@@ -4742,7 +4742,7 @@
           "item": "mjolk",
           "perDay": 3.0,
           "capacity": 6.0,
-          "summerBonus": 1.3,
+          "summerBonus": 2.0,
           "bonusMonths": [
             5,
             7

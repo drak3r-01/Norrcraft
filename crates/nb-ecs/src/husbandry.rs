@@ -47,6 +47,9 @@ pub struct Domestic {
     bark_timer: f32,
     /// Une destination du suivi est posée sur `Brain::goal`.
     following: bool,
+    /// Le bétail est à une fäbod (une baratte `karna` à proximité) : l'estive double le lait.
+    pub at_fabod: bool,
+    fabod_age: f32,
 }
 
 impl Domestic {
@@ -58,6 +61,8 @@ impl Domestic {
             pointing: None,
             bark_timer: 0.0,
             following: false,
+            at_fabod: false,
+            fabod_age: 99.0,
         }
     }
 }
@@ -128,12 +133,17 @@ pub fn collect(
 }
 
 /// Le rendement du jour : bien nourri, en saison, plus généreux à l'estive.
-fn yield_per_day(p: &nb_data::husbandry::Produce, month: usize, fodder: f32) -> f32 {
+fn yield_per_day(
+    p: &nb_data::husbandry::Produce,
+    month: usize,
+    fodder: f32,
+    summer_farm: bool,
+) -> f32 {
     use nb_data::behavior::in_window;
     if fodder < PRODUCE_MIN_FODDER || p.months.is_some_and(|w| !in_window(month, w)) {
         return 0.0;
     }
-    let bonus = if p.bonus_months.is_some_and(|w| in_window(month, w)) {
+    let bonus = if summer_farm && p.bonus_months.is_some_and(|w| in_window(month, w)) {
         p.summer_bonus
     } else {
         1.0
@@ -163,6 +173,8 @@ impl System for HusbandrySystem {
         self.timer = 0.0;
         let days = step / ctx.config.day_length_seconds.max(1.0);
         let month = crate::brain::clock::Clock::of(ctx.config, None).month;
+        let fabod = crate::farming::block_id(ctx.block_reg, "karna");
+        let fabod_known = fabod.is_some();
 
         for id in world.query_ids::<(&Domestic, &MobType)>() {
             let Some(cfg) = world
@@ -193,15 +205,26 @@ impl System for HusbandrySystem {
                 }
             }
             if let Some(p) = &h.produce {
-                d.stock = (d.stock + yield_per_day(p, month, d.fodder) * days).min(p.capacity);
+                d.stock = (d.stock + yield_per_day(p, month, d.fodder, d.at_fabod || !fabod_known) * days).min(p.capacity);
             }
 
+            if let (Some(b), true) = (fabod, h.produce.as_ref().is_some_and(|p| p.bonus_months.is_some())) {
+                d.fabod_age += step;
+                if d.fabod_age >= FABOD_RECHECK {
+                    d.fabod_age = 0.0;
+                    if let Some(t) = world.copy::<Transform>(id) {
+                        d.at_fabod = near_block(ctx.blocks, b, t.pos);
+                    }
+                }
+            }
             follow(world, id, h, &mut d);
             // Le minuteur d'aboiement appartient à la passe de chaque tick : ne pas l'écraser.
             if let Some(cur) = world.get_mut::<Domestic>(id) {
                 cur.fodder = d.fodder;
                 cur.stock = d.stock;
                 cur.following = d.following;
+                cur.at_fabod = d.at_fabod;
+                cur.fabod_age = d.fabod_age;
             }
         }
     }
@@ -327,4 +350,26 @@ impl Domestic {
     pub fn set_stock(&mut self, stock: f32) {
         self.stock = stock.max(0.0);
     }
+}
+
+/// Rayon (blocs) autour d'une baratte `karna` où le bétail est à l'estive.
+pub const FABOD_RANGE: i32 = 16;
+/// Secondes entre deux sondages de l'estive.
+pub const FABOD_RECHECK: f32 = 10.0;
+
+/// Un bloc `target` se trouve-t-il dans [`FABOD_RANGE`] autour de `pos` ?
+fn near_block(blocks: &dyn crate::blocks::BlockAccess, target: nb_data::BlockId, pos: DVec3) -> bool {
+    let (cx, cz) = (pos.x.floor() as i32, pos.z.floor() as i32);
+    let mut col = [0u8; 128];
+    for dx in -FABOD_RANGE..=FABOD_RANGE {
+        for dz in -FABOD_RANGE..=FABOD_RANGE {
+            if blocks.is_chunk_loaded(cx + dx, cz + dz) {
+                blocks.read_column(cx + dx, cz + dz, &mut col);
+                if col.contains(&target) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }

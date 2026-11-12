@@ -28,6 +28,8 @@ pub mod components;
 pub mod density;
 pub mod crafting;
 pub mod ecology;
+pub mod farming;
+pub mod hay;
 pub mod glide;
 pub mod ice;
 pub mod health;
@@ -46,6 +48,8 @@ pub mod survival;
 pub mod world;
 
 pub use brain::{AnimalAct, Brain, BrainSystem, Carrying, Crouching, Emitter};
+pub use farming::{FarmBlocks, FarmSystem, FieldState, SlashState};
+pub use hay::{HayState, HaySystem};
 pub use ecology::{Carcass, EcologyHandle, EcologySystem, Poisoned, Standing};
 pub use avalanche::{AvalancheSystem, Buried};
 pub use boat::{Aboard, Boat, BoatKind, BoatSystem, RackState, RackSystem};

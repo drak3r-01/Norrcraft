@@ -131,6 +131,12 @@ pub enum EcsEvent {
     BoatSwamped { boat: crate::components::EntityId },
     /// Le bateau a coulé (6.3).
     BoatSank { boat: crate::components::EntityId },
+    /// Une culture a été broutée ou gelée (6.4).
+    CropWithered { pos: IVec3 },
+    /// Un foin a fini de sécher sur sa hässja (6.4).
+    HayReady { pos: IVec3 },
+    /// Un appel (kulning, corne) retentit (6.4).
+    Kulning { entity: crate::components::EntityId, pos: IVec3 },
     /// « Whoumf » sourd du manteau neigeux : une avalanche va partir (6.2).
     Whoumf { pos: IVec3 },
     /// Une avalanche est partie de `pos` : colonnes balayées, volume déposé en huitièmes (6.2).

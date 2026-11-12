@@ -138,6 +138,9 @@ pub struct WorldSession {
     ice: nb_ecs::IceHandle,
     /// Claies de séchage de la morue (session 6.3).
     racks: nb_ecs::RackState,
+    fields: nb_ecs::FieldState,
+    slash: nb_ecs::SlashState,
+    hay: nb_ecs::HayState,
 }
 
 impl std::fmt::Debug for WorldSession {
@@ -197,6 +200,9 @@ impl WorldSession {
         // Glace jouable (craquement, chute, remontée, lignes de pêche) : sans effet hors glace.
         let ice: nb_ecs::IceHandle = Arc::default();
         let racks: nb_ecs::RackState = Arc::default();
+        let fields: nb_ecs::FieldState = Arc::default();
+        let slash: nb_ecs::SlashState = Arc::default();
+        let hay: nb_ecs::HayState = Arc::default();
         sim.schedule.insert(
             after_ai.saturating_add(4),
             Box::new(nb_ecs::IceSystem::new(ice.clone(), regs.items.id_of("isdubbar"))),
@@ -219,6 +225,13 @@ impl WorldSession {
                 after_ai.saturating_add(8),
                 Box::new(nb_ecs::RackSystem::new(racks.clone())),
             );
+            // Cultures, brûlis, fenaison et kulning (6.4).
+            sim.schedule.insert(
+                after_ai.saturating_add(9),
+                Box::new(nb_ecs::FarmSystem::new(fields.clone(), slash.clone(), &regs.blocks)),
+            );
+            sim.schedule
+                .insert(after_ai.saturating_add(10), Box::new(nb_ecs::HaySystem::new(hay.clone())));
         }
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
@@ -233,6 +246,9 @@ impl WorldSession {
             ecology,
             ice,
             racks,
+            fields,
+            slash,
+            hay,
         }
     }
 
@@ -241,6 +257,21 @@ impl WorldSession {
     /// Claies de séchage (hjell) posées, par cellule.
     pub fn racks(&self) -> nb_ecs::RackState {
         self.racks.clone()
+    }
+
+    /// Champs cultivés (6.4).
+    pub fn fields(&self) -> nb_ecs::FieldState {
+        self.fields.clone()
+    }
+
+    /// Abattis qui sèchent avant le brûlis (6.4).
+    pub fn slash(&self) -> nb_ecs::SlashState {
+        self.slash.clone()
+    }
+
+    /// Hässjas et granges (6.4).
+    pub fn hay(&self) -> nb_ecs::HayState {
+        self.hay.clone()
     }
 
     pub fn ice(&self) -> nb_ecs::IceHandle {

@@ -575,7 +575,7 @@ add("fjallko", "Fjällko",
     tune=dict(heavy=1.15, a_walk=24.0),
     hp=14.0, speed=(0.6, 1.0), flee=3.6, count=10, group=(2, 4),
     husbandry=hus("livestock", ["salt", "ho"], ("ho", 0.10, 0.5),
-                  {"item": "mjolk", "perDay": 6.0, "capacity": 12.0, "summerBonus": 1.5, "bonusMonths": [5, 7]}))
+                  {"item": "mjolk", "perDay": 6.0, "capacity": 12.0, "summerBonus": 2.0, "bonusMonths": [5, 7]}))
 
 add("get", "Get",
     quad(14, 6, 8, 9, "#d8d0c0", leg="#b8b0a0", hoof="#2a2018", head=(4, 5, 6), head_col="#d8d0c0", neck=(3.6, 6, 4),
@@ -586,7 +586,7 @@ add("get", "Get",
     tune=dict(run_style="trot", heavy=0.8),
     hp=8.0, speed=(0.8, 1.4), flee=4.6, count=10, group=(2, 5),
     husbandry=hus("livestock", ["salt", "lovris"], ("ho", 0.08, 0.5),
-                  {"item": "mjolk", "perDay": 3.0, "capacity": 6.0, "summerBonus": 1.3, "bonusMonths": [5, 7]}))
+                  {"item": "mjolk", "perDay": 3.0, "capacity": 6.0, "summerBonus": 2.0, "bonusMonths": [5, 7]}))
 
 add("gutefar", "Gutefår",
     quad(16, 8, 10, 8, "#e8e0d0", leg="#4a4036", hoof="#1e1812", head=(4.4, 5, 7), head_col="#5a5046", neck=(4, 6, 4),

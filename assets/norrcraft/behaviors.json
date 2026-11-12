@@ -178,7 +178,7 @@
       "pack": true,
       "hunts": ["betare", "hjord", "skygg", "smavilt", "gnagare"],
       "fears": ["player"],
-      "reactions": { "fire": { "fear": 0.9, "keepAway": 8 }, "surstromming": { "fear": 1.0 }, "smoke": { "fear": 0.4, "keepAway": 6 } },
+      "reactions": { "fire": { "fear": 0.9, "keepAway": 8 }, "surstromming": { "fear": 1.0 }, "smoke": { "fear": 0.4, "keepAway": 6 }, "kulning": { "fear": 0.8, "keepAway": 40 } },
       "seasons": { "birth": [4, 5] },
       "states": [
         { "state": "wander", "weight": 0.15 },
@@ -203,7 +203,7 @@
       "courage": 0.7,
       "hunts": ["smavilt", "gnagare", "fisk"],
       "fears": ["player"],
-      "reactions": { "fire": { "fear": 0.5, "keepAway": 5 }, "surstromming": { "fear": 0.6 }, "carrion": { "attract": 1.0 }, "food": { "attract": 1.0 } },
+      "reactions": { "fire": { "fear": 0.5, "keepAway": 5 }, "surstromming": { "fear": 0.6 }, "kulning": { "fear": 0.6, "keepAway": 30 }, "carrion": { "attract": 1.0 }, "food": { "attract": 1.0 } },
       "seasons": { "hibernate": [10, 2], "birth": [3, 4] },
       "states": [
         { "state": "wander", "weight": 0.15 },
