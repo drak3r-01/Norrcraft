@@ -816,6 +816,7 @@ impl Game {
         {
             let role = self.net.role();
             let mut outgoing = Vec::new();
+            let regs = &self.regs;
             let (chat, input, session, sky, fx, weather) = (
                 &mut self.chat,
                 &mut self.input,
@@ -827,6 +828,9 @@ impl Game {
             chat.update(dt, input, |cmd| {
                 if role != LanRole::Client {
                     if let Some(reply) = weather.command(cmd) {
+                        return Some(reply);
+                    }
+                    if let Some(reply) = session.boat_command(cmd, regs) {
                         return Some(reply);
                     }
                     if let Some(reply) = fx.command(cmd) {

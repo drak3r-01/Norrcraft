@@ -21,6 +21,7 @@
 pub mod ai;
 pub mod avalanche;
 pub mod blocks;
+pub mod boat;
 pub mod brain;
 pub mod command;
 pub mod components;
@@ -47,6 +48,7 @@ pub mod world;
 pub use brain::{AnimalAct, Brain, BrainSystem, Carrying, Crouching, Emitter};
 pub use ecology::{Carcass, EcologyHandle, EcologySystem, Poisoned, Standing};
 pub use avalanche::{AvalancheSystem, Buried};
+pub use boat::{Aboard, Boat, BoatKind, BoatSystem, RackState, RackSystem};
 pub use glide::{Gear, GearIds, GlideSystem, Locomotion};
 pub use ice::{IceHandle, IceKind, IceState, IceSystem, Load};
 pub use herd::{HerdHandle, HerdMember, HerdSystem};

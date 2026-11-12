@@ -136,6 +136,8 @@ pub struct WorldSession {
     ecology: nb_ecs::EcologyHandle,
     /// Lignes de pêche sur glace (session 6.1), partagées avec `IceSystem`.
     ice: nb_ecs::IceHandle,
+    /// Claies de séchage de la morue (session 6.3).
+    racks: nb_ecs::RackState,
 }
 
 impl std::fmt::Debug for WorldSession {
@@ -194,6 +196,7 @@ impl WorldSession {
         );
         // Glace jouable (craquement, chute, remontée, lignes de pêche) : sans effet hors glace.
         let ice: nb_ecs::IceHandle = Arc::default();
+        let racks: nb_ecs::RackState = Arc::default();
         sim.schedule.insert(
             after_ai.saturating_add(4),
             Box::new(nb_ecs::IceSystem::new(ice.clone(), regs.items.id_of("isdubbar"))),
@@ -210,6 +213,12 @@ impl WorldSession {
                 after_ai.saturating_add(6),
                 Box::new(nb_ecs::AvalancheSystem::default()),
             );
+            // Bateaux (6.3) après la saisie du joueur ; claies de séchage de la morue.
+            sim.schedule.insert(after_ai.saturating_add(7), Box::new(nb_ecs::BoatSystem));
+            sim.schedule.insert(
+                after_ai.saturating_add(8),
+                Box::new(nb_ecs::RackSystem::new(racks.clone())),
+            );
         }
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
@@ -223,11 +232,17 @@ impl WorldSession {
             herds,
             ecology,
             ice,
+            racks,
         }
     }
 
     /// Traces lisibles, pièges posés et colonies de castors du monde.
     /// Lignes de pêche posées sur la glace.
+    /// Claies de séchage (hjell) posées, par cellule.
+    pub fn racks(&self) -> nb_ecs::RackState {
+        self.racks.clone()
+    }
+
     pub fn ice(&self) -> nb_ecs::IceHandle {
         self.ice.clone()
     }
@@ -320,6 +335,53 @@ impl WorldSession {
             &mut SkyTime(sky),
             self.allow_cheats,
         )
+    }
+
+    /// `/boat [raft|eka|snipa|knarr|longship] [bare]` (session 6.3, triches) : met un bateau à
+    /// l'eau près du joueur et l'y embarque. `None` : pas pour nous.
+    pub fn boat_command(&mut self, command: &str, regs: &Registries) -> Option<String> {
+        let mut words = command.split_whitespace();
+        if words.next()? != "/boat" {
+            return None;
+        }
+        if regs.kind != WorldKind::Norrcraft {
+            return Some("Pas de bateaux dans cet univers.".to_owned());
+        }
+        if !self.allow_cheats {
+            return Some("Cheats are not enabled in this world.".to_owned());
+        }
+        let kind = words.next().and_then(nb_ecs::BoatKind::from_name);
+        let Some(kind) = kind else {
+            return Some("Usage : /boat <raft|eka|snipa|knarr|longship> [bare]".to_owned());
+        };
+        let tarred = words.next() != Some("bare");
+        let player = self.sim.player?;
+        let at = self.sim.entities.get::<Transform>(player)?.pos;
+        let blocks = WorldBlocks(&self.world);
+        let water = regs.blocks.ids().water;
+        let near = at.y.floor() as i32;
+        let mut spot = None;
+        'ring: for r in 2..=8i32 {
+            for dx in -r..=r {
+                for dz in -r..=r {
+                    if dx.abs().max(dz.abs()) != r {
+                        continue;
+                    }
+                    let (x, z) = (at.x.floor() as i32 + dx, at.z.floor() as i32 + dz);
+                    if let Some(top) = nb_ecs::boat::water_top(&blocks, water, x, near, z) {
+                        spot = Some(nb_core::glam::DVec3::new(f64::from(x) + 0.5, f64::from(top), f64::from(z) + 0.5));
+                        break 'ring;
+                    }
+                }
+            }
+        }
+        let Some(spot) = spot else {
+            return Some("Aucune eau à moins de 8 blocs.".to_owned());
+        };
+        let yaw = self.sim.entities.get::<nb_ecs::Player>(player).map_or(0.0, |p| p.camera.yaw_deg);
+        let id = nb_ecs::boat::spawn_boat(&mut self.sim.entities, kind, spot, yaw, tarred);
+        nb_ecs::boat::board(&mut self.sim.entities, player, id);
+        Some(format!("{} à l'eau{}.", kind.label(), if tarred { "" } else { " (coque nue)" }))
     }
 
     /// Calendrier du monde, `None` quand l'univers n'a pas de saisons (vanilla).

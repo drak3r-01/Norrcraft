@@ -409,7 +409,9 @@ impl AudioDirector {
             | EcsEvent::Whoumf { .. }
             | EcsEvent::Avalanche { .. }
             | EcsEvent::IceCrack { .. }
-            | EcsEvent::IceBroke { .. } => {}
+            | EcsEvent::IceBroke { .. }
+            | EcsEvent::BoatSwamped { .. }
+            | EcsEvent::BoatSank { .. } => {}
         }
     }
 

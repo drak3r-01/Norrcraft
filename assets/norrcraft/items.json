@@ -21,5 +21,18 @@
  {"id": 275, "name": "ackja", "texture": "item_stick"},
  {"id": 276, "name": "slade", "texture": "item_stick"},
  {"id": 277, "name": "isjakt", "texture": "item_stick"},
- {"id": 278, "name": "snoskyffel", "texture": "item_iron_ingot"}
+ {"id": 278, "name": "snoskyffel", "texture": "item_iron_ingot"},
+ {"id": 279, "name": "flotte", "texture": "item_stick"},
+ {"id": 280, "name": "eka", "texture": "item_stick"},
+ {"id": 281, "name": "snipa", "texture": "item_stick"},
+ {"id": 282, "name": "knarr", "texture": "item_stick"},
+ {"id": 283, "name": "langskepp", "texture": "item_stick"},
+ {"id": 284, "name": "arar", "texture": "item_stick"},
+ {"id": 285, "name": "ostkar", "texture": "item_brick"},
+ {"id": 286, "name": "ankare", "texture": "item_iron_ingot"},
+ {"id": 287, "name": "linsegel", "texture": "item_brick"},
+ {"id": 288, "name": "hjell", "texture": "item_stick"},
+ {"id": 289, "name": "skrei", "texture": "item_brick"},
+ {"id": 290, "name": "stockfisk", "texture": "item_brick"},
+ {"id": 291, "name": "djuplina", "texture": "item_stick"}
 ]

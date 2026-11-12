@@ -127,6 +127,10 @@ pub enum EcsEvent {
     IceCrack { pos: IVec3 },
     /// La glace a cédé en `pos` (6.1).
     IceBroke { pos: IVec3 },
+    /// La coque a pris l'eau au-delà de 70 % (6.3).
+    BoatSwamped { boat: crate::components::EntityId },
+    /// Le bateau a coulé (6.3).
+    BoatSank { boat: crate::components::EntityId },
     /// « Whoumf » sourd du manteau neigeux : une avalanche va partir (6.2).
     Whoumf { pos: IVec3 },
     /// Une avalanche est partie de `pos` : colonnes balayées, volume déposé en huitièmes (6.2).
