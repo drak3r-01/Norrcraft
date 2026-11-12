@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bestiaire de Norrcraft (sessions 5.4 à 5.6, doc 03 §3.1 à §3.5).
+"""Bestiaire de Norrcraft (sessions 5.4 à 5.7, doc 03 §3.1 à §3.6).
 
 Écrit, pour l'univers `norrcraft` :
   * `assets/norrcraft/mobs.json`           réglages + blocs `behavior` / `spawn` (même format que vanilla),
@@ -26,7 +26,7 @@ MOBS = []  # (config, boxes)
 RIGS = {}
 
 
-def add(id_, name, boxes, profile, spawn, tune=None, **kw):
+def add(id_, name, boxes, profile, spawn, tune=None, husbandry=None, **kw):
     c = cfg(id_, name, boxes, [], **kw)
     for k in ("spawnBiomes", "spawnSurfaces"):
         c.pop(k, None)
@@ -34,6 +34,8 @@ def add(id_, name, boxes, profile, spawn, tune=None, **kw):
         c.pop(k, None)
     c["behavior"] = profile
     c["spawn"] = spawn
+    if husbandry:
+        c["husbandry"] = husbandry
     MOBS.append((c, boxes))
     t = dict(tune or {})
     if c["behaviorType"] == "AGGRESSIVE" and boxes.kind in ("quad", "fish", "arthropod"):
@@ -544,6 +546,130 @@ add("lysmask", "Lysmask",
     sp({"HAGMARK": 0.50, "BOKSKOG": 0.40, "URSKOG": 0.30, "STRANDANG": 0.30, "ALVAR": 0.20}, [0, 0, 0, 0.2, 1, 0.4, 0, 0],
        "nocturnal"),
     hp=1.0, speed=(0.1, 0.3), flee=0.6, count=50, group=(2, 6), move=(1.0, 3.0), pause=(3.0, 8.0))
+
+
+# -- Animaux domestiques (doc 03 §3.6, session 5.7) ----------------------------------------------
+# Mois réels, 0 = janvier. Pâture de mai à septembre ; le reste de l'année la réserve de fourrage se vide.
+PASTURE = [4, 8]
+
+
+def hus(role, tame, fodder=None, produce=None, **kw):
+    d = {"role": role, "tameWith": tame}
+    if fodder:
+        d["fodder"] = {"item": fodder[0], "perDay": fodder[1], "ration": fodder[2], "pasture": PASTURE}
+    if produce:
+        d["produce"] = produce
+    d.update(kw)
+    return d
+
+
+FARM = {"HAGMARK": 0.06, "BOKSKOG": 0.04, "STRANDANG": 0.04, "ALVAR": 0.03}
+ALL12 = [1, 1, 1, 1, 1, 1, 1, 1]
+
+add("fjallko", "Fjällko",
+    quad(26, 11, 12, 11, "#c8c0b0", leg="#b0a898", hoof="#2a2218", head=(6, 7, 8), head_col="#d0c8b8", neck=(6, 9, 5),
+         snout=(5, 4, 3, "#e8c8c0"), ears=(3, 1.6, 1, "#c8c0b0", 3), horns=(1.6, 3, 2, "#e8dfc4", 5, 2.5),
+         tail=(1.4, 1.4, 11, "#c8c0b0", 0.5), belly="#e0d8c8", spots=("#8a4a2a", [(0.1, 3, 4, 3.4), (0.9, 5, 10, 3.2), (0.2, 2, 16, 3), (0.8, 6, 20, 2.8)])),
+    "husdjur",
+    sp(FARM, ALL12, "diurnal", persistence="resident", avoid={"fire": 8}),
+    tune=dict(heavy=1.15, a_walk=24.0),
+    hp=14.0, speed=(0.6, 1.0), flee=3.6, count=10, group=(2, 4),
+    husbandry=hus("livestock", ["salt", "ho"], ("ho", 0.10, 0.5),
+                  {"item": "mjolk", "perDay": 6.0, "capacity": 12.0, "summerBonus": 1.5, "bonusMonths": [5, 7]}))
+
+add("get", "Get",
+    quad(14, 6, 8, 9, "#d8d0c0", leg="#b8b0a0", hoof="#2a2018", head=(4, 5, 6), head_col="#d8d0c0", neck=(3.6, 6, 4),
+         snout=(3, 3, 2, "#c0b098"), ears=(3, 1.4, 0.8, "#c8bfae", 2.4), horns=(1, 4, 1.4, "#6a5a48", 3, 1.8),
+         tail=(1.2, 2, 1, "#d8d0c0", 0.5), belly="#efe8d8", mane=(2, 4, "#c0b8a8")),
+    "husdjur",
+    sp(FARM, ALL12, "diurnal", persistence="resident", avoid={"fire": 8}),
+    tune=dict(run_style="trot", heavy=0.8),
+    hp=8.0, speed=(0.8, 1.4), flee=4.6, count=10, group=(2, 5),
+    husbandry=hus("livestock", ["salt", "lovris"], ("ho", 0.08, 0.5),
+                  {"item": "mjolk", "perDay": 3.0, "capacity": 6.0, "summerBonus": 1.3, "bonusMonths": [5, 7]}))
+
+add("gutefar", "Gutefår",
+    quad(16, 8, 10, 8, "#e8e0d0", leg="#4a4036", hoof="#1e1812", head=(4.4, 5, 7), head_col="#5a5046", neck=(4, 6, 4),
+         snout=(3, 3, 2, "#3a3228"), ears=(2.4, 1.6, 0.8, "#5a5046", 2.6), horns=(1.4, 5, 2, "#8a7a62", 4, 2.2),
+         tail=(1.6, 3, 1, "#e8e0d0", 0.8), belly="#d8d0be"),
+    "husdjur",
+    sp(FARM, ALL12, "diurnal", persistence="resident", avoid={"fire": 8}),
+    tune=dict(heavy=0.9),
+    hp=10.0, speed=(0.6, 1.1), flee=4.0, count=14, group=(3, 6),
+    husbandry=hus("livestock", ["salt", "ho"], ("ho", 0.07, 0.5),
+                  {"item": "ull", "perDay": 0.25, "capacity": 3.0, "seasonal": True, "harvestMonths": [3, 5]}))
+
+add("linderodssvin", "Linderödsgris",
+    quad(22, 10, 10, 6, "#2a2622", leg="#3a3430", hoof="#1a1612", head=(6, 6, 7), head_col="#322c28", neck=(6, 6, 3),
+         snout=(4, 3.4, 3, "#c89a8a"), nose=(3, 2, "#a87868"), ears=(3, 3, 1, "#2a2622", 2.4),
+         tail=(1, 1, 3, "#2a2622", 0.4), belly="#8a7a6a", spots=("#d8c8a8", [(0.1, 2, 4, 2.6), (0.9, 3, 12, 2.6)])),
+    "husdjur",
+    sp({"BOKSKOG": 0.06, "HAGMARK": 0.05, "STRANDANG": 0.02}, ALL12, "diurnal", persistence="resident", avoid={"fire": 8}),
+    tune=dict(graze=False, sniff=True, heavy=1.1, run_style="trot"),
+    hp=12.0, speed=(0.7, 1.2), flee=4.2, count=10, group=(2, 4),
+    husbandry=hus("livestock", ["agn", "ho"], ("agn", 0.10, 0.5)))
+
+add("hona", "Höna",
+    biped(9, 5, "#9a5a32", "#b8743c", "#d8a838", (3, 3.6, 3.6), "#9a5a32", (2, 1.4, 2, "#e0a830"), legh=4,
+          neck_h=2, tail=(2, 5, 5, "#5a3018"), wing=(1, 5, 6, "#8a4a28"), crest=(2, 1.6, 2, "#c02a2a"), leg_w=1.2, L=9),
+    "fjaderfa",
+    sp({"HAGMARK": 0.10, "BOKSKOG": 0.05, "STRANDANG": 0.05}, ALL12, "diurnal", persistence="resident"),
+    hp=3.0, speed=(0.5, 1.0), flee=4.4, count=16, group=(3, 6), move=(0.8, 3.0),
+    husbandry=hus("poultry", ["korn", "agn"], ("korn", 0.12, 0.5),
+                  {"item": "agg", "perDay": 1.0, "capacity": 4.0, "months": [1, 9]}))
+
+add("tamgas", "Tamgås",
+    biped(12, 6, "#e8e4dc", "#f0ece4", "#d88a28", (3.6, 4.4, 4.4), "#eee9e0", (3.4, 1.8, 2.6, "#e08a30"), legh=5,
+          neck_h=6, tail=(3, 3, 4, "#e0dcd2"), wing=(1, 7, 8, "#d8d4c8"), leg_w=1.4, L=12),
+    "fjaderfa",
+    sp({"HAGMARK": 0.06, "STRANDANG": 0.06, "BOKSKOG": 0.02}, ALL12, "diurnal", persistence="resident"),
+    hp=5.0, speed=(0.5, 1.0), flee=4.0, count=12, group=(2, 5), move=(0.8, 3.0),
+    husbandry=hus("poultry", ["korn", "agn"], ("korn", 0.10, 0.5),
+                  {"item": "agg", "perDay": 0.5, "capacity": 3.0, "months": [2, 6]}))
+
+add("fjordhast", "Fjordhäst",
+    quad(26, 11, 15, 14, "#c8a878", leg="#a88a5e", hoof="#241a12", head=(6, 8, 12), head_col="#c0a070", neck=(6, 12, 7),
+         snout=(5, 5, 4, "#3a2e22"), ears=(2, 3, 1, "#a88a5e", 2.4), tail=(2, 14, 2, "#e8dcc4", 0.8),
+         mane=(3, 8, "#e8dcc4"), belly="#e0cc9e"),
+    "husdjur",
+    sp({"FJALLBJORKSKOG": 0.03, "HAGMARK": 0.05, "BOKSKOG": 0.03, "ALVAR": 0.03}, ALL12, "diurnal",
+       persistence="resident", avoid={"fire": 8}),
+    tune=dict(heavy=1.3, a_walk=24.0, run_style="trot"),
+    hp=22.0, speed=(0.8, 1.4), flee=5.4, count=8, group=(1, 3),
+    husbandry=hus("mount", ["morot", "ho"], ("ho", 0.07, 0.5),
+                  gait={"name": "walk", "speed": 1.0, "jolt": 0.4, "steady": False}))
+
+add("islandshast", "Islandshäst",
+    quad(24, 10, 14, 12, "#7a4a30", leg="#5e3a24", hoof="#241a12", head=(5.6, 7, 11), head_col="#73442c", neck=(5, 11, 6),
+         snout=(4.6, 4.6, 4, "#2e2018"), ears=(2, 2.6, 1, "#5e3a24", 2.2), tail=(2, 13, 2, "#e8dcc4", 0.8),
+         mane=(3, 8, "#e8dcc4"), belly="#9a6a48"),
+    "husdjur",
+    sp({"FJALLHED": 0.02, "HAGMARK": 0.04, "ALVAR": 0.02}, ALL12, "diurnal", persistence="resident", avoid={"fire": 8}),
+    tune=dict(heavy=1.2, a_walk=26.0, run_style="trot"),
+    hp=20.0, speed=(0.9, 1.5), flee=5.8, count=6, group=(1, 3),
+    husbandry=hus("mount", ["morot", "ho"], ("ho", 0.08, 0.5),
+                  gait={"name": "tolt", "speed": 1.5, "jolt": 0.1, "steady": True}))
+
+add("jamthund", "Jämthund",
+    quad(16, 7, 9, 8, "#8a8a90", leg="#74747a", hoof="#2a2a2e", head=(5, 5.4, 7), head_col="#7e7e84", neck=(4.4, 6, 4),
+         snout=(3, 2.6, 3, "#2e2e32"), nose=(2, 1, "#101010"), ears=(2, 3, 1, "#5e5e64", 2.4),
+         tail=(1.6, 5, 2, "#e8e8ec", 0.6), belly="#e0e0e4"),
+    "hund",
+    sp({"URSKOG": 0.02, "TALLHED": 0.02, "HAGMARK": 0.03, "BRANNFALT": 0.02}, ALL12, "always", persistence="resident"),
+    tune=dict(sniff=True, run_style="bound", hop_h=2.0),
+    hp=10.0, speed=(1.0, 1.8), flee=5.4, count=6, group=(1, 2),
+    husbandry=hus("hound", ["kott", "fisk"], None,
+                  hound={"pointRange": 18.0, "alertRange": 32.0, "alerts": ["varg", "bjorn", "lo", "jarv"]}))
+
+add("skogskatt", "Skogskatt",
+    quad(10, 4.4, 5, 5, "#6a6258", leg="#5a5248", head=(3.8, 3.8, 4.4), head_col="#645c52", snout=(2, 1.6, 1.6, "#c8a898"),
+         ears=(1.4, 2, 0.8, "#4a423a", 1.8), tail=(1.8, 1.8, 10, "#5e564c", 0.6), belly="#d8cfc0", stripes=("#2e2822", 3)),
+    "katt",
+    sp({"HAGMARK": 0.05, "BOKSKOG": 0.04, "STRANDANG": 0.03}, ALL12, "crepuscular", persistence="resident"),
+    tune=dict(graze=False, sniff=True, run_style="bound", hop_h=2.0),
+    hp=4.0, speed=(0.7, 1.4), flee=5.0, count=8, group=(1, 1), behavior="AGGRESSIVE", aggro=0.0,
+    damage=1.0, reach=1.4, cooldown=1.2, knock=0.6, detect=0.0, aflee=0.0,
+    husbandry=hus("ratter", ["fisk", "mjolk"], None, follow=8.0))
 
 
 def write():

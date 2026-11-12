@@ -27,6 +27,7 @@ pub mod density;
 pub mod crafting;
 pub mod health;
 pub mod herd;
+pub mod husbandry;
 pub mod input;
 pub mod inventory;
 pub mod javafmt;
@@ -41,6 +42,7 @@ pub mod world;
 
 pub use brain::{AnimalAct, Brain, BrainSystem, Carrying, Crouching, Emitter};
 pub use herd::{HerdHandle, HerdMember, HerdSystem};
+pub use husbandry::{Domestic, HusbandrySystem};
 pub use blocks::{BlockAccess, MemoryBlocks, WorldBlocks};
 pub use command::{execute_command, TimeControl};
 pub use components::{

@@ -3248,6 +3248,791 @@
         ],
         "timeOfDay": "nocturnal"
       }
+    },
+    {
+      "id": "fjallko",
+      "displayName": "Fj\u00e4llko",
+      "widthX": 0.955,
+      "widthZ": 2.616,
+      "height": 2.188,
+      "maxHealth": 14.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 10,
+      "groupSizeMin": 2,
+      "groupSizeMax": 4,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.6,
+      "moveSpeedMax": 1.0,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 3.6,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "husdjur",
+      "spawn": {
+        "densityPerBiome": {
+          "HAGMARK": 0.06,
+          "BOKSKOG": 0.04,
+          "STRANDANG": 0.04,
+          "ALVAR": 0.03
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal",
+        "avoid": {
+          "fire": 8
+        }
+      },
+      "husbandry": {
+        "role": "livestock",
+        "tameWith": [
+          "salt",
+          "ho"
+        ],
+        "fodder": {
+          "item": "ho",
+          "perDay": 0.1,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "produce": {
+          "item": "mjolk",
+          "perDay": 6.0,
+          "capacity": 12.0,
+          "summerBonus": 1.5,
+          "bonusMonths": [
+            5,
+            7
+          ]
+        }
+      }
+    },
+    {
+      "id": "get",
+      "displayName": "Get",
+      "widthX": 0.61,
+      "widthZ": 1.208,
+      "height": 1.756,
+      "maxHealth": 8.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 10,
+      "groupSizeMin": 2,
+      "groupSizeMax": 5,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.8,
+      "moveSpeedMax": 1.4,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 4.6,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "husdjur",
+      "spawn": {
+        "densityPerBiome": {
+          "HAGMARK": 0.06,
+          "BOKSKOG": 0.04,
+          "STRANDANG": 0.04,
+          "ALVAR": 0.03
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal",
+        "avoid": {
+          "fire": 8
+        }
+      },
+      "husbandry": {
+        "role": "livestock",
+        "tameWith": [
+          "salt",
+          "lovris"
+        ],
+        "fodder": {
+          "item": "ho",
+          "perDay": 0.08,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "produce": {
+          "item": "mjolk",
+          "perDay": 3.0,
+          "capacity": 6.0,
+          "summerBonus": 1.3,
+          "bonusMonths": [
+            5,
+            7
+          ]
+        }
+      }
+    },
+    {
+      "id": "gutefar",
+      "displayName": "Gutef\u00e5r",
+      "widthX": 0.794,
+      "widthZ": 1.38,
+      "height": 1.919,
+      "maxHealth": 10.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 14,
+      "groupSizeMin": 3,
+      "groupSizeMax": 6,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.6,
+      "moveSpeedMax": 1.1,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 4.0,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "husdjur",
+      "spawn": {
+        "densityPerBiome": {
+          "HAGMARK": 0.06,
+          "BOKSKOG": 0.04,
+          "STRANDANG": 0.04,
+          "ALVAR": 0.03
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal",
+        "avoid": {
+          "fire": 8
+        }
+      },
+      "husbandry": {
+        "role": "livestock",
+        "tameWith": [
+          "salt",
+          "ho"
+        ],
+        "fodder": {
+          "item": "ho",
+          "perDay": 0.07,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "produce": {
+          "item": "ull",
+          "perDay": 0.25,
+          "capacity": 3.0,
+          "seasonal": true,
+          "harvestMonths": [
+            3,
+            5
+          ]
+        }
+      }
+    },
+    {
+      "id": "linderodssvin",
+      "displayName": "Linder\u00f6dsgris",
+      "widthX": 0.575,
+      "widthZ": 1.972,
+      "height": 1.512,
+      "maxHealth": 12.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 10,
+      "groupSizeMin": 2,
+      "groupSizeMax": 4,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.7,
+      "moveSpeedMax": 1.2,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 4.2,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "husdjur",
+      "spawn": {
+        "densityPerBiome": {
+          "BOKSKOG": 0.06,
+          "HAGMARK": 0.05,
+          "STRANDANG": 0.02
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal",
+        "avoid": {
+          "fire": 8
+        }
+      },
+      "husbandry": {
+        "role": "livestock",
+        "tameWith": [
+          "agn",
+          "ho"
+        ],
+        "fodder": {
+          "item": "agn",
+          "perDay": 0.1,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "id": "hona",
+      "displayName": "H\u00f6na",
+      "widthX": 0.4,
+      "widthZ": 1.012,
+      "height": 1.188,
+      "maxHealth": 3.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 16,
+      "groupSizeMin": 3,
+      "groupSizeMax": 6,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.5,
+      "moveSpeedMax": 1.0,
+      "moveDurationMin": 0.8,
+      "moveDurationMax": 3.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 4.4,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "fjaderfa",
+      "spawn": {
+        "densityPerBiome": {
+          "HAGMARK": 0.1,
+          "BOKSKOG": 0.05,
+          "STRANDANG": 0.05
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal"
+      },
+      "husbandry": {
+        "role": "poultry",
+        "tameWith": [
+          "korn",
+          "agn"
+        ],
+        "fodder": {
+          "item": "korn",
+          "perDay": 0.12,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "produce": {
+          "item": "agg",
+          "perDay": 1.0,
+          "capacity": 4.0,
+          "months": [
+            1,
+            9
+          ]
+        }
+      }
+    },
+    {
+      "id": "tamgas",
+      "displayName": "Tamg\u00e5s",
+      "widthX": 0.426,
+      "widthZ": 1.208,
+      "height": 1.638,
+      "maxHealth": 5.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 12,
+      "groupSizeMin": 2,
+      "groupSizeMax": 5,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.5,
+      "moveSpeedMax": 1.0,
+      "moveDurationMin": 0.8,
+      "moveDurationMax": 3.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 4.0,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "fjaderfa",
+      "spawn": {
+        "densityPerBiome": {
+          "HAGMARK": 0.06,
+          "STRANDANG": 0.06,
+          "BOKSKOG": 0.02
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal"
+      },
+      "husbandry": {
+        "role": "poultry",
+        "tameWith": [
+          "korn",
+          "agn"
+        ],
+        "fodder": {
+          "item": "korn",
+          "perDay": 0.1,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "produce": {
+          "item": "agg",
+          "perDay": 0.5,
+          "capacity": 3.0,
+          "months": [
+            2,
+            6
+          ]
+        }
+      }
+    },
+    {
+      "id": "fjordhast",
+      "displayName": "Fjordh\u00e4st",
+      "widthX": 0.633,
+      "widthZ": 2.329,
+      "height": 2.612,
+      "maxHealth": 22.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 8,
+      "groupSizeMin": 1,
+      "groupSizeMax": 3,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.8,
+      "moveSpeedMax": 1.4,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 5.4,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "husdjur",
+      "spawn": {
+        "densityPerBiome": {
+          "FJALLBJORKSKOG": 0.03,
+          "HAGMARK": 0.05,
+          "BOKSKOG": 0.03,
+          "ALVAR": 0.03
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal",
+        "avoid": {
+          "fire": 8
+        }
+      },
+      "husbandry": {
+        "role": "mount",
+        "tameWith": [
+          "morot",
+          "ho"
+        ],
+        "fodder": {
+          "item": "ho",
+          "perDay": 0.07,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "gait": {
+          "name": "walk",
+          "speed": 1.0,
+          "jolt": 0.4,
+          "steady": false
+        }
+      }
+    },
+    {
+      "id": "islandshast",
+      "displayName": "Islandsh\u00e4st",
+      "widthX": 0.575,
+      "widthZ": 2.185,
+      "height": 2.344,
+      "maxHealth": 20.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 6,
+      "groupSizeMin": 1,
+      "groupSizeMax": 3,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 0.9,
+      "moveSpeedMax": 1.5,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 5.8,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "husdjur",
+      "spawn": {
+        "densityPerBiome": {
+          "FJALLHED": 0.02,
+          "HAGMARK": 0.04,
+          "ALVAR": 0.02
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "diurnal",
+        "avoid": {
+          "fire": 8
+        }
+      },
+      "husbandry": {
+        "role": "mount",
+        "tameWith": [
+          "morot",
+          "ho"
+        ],
+        "fodder": {
+          "item": "ho",
+          "perDay": 0.08,
+          "ration": 0.5,
+          "pasture": [
+            4,
+            8
+          ]
+        },
+        "gait": {
+          "name": "tolt",
+          "speed": 1.5,
+          "jolt": 0.1,
+          "steady": true
+        }
+      }
+    },
+    {
+      "id": "jamthund",
+      "displayName": "J\u00e4mthund",
+      "widthX": 0.403,
+      "widthZ": 1.541,
+      "height": 1.567,
+      "maxHealth": 10.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 6,
+      "groupSizeMin": 1,
+      "groupSizeMax": 2,
+      "spawnScatterRadius": 3,
+      "behaviorType": "PASSIVE",
+      "moveSpeedMin": 1.0,
+      "moveSpeedMax": 1.8,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 10.0,
+      "aggressorFleeSpeed": 3.4,
+      "playerFleeSpeed": 5.4,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 0.0,
+      "attackDamage": 0.0,
+      "attackCooldown": 1.0,
+      "knockbackForce": 0.0,
+      "behavior": "hund",
+      "spawn": {
+        "densityPerBiome": {
+          "URSKOG": 0.02,
+          "TALLHED": 0.02,
+          "HAGMARK": 0.03,
+          "BRANNFALT": 0.02
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      },
+      "husbandry": {
+        "role": "hound",
+        "tameWith": [
+          "kott",
+          "fisk"
+        ],
+        "hound": {
+          "pointRange": 18.0,
+          "alertRange": 32.0,
+          "alerts": [
+            "varg",
+            "bjorn",
+            "lo",
+            "jarv"
+          ]
+        }
+      }
+    },
+    {
+      "id": "skogskatt",
+      "displayName": "Skogskatt",
+      "widthX": 0.4,
+      "widthZ": 1.466,
+      "height": 0.738,
+      "maxHealth": 4.0,
+      "medium": "LAND",
+      "spawnMinWaterDepth": 0,
+      "maxCount": 8,
+      "groupSizeMin": 1,
+      "groupSizeMax": 1,
+      "spawnScatterRadius": 3,
+      "behaviorType": "AGGRESSIVE",
+      "moveSpeedMin": 0.7,
+      "moveSpeedMax": 1.4,
+      "moveDurationMin": 1.0,
+      "moveDurationMax": 5.0,
+      "pauseDurationMin": 2.0,
+      "pauseDurationMax": 7.0,
+      "herding": false,
+      "herdRadius": 0.0,
+      "herdBias": 0.0,
+      "aggressorDetectRange": 0.0,
+      "aggressorFleeSpeed": 0.0,
+      "playerFleeSpeed": 5.0,
+      "playerFleeDurationMin": 2.0,
+      "playerFleeDurationMax": 4.0,
+      "aggroPlayerRange": 0.0,
+      "chaseSpeed": 0.0,
+      "attackRange": 1.4,
+      "attackDamage": 1.0,
+      "attackCooldown": 1.2,
+      "knockbackForce": 0.6,
+      "behavior": "katt",
+      "spawn": {
+        "densityPerBiome": {
+          "HAGMARK": 0.05,
+          "BOKSKOG": 0.04,
+          "STRANDANG": 0.03
+        },
+        "persistence": "resident",
+        "seasonCurve": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "timeOfDay": "crepuscular"
+      },
+      "husbandry": {
+        "role": "ratter",
+        "tameWith": [
+          "fisk",
+          "mjolk"
+        ],
+        "follow": 8.0
+      }
     }
   ]
 }

@@ -163,6 +163,9 @@ pub struct MobConfig {
     /// l'apparition d'origine (plafond, biomes, sols) pour celle du système de densité.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spawn: Option<crate::spawn_rules::SpawnRules>,
+    /// Fiche d'élevage d'un animal domestique (session 5.7, `husbandry.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub husbandry: Option<crate::husbandry::Husbandry>,
 }
 
 impl MobConfig {

@@ -176,6 +176,11 @@ impl WorldSession {
             after_ai.saturating_add(1),
             Box::new(nb_ecs::HerdSystem::new(seed, herds.clone())),
         );
+        // Élevage (fourrage, production, chien) : sans effet sans animal apprivoisé.
+        sim.schedule.insert(
+            after_ai.saturating_add(2),
+            Box::new(nb_ecs::HusbandrySystem::default()),
+        );
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,

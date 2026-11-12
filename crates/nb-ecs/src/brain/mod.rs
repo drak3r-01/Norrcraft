@@ -227,6 +227,8 @@ pub enum AnimalAct {
     Steal,
     /// A tué une proie.
     Kill,
+    /// Aboie (chien : arrêt devant le gibier, alerte sur un prédateur).
+    Bark,
 }
 
 /// Coup reçu : peur maximale, colère contre l'agresseur (un animal courageux charge).
@@ -909,7 +911,7 @@ fn opportunity(s: StateKind, b: &Brain, f: &Frame<'_>) -> f32 {
         }
         Migrate => {
             // Les déplacements saisonniers se font aux heures d'activité.
-            if f.migration.is_some() && threat.is_none() {
+            if (f.migration.is_some() || b.goal.is_some()) && threat.is_none() {
                 f.activity
             } else {
                 0.0
@@ -1031,11 +1033,11 @@ fn yaw_from_heading(h: f32) -> f32 {
     (std::f64::consts::FRAC_PI_2 - f64::from(h)) as f32
 }
 
-fn stop(v: &mut Velocity) {
+pub(crate) fn stop(v: &mut Velocity) {
     v.target = Default::default();
 }
 
-fn face(t: &mut Transform, to: DVec3) {
+pub(crate) fn face(t: &mut Transform, to: DVec3) {
     let d = to - t.pos;
     if d.x * d.x + d.z * d.z > 1e-6 {
         t.yaw = yaw_from_heading(d.z.atan2(d.x) as f32);

@@ -3,6 +3,87 @@
     "lemming": { "period": 4, "factors": [0.2, 1.0, 4.0, 0.5] }
   },
   "profiles": {
+    "husdjur": {
+      "activity": "diurnal",
+      "nightVision": 0.4,
+      "senses": { "sight": 24, "fov": 300, "hearing": 20, "smell": 24 },
+      "needs": { "hunger": 0.005, "thirst": 0.004, "fatigue": 0.003, "coldBelow": -0.5 },
+      "courage": 0.2,
+      "herd": true,
+      "fears": ["flockjagare", "allatare"],
+      "reactions": { "fire": { "fear": 0.6, "keepAway": 8 }, "surstromming": { "fear": 1.0 }, "kulning": { "attract": 1.0 } },
+      "seasons": { "birth": [3, 5] },
+      "states": [
+        { "state": "wander", "weight": 0.15 },
+        { "state": "graze", "weight": 0.9 },
+        { "state": "drink", "weight": 0.8 },
+        { "state": "sleep", "weight": 0.6 },
+        { "state": "flee", "weight": 1.2 },
+        { "state": "follow", "weight": 0.5 },
+        { "state": "migrate", "weight": 0.9 },
+        { "state": "swim", "weight": 2.0 }
+      ]
+    },
+    "fjaderfa": {
+      "activity": "diurnal",
+      "nightVision": 0.2,
+      "senses": { "sight": 18, "fov": 300, "hearing": 20, "smell": 6 },
+      "needs": { "hunger": 0.006, "thirst": 0.004, "fatigue": 0.004, "coldBelow": -0.6 },
+      "courage": 0.0,
+      "herd": true,
+      "fears": ["flockjagare", "allatare", "rovfagel", "nattrovfagel", "mardjakt", "rav", "vessla"],
+      "reactions": { "fire": { "fear": 0.6, "keepAway": 6 }, "surstromming": { "fear": 1.0 } },
+      "states": [
+        { "state": "wander", "weight": 0.2 },
+        { "state": "graze", "weight": 0.9 },
+        { "state": "drink", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.7 },
+        { "state": "flee", "weight": 1.3 },
+        { "state": "follow", "weight": 0.4 },
+        { "state": "migrate", "weight": 0.9 },
+        { "state": "swim", "weight": 2.0 }
+      ]
+    },
+    "hund": {
+      "activity": "always",
+      "nightVision": 0.7,
+      "senses": { "sight": 28, "fov": 260, "hearing": 40, "smell": 64 },
+      "needs": { "hunger": 0.005, "thirst": 0.005, "fatigue": 0.003, "coldBelow": -0.8 },
+      "courage": 0.7,
+      "hunts": ["betare", "smavilt", "skogsfagel", "tjaderfagel", "orrfagel", "snohona"],
+      "fears": ["flockjagare", "allatare"],
+      "reactions": { "fire": { "fear": 0.2 }, "surstromming": { "fear": 0.6 }, "kulning": { "attract": 1.0 } },
+      "states": [
+        { "state": "wander", "weight": 0.3 },
+        { "state": "drink", "weight": 0.7 },
+        { "state": "sleep", "weight": 0.5 },
+        { "state": "flee", "weight": 0.8 },
+        { "state": "threaten", "weight": 1.0 },
+        { "state": "migrate", "weight": 1.0 },
+        { "state": "swim", "weight": 2.0 }
+      ]
+    },
+    "katt": {
+      "activity": "crepuscular",
+      "nightVision": 0.9,
+      "senses": { "sight": 24, "fov": 240, "hearing": 36, "smell": 24 },
+      "needs": { "hunger": 0.006, "thirst": 0.004, "fatigue": 0.004, "coldBelow": -0.3 },
+      "courage": 0.4,
+      "hunts": ["gnagare"],
+      "fears": ["flockjagare", "allatare", "hund"],
+      "reactions": { "fire": { "fear": 0.4, "keepAway": 4 }, "surstromming": { "fear": 0.8 } },
+      "states": [
+        { "state": "wander", "weight": 0.2 },
+        { "state": "drink", "weight": 0.6 },
+        { "state": "sleep", "weight": 0.9 },
+        { "state": "stalk", "weight": 0.9 },
+        { "state": "pursue", "weight": 1.0 },
+        { "state": "attack", "weight": 1.3 },
+        { "state": "flee", "weight": 1.1 },
+        { "state": "migrate", "weight": 0.9 },
+        { "state": "swim", "weight": 2.0 }
+      ]
+    },
     "betare": {
       "activity": "crepuscular",
       "nightVision": 0.5,

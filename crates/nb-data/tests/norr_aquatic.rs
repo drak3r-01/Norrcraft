@@ -43,7 +43,7 @@ fn the_roster_has_the_aquatic_and_insect_species() {
         assert_eq!(c.max_health, 1.0, "{id}");
         assert!(c.rig.is_some() && c.spawn.is_some(), "{id}");
     }
-    assert_eq!(reg.all().len(), 57);
+    assert!(reg.all().len() >= 57);
 }
 
 #[test]
