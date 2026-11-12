@@ -24,7 +24,7 @@ use std::sync::Arc;
 use nb_core::glam::{DVec3, IVec3};
 use nb_core::JavaRandom;
 use nb_data::behavior::{BehaviorBook, Locomotion, Need, Profile, StateKind, Stimulus, PLAYER};
-use nb_data::{MobConfig, MobMedium, MobRegistry};
+use nb_data::{BlockRegistry, Gait, MobConfig, MobMedium, MobRegistry};
 use nb_world::weather::Environment;
 
 use crate::blocks::BlockAccess;
@@ -332,6 +332,7 @@ struct Frame<'a> {
     activity: f32,
     migration: Option<usize>,
     water_adjacent: bool,
+    in_water: bool,
 }
 
 impl System for BrainSystem {
@@ -452,6 +453,7 @@ impl System for BrainSystem {
                 activity,
                 migration: clock::migration(p, &clock),
                 water_adjacent,
+                in_water: b.in_water,
             };
 
             // 3. Choix de l'état.
@@ -466,7 +468,7 @@ impl System for BrainSystem {
                 &f,
                 &actors,
                 blocks,
-                water,
+                Ground::of(ctx.block_reg, cfg),
                 &mut ctx.rngs.brain,
                 &mut effects,
                 ctx.events,
@@ -1064,16 +1066,61 @@ fn steer(v: &mut Velocity, t: &mut Transform, medium: MobMedium, dir: DVec3, spe
 }
 
 /// Le terrain devant est-il praticable pour ce milieu ?
-fn passable(blocks: &dyn BlockAccess, pos: DVec3, h: f64, medium: MobMedium, water: u8) -> bool {
-    let (x, z) = (pos.x + h.cos() * 1.5, pos.z + h.sin() * 1.5);
+fn passable(
+    blocks: &dyn BlockAccess,
+    pos: DVec3,
+    h: f64,
+    medium: MobMedium,
+    g: Ground<'_>,
+) -> bool {
+    let (x, z) = (
+        floor_i(pos.x + h.cos() * 1.5),
+        floor_i(pos.z + h.sin() * 1.5),
+    );
     let y = floor_i(pos.y);
+    let ahead = blocks.block(x, y, z);
     match medium {
-        MobMedium::Water => blocks.block(floor_i(x), y, floor_i(z)) == water,
+        // Un amphibie sorti de l'eau peut gagner la rive.
+        MobMedium::Water if g.shore => ahead == g.water || !g.reg.from_id(ahead).solid,
+        MobMedium::Water => ahead == g.water,
         MobMedium::Land => {
-            blocks.block(floor_i(x), y, floor_i(z)) != water
-                && blocks.block(floor_i(x), y - 1, floor_i(z)) != water
+            ahead != g.water
+                && blocks.block(x, y - 1, z) != g.water
+                // La banquise : le pas suivant doit rester sur la glace.
+                && (!g.ice_only || g.reg.is_ice(blocks.block(x, y - 1, z)))
         }
-        MobMedium::Air => true,
+        _ => true,
+    }
+}
+
+/// Milieu effectif de déplacement, ramené à terre, eau ou air.
+fn effective(medium: MobMedium, in_water: bool) -> MobMedium {
+    match medium.gait(in_water) {
+        Gait::Walk => MobMedium::Land,
+        Gait::Swim => MobMedium::Water,
+        Gait::Fly => MobMedium::Air,
+    }
+}
+
+/// Ce que l'IA sait du sol : eau, registre, contraintes de milieu (glace, rive).
+#[derive(Clone, Copy)]
+struct Ground<'a> {
+    water: u8,
+    reg: &'a BlockRegistry,
+    /// Banquise : ne quitte pas la glace.
+    ice_only: bool,
+    /// Amphibie : l'eau n'est pas une impasse.
+    shore: bool,
+}
+
+impl<'a> Ground<'a> {
+    fn of(reg: &'a BlockRegistry, cfg: &MobConfig) -> Self {
+        Self {
+            water: reg.ids().water,
+            reg,
+            ice_only: cfg.medium == MobMedium::Ice,
+            shore: cfg.medium == MobMedium::Amphibian,
+        }
     }
 }
 
@@ -1083,16 +1130,16 @@ fn find_heading(
     pos: DVec3,
     h: f32,
     medium: MobMedium,
-    water: u8,
+    ground: Ground<'_>,
     in_water: bool,
 ) -> Option<f32> {
-    if in_water && medium == MobMedium::Land {
+    if in_water && medium == MobMedium::Land && !ground.ice_only {
         return Some(h);
     }
     for k in 0..8 {
         let sign = if k % 2 == 0 { 1.0 } else { -1.0 };
         let hh = h + sign * ((k + 1) / 2) as f32 * std::f32::consts::FRAC_PI_4;
-        if passable(blocks, pos, f64::from(hh), medium, water) {
+        if passable(blocks, pos, f64::from(hh), medium, ground) {
             return Some(hh);
         }
     }
@@ -1108,7 +1155,7 @@ fn wander(
     f: &Frame<'_>,
     leash: f64,
     blocks: &dyn BlockAccess,
-    water: u8,
+    ground: Ground<'_>,
     rng: &mut JavaRandom,
     dt: f32,
 ) {
@@ -1129,21 +1176,22 @@ fn wander(
     if (to_home.x * to_home.x + to_home.z * to_home.z).sqrt() > leash {
         h = to_home.z.atan2(to_home.x) as f32 + (rng.next_float() - 0.5) * 1.2;
     }
-    let Some(h) = find_heading(blocks, t.pos, h, c.medium, water, b.in_water) else {
+    let medium = effective(c.medium, b.in_water);
+    let Some(h) = find_heading(blocks, t.pos, h, medium, ground, b.in_water) else {
         b.move_timer = 1.0;
         return;
     };
     let speed =
         c.move_speed_min + rng.next_float() * (c.move_speed_max - c.move_speed_min).max(0.0);
     let mut dir = DVec3::new(f64::from(h).cos(), 0.0, f64::from(h).sin());
-    if c.medium != MobMedium::Land {
+    if medium != MobMedium::Land {
         dir.y = f64::from((rng.next_float() - 0.5) * 0.6);
     }
     if f.p.locomotion == Locomotion::Fly {
         let cruise = b.home.y + f64::from(f.p.cruise);
         dir.y = ((cruise - t.pos.y) / 8.0).clamp(-0.6, 0.6);
     }
-    steer(v, t, c.medium, dir, speed);
+    steer(v, t, medium, dir, speed);
     b.moving = true;
     b.move_timer = c.move_duration_min
         + rng.next_float() * (c.move_duration_max - c.move_duration_min).max(0.0);
@@ -1160,15 +1208,16 @@ fn go_to(
 ) -> f64 {
     let mut d = to - t.pos;
     let hd = (d.x * d.x + d.z * d.z).sqrt();
-    if hd <= arrive && (f.cfg.medium == MobMedium::Land || d.y.abs() <= arrive) {
+    let medium = effective(f.cfg.medium, f.in_water);
+    if hd <= arrive && (medium == MobMedium::Land || d.y.abs() <= arrive) {
         stop(v);
         face(t, to);
         return hd;
     }
-    if f.cfg.medium == MobMedium::Land {
+    if medium == MobMedium::Land {
         d.y = 0.0;
     }
-    steer(v, t, f.cfg.medium, d, speed);
+    steer(v, t, medium, d, speed);
     hd
 }
 
@@ -1180,7 +1229,7 @@ fn act(
     f: &Frame<'_>,
     actors: &[Actor],
     blocks: &dyn BlockAccess,
-    water: u8,
+    ground: Ground<'_>,
     rng: &mut JavaRandom,
     effects: &mut Vec<Effect>,
     events: &mut Vec<EcsEvent>,
@@ -1188,7 +1237,7 @@ fn act(
 ) {
     use StateKind::*;
     let sp = Speeds::of(f.cfg);
-    let medium = f.cfg.medium;
+    let medium = effective(f.cfg.medium, b.in_water);
     let here = IVec3::new(floor_i(t.pos.x), floor_i(t.pos.y), floor_i(t.pos.z));
     let mut pulse = |b: &mut Brain, period: f32, act: AnimalAct, pos: IVec3| {
         b.act_timer -= dt;
@@ -1217,23 +1266,23 @@ fn act(
         }
     };
     match b.state {
-        Wander => wander(b, t, v, f, HOME_LEASH, blocks, water, rng, dt),
+        Wander => wander(b, t, v, f, HOME_LEASH, blocks, ground, rng, dt),
         Guard => {
             if let Some((p, _, _)) = threat_point(b) {
                 stop(v);
                 face(t, p);
             } else {
-                wander(b, t, v, f, GUARD_LEASH, blocks, water, rng, dt);
+                wander(b, t, v, f, GUARD_LEASH, blocks, ground, rng, dt);
             }
         }
         Fly | Swim => {
-            if b.in_water && medium == MobMedium::Land {
+            if b.in_water && medium == MobMedium::Land && !ground.ice_only {
                 // Un marcheur tombé à l'eau rejoint la rive vers son gîte.
                 let to = b.home;
                 go_to(t, v, f, to, sp.walk, 0.5);
                 v.target.y = 2.0;
             } else {
-                wander(b, t, v, f, HOME_LEASH, blocks, water, rng, dt);
+                wander(b, t, v, f, HOME_LEASH, blocks, ground, rng, dt);
             }
         }
         Graze => {
@@ -1273,7 +1322,7 @@ fn act(
             if let Some((p, _, _)) = threat_point(b) {
                 let away = t.pos - p;
                 let h = away.z.atan2(away.x) as f32;
-                let h = find_heading(blocks, t.pos, h, medium, water, b.in_water).unwrap_or(h);
+                let h = find_heading(blocks, t.pos, h, medium, ground, b.in_water).unwrap_or(h);
                 let mut dir = DVec3::new(f64::from(h).cos(), 0.0, f64::from(h).sin());
                 if f.p.locomotion == Locomotion::Fly {
                     dir.y = 0.5;
@@ -1335,7 +1384,7 @@ fn act(
                 (None, None) => DVec3::ZERO,
             };
             let h = dir.z.atan2(dir.x) as f32;
-            match find_heading(blocks, t.pos, h, medium, water, b.in_water) {
+            match find_heading(blocks, t.pos, h, medium, ground, b.in_water) {
                 Some(h) => steer(
                     v,
                     t,

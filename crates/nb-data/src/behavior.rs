@@ -515,6 +515,12 @@ impl BehaviorBook {
         self.cycles.get(name)
     }
 
+    /// Facteur d'un cycle désigné par un renvoi (1 si le cycle est inconnu).
+    pub fn ref_factor(&self, c: &CycleRef, year: u64) -> f32 {
+        self.cycle(&c.name)
+            .map_or(1.0, |cy| cy.factor(year, c.lag))
+    }
+
     /// Facteur pluriannuel du profil pour l'année `year` (1 sans cycle).
     pub fn cycle_factor(&self, p: &Profile, year: u64) -> f32 {
         p.cycle

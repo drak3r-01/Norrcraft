@@ -100,8 +100,8 @@ cycle), `flockjagare` (loup, meute), `allatare` (ours, hibernation, charogne), `
 * Marge de 0,35 qui court-circuite l'hystérésis (sans elle un animal qui broute mettrait 2 s à
   fuir un loup surgi).
 * Migrer, parader et construire sont pondérés par l'activité de l'heure.
-* Les milieux AIR, AMPHIBIE et GLACE arrivent en 5.2 : un profil volant donne déjà des consignes
-  en 3D, mais la physique d'un mob `LAND` les ramène au sol.
+* Les milieux AIR, AMPHIBIAN et ICE existent depuis la 5.2 (`docs/BESTIAIRE_SPAWN.md`) : la
+  physique et l'IA suivent l'allure du milieu (`Gait`).
 * Le joueur ne peut pas encore s'accroupir ni porter du surströmming : le moteur lit les
   composants `Crouching` et `Emitter`, que le jeu posera avec les sessions concernées (feux,
   cloches, kulning en phase 6).

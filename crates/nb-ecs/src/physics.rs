@@ -5,7 +5,7 @@
 //! accumulations du raycast en `f32`).
 
 use nb_core::glam::{IVec3, Vec3};
-use nb_data::{BlockId, BlockRegistry, MobBehaviorType, MobMedium, MobRegistry};
+use nb_data::{BlockId, BlockRegistry, Gait, MobBehaviorType, MobMedium, MobRegistry};
 
 use crate::blocks::BlockAccess;
 use crate::components::{
@@ -18,6 +18,10 @@ use crate::world::EntityWorld;
 pub const FRICTION_GROUND: f32 = 6.0;
 pub const FRICTION_AIR: f32 = 2.0;
 pub const FRICTION_WATER: f32 = 4.0;
+/// Oiseaux et autres volants (session 5.2).
+pub const FRICTION_FLY: f32 = 3.0;
+/// Glace de banquise : les pas glissent (session 5.2).
+pub const FRICTION_ICE: f32 = 1.5;
 pub const FALL_DAMAGE_THRESHOLD: f32 = 10.0;
 pub const FALL_DAMAGE_SCALE: f32 = 0.5;
 pub const RAYCAST_STEP: f32 = 0.05;
@@ -409,7 +413,23 @@ impl System for PhysicsSystem {
             if world.has::<Player>(id) || world.has::<RemotePlayer>(id) {
                 continue;
             }
-            let water = matches!(mob_kind(world, ctx.mobs, id), Some((MobMedium::Water, _)));
+            let medium = mob_kind(world, ctx.mobs, id).map(|k| k.0);
+            let gait = medium.map_or(Gait::Walk, |m| {
+                let in_water = world.copy::<Transform>(id).is_some_and(|t| {
+                    env.blocks
+                        .block(floor_i(t.pos.x), floor_i(t.pos.y + 0.3), floor_i(t.pos.z))
+                        == env.reg.ids().water
+                });
+                m.gait(in_water)
+            });
+            let on_ice = medium == Some(MobMedium::Ice)
+                && world.copy::<Transform>(id).is_some_and(|t| {
+                    env.reg.is_ice(env.blocks.block(
+                        floor_i(t.pos.x),
+                        floor_i(t.pos.y - 0.1),
+                        floor_i(t.pos.z),
+                    ))
+                });
             let Some((t, v, c, mut h)) = world.query_one_mut::<(
                 &mut Transform,
                 &mut Velocity,
@@ -418,10 +438,15 @@ impl System for PhysicsSystem {
             )>(id) else {
                 continue;
             };
-            if water {
-                v.v.x = lerp(v.v.x, v.target.x, FRICTION_WATER * dt);
-                v.v.z = lerp(v.v.z, v.target.z, FRICTION_WATER * dt);
-                v.v.y = lerp(v.v.y, v.target.y, FRICTION_WATER * dt);
+            if gait != Gait::Walk {
+                let f = if gait == Gait::Fly {
+                    FRICTION_FLY
+                } else {
+                    FRICTION_WATER
+                };
+                v.v.x = lerp(v.v.x, v.target.x, f * dt);
+                v.v.z = lerp(v.v.z, v.target.z, f * dt);
+                v.v.y = lerp(v.v.y, v.target.y, f * dt);
                 // Chaque déplacement est évalué au moment de l'appel (comme en Java).
                 let d = v.v.x * dt;
                 env.move_axis_swim(t, v, c, d, 0.0, 0.0);
@@ -430,7 +455,9 @@ impl System for PhysicsSystem {
                 let d = v.v.y * dt;
                 env.move_axis_swim(t, v, c, 0.0, d, 0.0);
             } else {
-                let friction = if v.grounded {
+                let friction = if v.grounded && on_ice {
+                    FRICTION_ICE
+                } else if v.grounded {
                     FRICTION_GROUND
                 } else {
                     FRICTION_AIR

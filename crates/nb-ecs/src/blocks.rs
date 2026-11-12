@@ -97,6 +97,8 @@ pub struct MemoryBlocks {
     air: BlockId,
     tint: [f64; 3],
     biome: Option<nb_world::BiomeInfo>,
+    /// Biomes par rectangle `[x0, x1, z0, z1]` (bornes incluses), prioritaires sur `biome`.
+    zones: Vec<([i32; 4], nb_world::BiomeInfo)>,
 }
 
 impl MemoryBlocks {
@@ -127,6 +129,11 @@ impl MemoryBlocks {
     /// Biome renvoyé partout (`None` : le monde n'a pas de biomes, conditions d'apparition ignorées).
     pub fn set_biome(&mut self, biome: Option<nb_world::BiomeInfo>) {
         self.biome = biome;
+    }
+
+    /// Biome d'un rectangle `[x0, x1] × [z0, z1]` : plusieurs biomes dans un même banc d'essai.
+    pub fn set_biome_zone(&mut self, x: (i32, i32), z: (i32, i32), biome: nb_world::BiomeInfo) {
+        self.zones.push(([x.0, x.1, z.0, z.1], biome));
     }
 
     /// Remplit la boîte `[min, max]` (bornes inclusives).
@@ -182,8 +189,12 @@ impl BlockAccess for MemoryBlocks {
         self.tint
     }
 
-    fn biome_at(&self, _x: i32, _z: i32) -> Option<&nb_world::BiomeInfo> {
-        self.biome.as_ref()
+    fn biome_at(&self, x: i32, z: i32) -> Option<&nb_world::BiomeInfo> {
+        self.zones
+            .iter()
+            .find(|(r, _)| (r[0]..=r[1]).contains(&x) && (r[2]..=r[3]).contains(&z))
+            .map(|(_, b)| b)
+            .or(self.biome.as_ref())
     }
 }
 

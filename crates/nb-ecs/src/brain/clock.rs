@@ -22,6 +22,8 @@ pub struct Clock {
     pub year: u64,
     /// Hauteur du soleil, de −1 à 1.
     pub sun: f32,
+    /// Fraction de l'année écoulée (0 à 1), pour les courbes saisonnières.
+    pub year_fraction: f64,
 }
 
 impl Clock {
@@ -30,14 +32,15 @@ impl Clock {
     pub fn of(cfg: &WorldConfig, sun: Option<f32>) -> Self {
         let cal = Calendar::new(cfg.days_per_month);
         let date = cal.date(cfg.calendar_day);
+        let a = cal.year_fraction(cfg.calendar_day, cfg.time_of_day);
         let sun = sun.unwrap_or_else(|| {
-            let a = cal.year_fraction(cfg.calendar_day, cfg.time_of_day);
             calendar::sun_height(cfg.time_of_day, DayLight::at(a, DEFAULT_LATITUDE).bias)
         });
         Self {
             month: date.month,
             year: date.year,
             sun,
+            year_fraction: a,
         }
     }
 

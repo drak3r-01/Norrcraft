@@ -5,12 +5,13 @@ use std::f64::consts::PI;
 
 use nb_core::math::CHUNK_SIZE_Y;
 use nb_core::JavaRandom;
-use nb_data::{BlockRegistry, MobBehaviorType, MobConfig, MobMedium};
+use nb_data::{BlockRegistry, MobBehaviorType, MobConfig, MobMedium, Persistence};
 
 use crate::blocks::BlockAccess;
 use crate::components::{
     AggressiveAi, Collider, EntityId, Health, MobType, PassiveAi, Transform, Velocity,
 };
+use crate::density;
 use crate::jmath::floor_f;
 use crate::schedule::{EcsEvent, System, TickCtx};
 use crate::world::EntityWorld;
@@ -51,10 +52,45 @@ impl System for MobSpawnSystem {
         // Despawn : distance horizontale en f32 (B21), au joueur le plus proche.
         let r = ctx.config.mob_despawn_radius as f32;
         let max_dist_sq = r * ctx.config.mob_despawn_radius as f32;
+        // Règles de densité (session 5.2) : espèces hors saison, joueurs pour la visibilité.
+        let moment = density::Moment::of(ctx.config, ctx.environment);
+        let extinct = density::extinct(ctx, &moment);
+        let viewers = density::viewers(world);
         for id in world.query_ids::<(&MobType, &Transform)>() {
             let Some(t) = world.copy::<Transform>(id) else {
                 continue;
             };
+            let rules = world
+                .get::<MobType>(id)
+                .and_then(|m| ctx.mobs.get(&m.mob_id))
+                .and_then(|c| c.spawn.as_ref().map(|r| (c.id.as_str(), r.persistence)));
+            if let Some((mob_id, persistence)) = rules {
+                let gone = if persistence == Persistence::Ephemeral {
+                    let far = {
+                        let nearest_sq = origins
+                            .iter()
+                            .map(|o| {
+                                let dx = t.pos.x as f32 - o.x;
+                                let dz = t.pos.z as f32 - o.z;
+                                dx * dx + dz * dz
+                            })
+                            .fold(f32::MAX, f32::min);
+                        nearest_sq > max_dist_sq
+                    };
+                    far || (extinct.contains(mob_id)
+                        && !density::in_view(&viewers, t.pos)
+                        && ctx.rngs.spawn.next_float() < density::VANISH_CHANCE)
+                } else {
+                    // Sédentaires, hardes, uniques : ils restent tant que leur lieu existe.
+                    !ctx.blocks
+                        .is_chunk_loaded(floor_f(t.pos.x as f32), floor_f(t.pos.z as f32))
+                };
+                if gone {
+                    world.destroy(id);
+                    ctx.events.push(EcsEvent::MobDespawned { entity: id });
+                }
+                continue;
+            }
             let nearest_sq = origins
                 .iter()
                 .map(|o| {
@@ -70,7 +106,7 @@ impl System for MobSpawnSystem {
         }
 
         let radius = ctx.config.mob_spawn_radius;
-        for cfg in ctx.mobs.all() {
+        for cfg in ctx.mobs.all().iter().filter(|c| c.spawn.is_none()) {
             let count = world
                 .query_ids::<&MobType>()
                 .into_iter()
@@ -95,15 +131,22 @@ impl System for MobSpawnSystem {
                 );
             }
         }
+        let cap_players = players;
+        density::run(
+            world,
+            ctx,
+            (floor_f(origin.x), floor_f(origin.z)),
+            cap_players,
+        );
     }
 }
 
-struct Spawner<'a> {
-    blocks: &'a dyn BlockAccess,
-    reg: &'a BlockRegistry,
-    origin_x: i32,
-    origin_z: i32,
-    radius: i32,
+pub(crate) struct Spawner<'a> {
+    pub(crate) blocks: &'a dyn BlockAccess,
+    pub(crate) reg: &'a BlockRegistry,
+    pub(crate) origin_x: i32,
+    pub(crate) origin_z: i32,
+    pub(crate) radius: i32,
 }
 
 impl Spawner<'_> {
@@ -166,11 +209,7 @@ impl Spawner<'_> {
                 if gy < 0 {
                     continue;
                 }
-                let y = if cfg.medium == MobMedium::Land {
-                    f64::from(gy)
-                } else {
-                    f64::from(gy) + 0.5
-                };
+                let y = feet_y(cfg, self.blocks, self.reg, gx, gy, gz);
                 let id = spawn_mob(world, cfg, f64::from(gx) + 0.5, y, f64::from(gz) + 0.5, rng);
                 events.push(EcsEvent::MobSpawned { entity: id });
             }
@@ -178,13 +217,23 @@ impl Spawner<'_> {
         }
     }
 
-    fn find_spawn_y(&self, cfg: &MobConfig, x: i32, z: i32) -> i32 {
+    pub(crate) fn find_spawn_y(&self, cfg: &MobConfig, x: i32, z: i32) -> i32 {
         let y = match cfg.medium {
             MobMedium::Land => find_surface_y(self.blocks, self.reg, x, z),
             MobMedium::Water => {
                 find_water_y(self.blocks, self.reg, x, z, cfg.spawn_min_water_depth)
             }
-            MobMedium::Air => -1,
+            // Sans règles de densité, un volatile n'apparaît pas (comportement d'origine).
+            MobMedium::Air if cfg.spawn.is_none() => -1,
+            MobMedium::Air => find_air_y(self.blocks, self.reg, cfg, x, z),
+            MobMedium::Ice => find_ice_y(self.blocks, self.reg, x, z),
+            MobMedium::Amphibian => find_shore_y(
+                self.blocks,
+                self.reg,
+                x,
+                z,
+                cfg.spawn_min_water_depth.max(2),
+            ),
         };
         if y < 0 || !cfg.has_habitat() || self.habitat_ok(cfg, x, y, z) {
             y
@@ -206,9 +255,14 @@ impl Spawner<'_> {
             }
         }
         let water = self.reg.ids().water;
-        // Sol : sous les pieds d'un terrestre, fond de la colonne d'eau pour un aquatique.
+        // Un volatile ne dépend d'aucun sol : seuls l'altitude et le biome comptent.
+        if cfg.medium == MobMedium::Air {
+            return true;
+        }
+        // En l'eau (aquatique, amphibie à la nage) on regarde le fond, sinon sous les pieds.
+        let wet = self.blocks.block(x, y, z) == water;
         let mut floor_y = y - 1;
-        if cfg.medium == MobMedium::Water {
+        if wet {
             while floor_y > 0 && self.blocks.block(x, floor_y, z) == water {
                 floor_y -= 1;
             }
@@ -223,9 +277,7 @@ impl Spawner<'_> {
             }
         }
         let floor = self.reg.from_id(self.blocks.block(x, floor_y, z));
-        if cfg.medium == MobMedium::Land
-            && (floor.name.ends_with("leaves") || floor.name == "cactus" || !floor.solid)
-        {
+        if !wet && (floor.name.ends_with("leaves") || floor.name == "cactus" || !floor.solid) {
             return false;
         }
         cfg.spawn_surfaces.is_empty() || cfg.spawn_surfaces.contains(&floor.name)
@@ -306,4 +358,99 @@ pub fn spawn_mob(
         world.insert(id, PassiveAi::default());
     }
     id
+}
+
+/// Hauteur des pieds pour une colonne `gy` renvoyée par `find_spawn_y` : sur le sol pour un
+/// marcheur (ou un amphibie à terre), au milieu du bloc pour un nageur ou un volatile.
+pub(crate) fn feet_y(
+    cfg: &MobConfig,
+    blocks: &dyn BlockAccess,
+    reg: &BlockRegistry,
+    x: i32,
+    gy: i32,
+    z: i32,
+) -> f64 {
+    let floating = match cfg.medium {
+        MobMedium::Land | MobMedium::Ice => false,
+        MobMedium::Water | MobMedium::Air => true,
+        MobMedium::Amphibian => blocks.block(x, gy, z) == reg.ids().water,
+    };
+    f64::from(gy) + if floating { 0.5 } else { 0.0 }
+}
+
+/// Hauteur d'apparition d'un volatile : au-dessus du plus haut bloc (terre, arbre ou eau) de la
+/// colonne, à l'altitude de croisière du profil (ou `spawn.altitude`), sous le plafond du monde.
+pub fn find_air_y(
+    blocks: &dyn BlockAccess,
+    reg: &BlockRegistry,
+    cfg: &MobConfig,
+    x: i32,
+    z: i32,
+) -> i32 {
+    let air = reg.ids().air;
+    let mut col = [air; CHUNK_SIZE_Y];
+    blocks.read_column(x, z, &mut col);
+    let Some(top) = (0..CHUNK_SIZE_Y).rev().find(|&y| col[y] != air) else {
+        return -1;
+    };
+    let altitude = cfg
+        .spawn
+        .as_ref()
+        .and_then(|r| r.altitude)
+        .or_else(|| {
+            cfg.behavior.as_deref().and_then(|n| {
+                nb_data::behavior::BehaviorBook::builtin()
+                    .get(n)
+                    .map(|p| p.cruise)
+            })
+        })
+        .unwrap_or(10.0)
+        .max(2.0);
+    let y = (top as i32 + 1 + altitude as i32).min(CHUNK_SIZE_Y as i32 - 8);
+    if y <= top as i32 {
+        return -1;
+    }
+    y
+}
+
+/// Premier bloc plein de la colonne s'il est de la glace et à l'air libre : `y + 1`, sinon −1.
+pub fn find_ice_y(blocks: &dyn BlockAccess, reg: &BlockRegistry, x: i32, z: i32) -> i32 {
+    let air = reg.ids().air;
+    let mut col = [air; CHUNK_SIZE_Y];
+    blocks.read_column(x, z, &mut col);
+    for y in (1..CHUNK_SIZE_Y).rev() {
+        if !reg.from_id(col[y]).solid {
+            continue;
+        }
+        let above = col.get(y + 1).copied().unwrap_or(air);
+        let free = !reg.from_id(above).solid && above != reg.ids().water;
+        return if reg.is_ice(col[y]) && free {
+            y as i32 + 1
+        } else {
+            -1
+        };
+    }
+    -1
+}
+
+/// Habitat d'un amphibie : la rive (sol à l'air libre avec de l'eau à 3 blocs ou moins) ou à
+/// défaut une colonne d'eau d'au moins `min_depth` blocs.
+pub fn find_shore_y(
+    blocks: &dyn BlockAccess,
+    reg: &BlockRegistry,
+    x: i32,
+    z: i32,
+    min_depth: i32,
+) -> i32 {
+    let water = reg.ids().water;
+    let land = find_surface_y(blocks, reg, x, z);
+    if land > 0 {
+        let wet_near = (-3..=3).any(|dx| {
+            (-3..=3).any(|dz| (land - 2..land).any(|y| blocks.block(x + dx, y, z + dz) == water))
+        });
+        if wet_near {
+            return land;
+        }
+    }
+    find_water_y(blocks, reg, x, z, min_depth)
 }

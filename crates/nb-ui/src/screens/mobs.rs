@@ -76,6 +76,8 @@ fn medium_name(m: MobMedium) -> &'static str {
         MobMedium::Land => "LAND",
         MobMedium::Water => "WATER",
         MobMedium::Air => "AIR",
+        MobMedium::Amphibian => "AMPHIBIAN",
+        MobMedium::Ice => "ICE",
     }
 }
 

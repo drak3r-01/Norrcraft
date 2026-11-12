@@ -33,6 +33,39 @@ pub enum MobMedium {
     Land,
     Water,
     Air,
+    /// Phoque, castor, loutre : nage dans l'eau, marche à terre (session 5.2).
+    Amphibian,
+    /// Banquise : ne quitte pas la glace et y glisse (session 5.2).
+    Ice,
+}
+
+/// Allure effective d'un mob à un instant : ce que la physique et l'IA doivent faire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Gait {
+    /// Marche, avec gravité.
+    Walk,
+    /// Nage en 3D, sans gravité (eau).
+    Swim,
+    /// Vole en 3D, sans gravité (air).
+    Fly,
+}
+
+impl MobMedium {
+    /// Allure selon que le mob est dans l'eau ou non.
+    pub fn gait(self, in_water: bool) -> Gait {
+        match self {
+            MobMedium::Land | MobMedium::Ice => Gait::Walk,
+            MobMedium::Water => Gait::Swim,
+            MobMedium::Air => Gait::Fly,
+            MobMedium::Amphibian if in_water => Gait::Swim,
+            MobMedium::Amphibian => Gait::Walk,
+        }
+    }
+
+    /// Le mob se déplace-t-il en 3D (nage ou vol) à cet instant ?
+    pub fn is_3d(self, in_water: bool) -> bool {
+        self.gait(in_water) != Gait::Walk
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -121,6 +154,10 @@ pub struct MobConfig {
     /// par le moteur d'états (`nb-ecs::brain`) au lieu des IA passive et agressive d'origine.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub behavior: Option<String>,
+    /// Apparition par densité cible (session 5.2, `spawn_rules.rs`) : le mob quitte alors
+    /// l'apparition d'origine (plafond, biomes, sols) pour celle du système de densité.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spawn: Option<crate::spawn_rules::SpawnRules>,
 }
 
 impl MobConfig {
@@ -159,6 +196,18 @@ impl MobConfig {
         }
         if let Some(s) = obj.get("behavior").and_then(Value::as_str) {
             self.behavior = (!s.is_empty()).then(|| s.to_owned());
+        }
+        if let Some(v) = obj.get("spawn") {
+            if v.is_null() {
+                self.spawn = None;
+            } else if let Ok(rules) =
+                serde_json::from_value::<crate::spawn_rules::SpawnRules>(v.clone())
+            {
+                // Règles incohérentes : ignorées, comme tout champ invalide.
+                if rules.validate().is_ok() {
+                    self.spawn = Some(rules);
+                }
+            }
         }
         f32_field! {
             "widthX" => width_x, "widthZ" => width_z, "height" => height,

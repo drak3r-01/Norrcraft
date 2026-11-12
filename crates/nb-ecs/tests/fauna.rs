@@ -64,7 +64,9 @@ fn fauna_data_is_valid() {
         match c.medium {
             MobMedium::Land => assert_eq!(c.spawn_min_water_depth, 0, "{id}"),
             MobMedium::Water => assert!(c.spawn_min_water_depth >= 2, "{id} : profondeur"),
-            MobMedium::Air => panic!("{id} : milieu aérien non géré"),
+            MobMedium::Air | MobMedium::Amphibian | MobMedium::Ice => {
+                panic!("{id} : milieu non géré en vanilla")
+            }
         }
         if c.behavior_type == nb_data::MobBehaviorType::Aggressive {
             assert!(
@@ -314,7 +316,7 @@ fn every_animal_has_a_viable_habitat_in_generated_worlds() {
                                     && (c.spawn_surfaces.is_empty()
                                         || c.spawn_surfaces.contains(floor))
                             }),
-                            MobMedium::Air => false,
+                            MobMedium::Air | MobMedium::Amphibian | MobMedium::Ice => false,
                         };
                         if ok {
                             *viable.get_mut(&c.id).unwrap() += 1;

@@ -23,6 +23,7 @@ pub mod blocks;
 pub mod brain;
 pub mod command;
 pub mod components;
+pub mod density;
 pub mod crafting;
 pub mod health;
 pub mod input;

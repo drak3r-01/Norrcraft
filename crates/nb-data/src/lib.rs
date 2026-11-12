@@ -13,6 +13,7 @@ pub mod pack;
 pub mod particles;
 pub mod recipes;
 pub mod settings;
+pub mod spawn_rules;
 pub mod survival;
 pub mod universe;
 
@@ -21,10 +22,11 @@ pub use blocks::{
     BLOCKS_JSON, CRAFT_BLOCKS_JSON, UNASSIGNED_ID,
 };
 pub use behavior::{BehaviorBook, Profile, StateKind, Stimulus};
+pub use spawn_rules::{Avoid, Persistence, Sky, SpawnRules};
 pub use universe::WorldKind;
 pub use items::{ItemId, ItemInfo, ItemRegistry, FIRST_PURE_ITEM, ITEMS_JSON, STACK_MAX};
 pub use mobs::{
-    builtin_mob_ids, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,
+    builtin_mob_ids, Gait, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,
     BUILTIN_MOB_IDS,
 };
 pub use pack::PackMeta;

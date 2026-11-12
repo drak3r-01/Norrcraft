@@ -710,6 +710,15 @@ impl BlockRegistry {
         &self.ids
     }
 
+    /// Bloc de glace sur lequel marchent et glissent les animaux de banquise (vanilla :
+    /// `ice`, `packed_ice` ; Norrcraft : `blais`, `havsis`, `nyis`, `is`, `tjockis`).
+    pub fn is_ice(&self, id: BlockId) -> bool {
+        matches!(
+            self.from_id(id).name.as_str(),
+            "ice" | "packed_ice" | "blais" | "havsis" | "nyis" | "is" | "tjockis"
+        )
+    }
+
     /// `BlockRegistry.fromId` : un identifiant inconnu retourne l'air.
     pub fn from_id(&self, id: BlockId) -> &BlockType {
         self.by_id[usize::from(id)]

@@ -4,7 +4,7 @@ use std::f64::consts::PI;
 
 use nb_core::glam::DVec3;
 use nb_core::JavaRandom;
-use nb_data::{MobConfig, MobMedium, MobRegistry};
+use nb_data::{Gait, MobConfig, MobMedium, MobRegistry};
 
 use crate::components::{
     AggressiveAi, Collider, EntityId, GameMode, Health, MobType, PassiveAi, Player, RemotePlayer,
@@ -43,7 +43,7 @@ fn set_heading(
     vang: f32,
     speed: f32,
 ) {
-    if medium == MobMedium::Land {
+    if medium.gait(false) == Gait::Walk {
         v.target.x = (f64::from(h).cos() as f32) * speed;
         v.target.z = (f64::from(h).sin() as f32) * speed;
         v.target.y = 0.0;
@@ -252,7 +252,7 @@ fn choose_idle_direction(
     rng: &mut JavaRandom,
 ) -> Option<(f32, f32)> {
     let mut h = build_h_angle(cfg, t, p, rng);
-    if cfg.medium == MobMedium::Land {
+    if cfg.medium.gait(false) == Gait::Walk {
         return Some((h, 0.0));
     }
     let water = env.reg.ids().water;
@@ -299,7 +299,7 @@ pub fn trigger_player_flee(
     else {
         return;
     };
-    if cfg.medium == MobMedium::Land {
+    if cfg.medium.gait(false) == Gait::Walk {
         let a = rng.next_float() * TWO_PI_F;
         v.target.x = (f64::from(a).cos() as f32) * cfg.player_flee_speed;
         v.target.z = (f64::from(a).sin() as f32) * cfg.player_flee_speed;
@@ -490,7 +490,7 @@ fn tick_chase(world: &mut EntityWorld, id: EntityId, target: EntityId, dist: f64
         t.yaw = yaw_from_heading(h);
         v.target.x = d.x as f32 * inv * cfg.chase_speed;
         v.target.z = d.z as f32 * inv * cfg.chase_speed;
-        if cfg.medium != MobMedium::Land {
+        if cfg.medium.gait(false) != Gait::Walk {
             v.target.y = d.y as f32 * inv * cfg.chase_speed;
             t.pitch = -vang;
         }
@@ -521,7 +521,7 @@ fn tick_idle(
         let h = rng.next_float() * TWO_PI_F;
         let speed =
             cfg.move_speed_min + rng.next_float() * (cfg.move_speed_max - cfg.move_speed_min);
-        let vang = if cfg.medium == MobMedium::Land {
+        let vang = if cfg.medium.gait(false) == Gait::Walk {
             0.0
         } else {
             (rng.next_float() - 0.5) * PI_OVER_5_F

@@ -252,6 +252,7 @@ fn lemming_peak_year_and_lagging_predators() {
         month: 5,
         year,
         sun: 1.0,
+        year_fraction: 0.4,
     };
     let lem: Vec<f32> = (1..=4)
         .map(|y| clock::cycle_factor(&book, lemming, &at(y)))
