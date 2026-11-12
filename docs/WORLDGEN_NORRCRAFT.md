@@ -651,7 +651,7 @@ faille ouverte sous un cairn.
 **Provisoire.** Les sites dont le bâtiment n'existe pas encore (`Rule::built == false`) portent un
 **jalon** : cairn de 2 (mineur), 4 (moyen) ou 6 blocs (majeur), sauf les sites flottants.
 `structures::PLACEHOLDERS = false` les retire ; chaque session 4.x passe `built` à `true` pour ses
-types et remplace le jalon. Le röse (4.1), les neuf types d'habitat (4.2) et les onze types de patrimoine (4.3) sont construits.
+types et remplace le jalon. Le röse (4.1), les neuf types d'habitat (4.2), les onze types de patrimoine (4.3) et les huit d'industrie et de nature (4.4) sont construits.
 
 Trois blocs neufs (ids 129 à 131), textures vanilla réutilisées (`mossy_cobblestone`,
 `spruce_planks`, `dirt_path_*`) : `rosesten`, `planka`, `stig`.
@@ -731,6 +731,51 @@ du Lindorm ni de cadran fonctionnel (8.3), le moulin ne moud pas (6.8), les rune
 (7.2), le coffre et la cloche sont des blocs pleins, les épaves sont un décor et non le navire de
 guerre complet du doc, la lanterne n'a ni lentille ni rotation. Tests : `tests/norrcraft_buildings.rs`
 (vingt types, pièces conformes à plus de 97 %).
+
+## Industrie et nature (session 4.4, doc 02 §10.1)
+
+`norrcraft/buildings.rs` construit huit types de plus (`Rule::built = true`, leur jalon disparaît ;
+29 types sur 33 sont construits, restent **bergasal**, **bro**, **sejte** et **flyttblock**, qui
+gardent leur jalon). Même mécanisme qu'en 4.2 et 4.3 (pièces à sol propre, déblai, fondation, arbres
+écartés). Les pièces peuvent descendre sous le sol : un voxel `Air` à `y < 0` creuse la roche.
+
+* **Gruva** (Bergslag) : chevalement à deux portiques en A de rondins, poulie, collier de pierre,
+  puits de 3 × 3 cuvelé de planches sur 8 à 14 blocs (selon la hauteur du sol) avec une mare au fond,
+  deux galeries étayées (14 blocs vers `+x`, 12 vers `−z`) avec rails de planches et wagonnets, bout
+  de galerie noyé derrière une cloison, bâtiment des machines en bois gris, halde de stériles.
+* **Hytta** (Bergslag, près d'une marche de W) : cuve de pierre à parois fines, éventrée au sommet
+  (tirage par colonne), arche de chargement, sole de charbon et de scories, roue à eau de rondins à
+  rayons avec son axe et son bief sur pilotis, halle à charbon (poteaux, toit de planches, tas de
+  charbon) et tas de scories bleues.
+* **Kolmila** (Tallhed, Urskog) : meule éteinte, dôme de bûches sous les mottes, cratère de charbon,
+  charbon épars et pile de bûches.
+* **Tjärdal** (Tallhed) : talus de terre, entonnoir creusé dont le fond est en goudron, gouttière de
+  planches, tonneaux, bûcher de souches.
+* **Bäverdamm** (Älv, Sjöland) : hutte de branches en retrait de l'eau (porte vers l'eau) et digue de
+  rondins et de boue de deux blocs d'épaisseur en travers de l'eau, un bloc au-dessus de la surface
+  (sondes `WaterColumn`, colonnes de moins de 6 blocs de profondeur ; cinq colonnes au moins, sinon
+  seule la hutte est posée).
+* **Björnide** (Urskog) : tertre de terre et de roche, chambre garnie de foin, entrée basse vers
+  `+z`, grosse souche et racines.
+* **Geyser** (Lavafält) : terrasse de sinter, cône de 5 blocs dont le sommet est un bassin d'eau sur
+  un évent de magma, bain chaud à margelle étanche, orgues basaltiques en couronne.
+* **Vårdkase** (Högkust, Klintkust, Fjällhed) : socle de pierres, trépied de trois jambes de
+  rondins, bûcher de rondins et de foin, baril de goudron au sommet, foyer de veille au pied. Non
+  allumé : l'allumage des neuf feux de la saga relève de la 8.2.
+
+Quatre blocs neufs (ids 154 à 157, textures vanilla) : `kol` (charbon de bois), `blaslagg` (scories
+bleues, `packed_ice`), `geyserit` (sinter, `calcite`), `hetsten` (magma, émet 4). Les mottes et les
+orgues réutilisent `torv` et `basaltsten`. **Poids relevés** (3 graines) : gruva 0,50, hytta 0,40,
+vårdkase 0,50 / 0,35 / 0,15 (Högkust, Klintkust, Fjällhed), geyser 0,50 ; ces biomes sont rares à
+l'échelle de 8 km, le test de présence élargit la zone à ±7 km.
+
+Écarts : pas d'étang en amont du barrage (la surface de l'eau n'est pas relevée ; « détruire le
+barrage vide l'étang » du doc 03 attend la dynamique de l'eau), pas de rails fonctionnels ni de
+wagonnets mobiles, pas de minerai dans la mine (les gisements sont ceux de la 2.2), le haut
+fourneau ne fonctionne pas (6.7), pas de vapeur ni d'éruption du geyser, la tanière n'est occupée
+par aucun ours (5.x), la roue ne tourne pas (6.6), la cloison du puits noyé est un décor. Tests :
+`tests/norrcraft_buildings.rs` (28 types, pièces conformes à plus de 97 %) ; les empreintes de
+relief de la graine −98765 changent (un des nouveaux bâtiments est posé dans la zone d'étude).
 
 ## Outil `worldmap`
 

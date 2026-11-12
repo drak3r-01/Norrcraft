@@ -13,9 +13,9 @@
 //! résultat est une fonction pure de (graine, cellule), indépendante de l'ordre des chunks.
 //!
 //! La table [`RULES`] décrit déjà tout le catalogue du doc 02 §10.1 ; les **rösen** (4.1), l'habitat
-//! (4.2) et le patrimoine (4.3) sont construits (`buildings`).
-//! Les autres sites portent un *jalon* provisoire (un tas de pierres
-//! plus ou moins haut selon la classe, voir [`PLACEHOLDERS`]) que les sessions 4.2 à 4.4 remplacent
+//! (4.2), le patrimoine (4.3) et l'industrie et la nature (4.4) sont construits (`buildings`).
+//! Les autres sites (bergasal, bro, sejte, flyttblock) portent un *jalon* provisoire (un tas de
+//! pierres plus ou moins haut selon la classe, voir [`PLACEHOLDERS`]) que leur session remplacera
 //! par leur bâtiment (champ [`Rule::built`]).
 //!
 //! # Pistes (§10.3)
@@ -319,20 +319,20 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         "gruva",
         Major,
         24,
-        &[(B::Bergslag, 0.35)],
+        &[(B::Bergslag, 0.50)],
         t(6, 2, 120, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Hytta,
         "hytta",
         Major,
         20,
-        &[(B::Bergslag, 0.25)],
+        &[(B::Bergslag, 0.40)],
         t(6, 2, 120, Wet::Dry, Extra::StepNear(20)),
         false,
-        false,
+        true,
     ),
     rule(
         K::Fornborg,
@@ -364,13 +364,13 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         Major,
         6,
         &[
-            (B::Hogkust, 0.25),
-            (B::Klintkust, 0.15),
-            (B::Fjallhed, 0.05),
+            (B::Hogkust, 0.50),
+            (B::Klintkust, 0.35),
+            (B::Fjallhed, 0.15),
         ],
         t(6, 12, FAR, Wet::Dry, Extra::LocalMax(40)),
         false,
-        false,
+        true,
     ),
     // --- Moyennes (pas 96) ------------------------------------------------------------------
     rule(
@@ -529,7 +529,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Alv, 0.12), (B::Sjoland, 0.06)],
         t(4, 0, 80, Wet::Shore(Shore::Any, 5), Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Bjornide,
@@ -539,7 +539,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Urskog, 0.05)],
         t(5, 2, 100, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Tjardal,
@@ -549,17 +549,17 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Tallhed, 0.04)],
         t(4, 2, 100, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Geyser,
         "geyser",
         Medium,
         8,
-        &[(B::Lavafalt, 0.12)],
+        &[(B::Lavafalt, 0.50)],
         t(4, 0, 100, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     // --- Mineures (pas 32) ------------------------------------------------------------------
     rule(
@@ -639,7 +639,7 @@ pub const RULES: [Rule; StructKind::COUNT] = [
         &[(B::Tallhed, 0.015), (B::Urskog, 0.008)],
         t(2, 2, 100, Wet::Dry, Extra::None),
         false,
-        false,
+        true,
     ),
     rule(
         K::Rosen,
@@ -1878,8 +1878,8 @@ mod tests {
     #[test]
     fn cairns_are_rule_driven() {
         assert!(RULES[K::Rosen as usize].built);
-        // Rösen + les neuf types d'habitat de la session 4.2 et les onze du patrimoine de la 4.3.
-        assert!(RULES.iter().filter(|r| r.built).count() == 21);
+        // Rösen + habitat (4.2) + patrimoine (4.3) + industrie et nature (4.4, huit types).
+        assert!(RULES.iter().filter(|r| r.built).count() == 29);
         assert!(RULES.iter().filter(|r| r.track).all(|r| r.class != Minor));
     }
 

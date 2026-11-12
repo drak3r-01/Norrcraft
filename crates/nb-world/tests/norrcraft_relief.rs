@@ -37,7 +37,7 @@ fn chunk_fingerprint(seed: i64) -> u64 {
 /// avec une ligne dans le compte rendu de session.
 const FINGERPRINTS: [(i64, u64); 3] = [
     (12345, 0x4355f7ce0253b0b5),
-    (-98765, 0xa5911d47ae8aea27),
+    (-98765, 0xc2bd141be2dc3258),
     (20261111, 0x5b00566a684364cb),
 ];
 

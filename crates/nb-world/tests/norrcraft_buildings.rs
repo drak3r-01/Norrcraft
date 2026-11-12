@@ -16,7 +16,7 @@ const SEEDS: [i64; 3] = [12345, -98765, 20261111];
 const REACH: i32 = 2600;
 /// Zone élargie pour les types rares.
 const WIDE: i32 = 7000;
-const KINDS: [StructKind; 20] = [
+const KINDS: [StructKind; 28] = [
     StructKind::Torp,
     StructKind::By,
     StructKind::Lada,
@@ -37,6 +37,14 @@ const KINDS: [StructKind; 20] = [
     StructKind::Hallristning,
     StructKind::Langhus,
     StructKind::Skeppsvrak,
+    StructKind::Kolmila,
+    StructKind::Tjardal,
+    StructKind::Bjornide,
+    StructKind::Geyser,
+    StructKind::Vardkase,
+    StructKind::Baverdamm,
+    StructKind::Gruva,
+    StructKind::Hytta,
 ];
 
 fn reg() -> BlockRegistry {

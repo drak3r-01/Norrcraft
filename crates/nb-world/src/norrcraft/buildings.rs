@@ -1,5 +1,6 @@
-//! Bâtiments d'habitat Norrcraft (session 4.2 ; GDD doc 02 §10.1) : torp, by, lada, fäbod,
-//! fiskeläge, bastu, fjällstuga, vindskydd et kåta.
+//! Bâtiments Norrcraft (sessions 4.2 à 4.4 ; GDD doc 02 §10.1) : habitat (torp, by, lada, fäbod,
+//! fiskeläge, bastu, fjällstuga, vindskydd, kåta), patrimoine (runsten, gravhög…) et industrie et
+//! nature (gruva, hytta, kolmila, tjärdal, bäverdamm, björnide, geyser, vårdkase).
 //!
 //! Chaque site construit est décrit par un [`Building`] : une liste de [`Part`] (un bâtiment, un
 //! enclos, un ponton…) en coordonnées absolues du monde. Un `Building` est une fonction pure de
@@ -62,10 +63,22 @@ pub enum Mat {
     Treasure,
     /// Maçonnerie de chambre funéraire.
     Chamber,
+    /// Charbon de bois.
+    Coal,
+    /// Scories bleues de haut fourneau.
+    Slag,
+    /// Sinter siliceux des geysers.
+    Sinter,
+    /// Roche brûlante (magma).
+    Hot,
+    /// Mottes de terre.
+    Earth,
+    /// Orgues basaltiques.
+    Basalt,
 }
 
 impl Mat {
-    pub const COUNT: usize = 26;
+    pub const COUNT: usize = 32;
 
     pub const ALL: [Mat; Mat::COUNT] = [
         Mat::Air,
@@ -94,6 +107,12 @@ impl Mat {
         Mat::Carved,
         Mat::Treasure,
         Mat::Chamber,
+        Mat::Coal,
+        Mat::Slag,
+        Mat::Sinter,
+        Mat::Hot,
+        Mat::Earth,
+        Mat::Basalt,
     ];
 
     /// Nom du bloc Norrcraft (vide pour l'air).
@@ -125,6 +144,12 @@ impl Mat {
             Mat::Carved => "hallristad",
             Mat::Treasure => "skatt",
             Mat::Chamber => "kammarsten",
+            Mat::Coal => "kol",
+            Mat::Slag => "blaslagg",
+            Mat::Sinter => "geyserit",
+            Mat::Hot => "hetsten",
+            Mat::Earth => "torv",
+            Mat::Basalt => "basaltsten",
         }
     }
 }
@@ -438,6 +463,15 @@ const MILL: Style = Style {
     floor: Mat::Plank,
     glass: false,
 };
+/// Bâtiment de mine : bois gris, toit goudronné, sol de pierre.
+const MINE: Style = Style {
+    wall: Mat::Grey,
+    post: Mat::Log,
+    roof: Mat::Tar,
+    gable: Mat::Grey,
+    floor: Mat::Stone,
+    glass: false,
+};
 /// Sauna : rondins, plancher de bouleau.
 const SAUNA: Style = Style {
     wall: Mat::Log,
@@ -574,6 +608,14 @@ pub fn build(site: &StructSite, probe: &SiteProbe) -> Option<Building> {
         StructKind::Hallristning => hallristning(probe, root, site, &mut parts),
         StructKind::Langhus => langhus(probe, root, site, &mut parts),
         StructKind::Skeppsvrak => skeppsvrak(probe, root, site, &mut parts),
+        StructKind::Kolmila => kolmila(probe, root, site, &mut parts),
+        StructKind::Tjardal => tjardal(probe, root, &mut parts),
+        StructKind::Bjornide => bjornide(probe, root, site, &mut parts),
+        StructKind::Geyser => geyser(probe, root, site, &mut parts),
+        StructKind::Vardkase => vardkase(probe, root, &mut parts),
+        StructKind::Baverdamm => baverdamm(probe, site, &mut parts),
+        StructKind::Gruva => gruva(probe, root, &mut parts),
+        StructKind::Hytta => hytta(probe, root, site, &mut parts),
         _ => return None,
     };
     if !ok || parts.is_empty() {
@@ -1568,5 +1610,394 @@ fn skeppsvrak(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part
     }
     p.set(0, 1, 5, Mat::Treasure);
     out.push(p.finish());
+    true
+}
+
+// ---------------------------------------------------------------------------------------------
+// Industrie et nature (session 4.4)
+// ---------------------------------------------------------------------------------------------
+
+/// Meule de charbonnier éteinte : dôme de bûches sous les mottes, cratère de charbon au sommet,
+/// charbon épars et pile de bûches à côté.
+fn kolmila(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let s = site.seed;
+    land_part(probe, out, root, [-5, -5, 5, 5], 7, 2, |p| {
+        for z in -4..=4 {
+            for x in -4..=4 {
+                let d2 = x * x + z * z;
+                if d2 <= 12 {
+                    let h = 1 + (12 - d2) / 4;
+                    for y in 0..h {
+                        let top = y == h - 1;
+                        let m = if top && d2 <= 1 {
+                            Mat::Coal
+                        } else if top || d2 > 6 {
+                            Mat::Earth
+                        } else {
+                            Mat::Log
+                        };
+                        p.set(x, y, z, m);
+                    }
+                } else if d2 <= 24 && hash01(s, x, z, 91) < 0.35 {
+                    p.set(x, 0, z, Mat::Coal);
+                }
+            }
+        }
+        p.fill(3, 0, -5, 5, 1, -4, Mat::Log);
+    })
+}
+
+/// Four à goudron : talus de terre, entonnoir creusé dont le fond est en goudron, gouttière de
+/// planches vers `+z`, tonneaux au bout et bûcher de souches.
+fn tjardal(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    land_part(probe, out, root, [-6, -6, 6, 8], 7, 3, |p| {
+        for z in -6..=6 {
+            for x in -6..=6 {
+                let d2 = x * x + z * z;
+                if d2 <= 36 {
+                    if d2 >= 9 {
+                        p.fill(x, 0, z, x, (36 - d2) / 12, z, Mat::Earth);
+                    } else {
+                        let depth = 3 - d2 / 3;
+                        p.fill(x, -depth, z, x, -1, z, Mat::Air);
+                        p.set(x, -depth - 1, z, if d2 <= 2 { Mat::Tar } else { Mat::Earth });
+                    }
+                }
+            }
+        }
+        // Gouttière : tranchée dans le talus, caniveau de planches.
+        for z in 3..=6 {
+            p.fill(0, 0, z, 0, 2, z, Mat::Air);
+        }
+        for z in 2..=7 {
+            p.set(0, -1, z, Mat::Plank);
+        }
+        for x in [-1, 1] {
+            p.fill(x, 0, 8, x, 1, 8, Mat::Tar);
+        }
+        p.fill(-6, 0, -2, -5, 1, 2, Mat::Log);
+    })
+}
+
+/// Tanière d'ours : tertre de terre et de roche sous une grosse souche, chambre garnie de foin,
+/// entrée basse vers `+z`.
+fn bjornide(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let s = site.seed;
+    land_part(probe, out, root, [-5, -5, 5, 6], 7, 3, |p| {
+        for z in -5..=5 {
+            for x in -5..=5 {
+                let d2 = x * x + z * z;
+                if d2 < 25 {
+                    let h = 1 + (25 - d2) * 4 / 25;
+                    let m = if d2 >= 16 || hash01(s, x, z, 61) < 0.25 {
+                        Mat::Stone
+                    } else {
+                        Mat::Earth
+                    };
+                    p.fill(x, 0, z, x, h - 1, z, m);
+                }
+            }
+        }
+        // Chambre et entrée.
+        p.fill(-1, 0, -1, 1, 1, 2, Mat::Air);
+        p.fill(0, 0, 3, 0, 0, 5, Mat::Air);
+        p.set(0, 1, 3, Mat::Air);
+        p.fill(-1, -1, -1, 1, -1, 1, Mat::Hay);
+        // Souche et racines.
+        p.fill(-3, 0, -3, -3, 2, -3, Mat::Log);
+        p.set(-2, 0, -3, Mat::Log);
+        p.set(-3, 0, -2, Mat::Log);
+    })
+}
+
+/// Geyser : terrasse de sinter en cône dont le sommet est un bassin d'eau sur un évent de magma,
+/// bain chaud au bord, orgues basaltiques en couronne.
+fn geyser(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let s = site.seed;
+    land_part(probe, out, root, [-7, -7, 7, 7], 9, 3, |p| {
+        for z in -7..=7 {
+            for x in -7..=7 {
+                let d2 = x * x + z * z;
+                if d2 <= 42 && (d2 <= 9 || hash01(s, x, z, 71) < 0.88) {
+                    let h = if d2 <= 9 { 1 + (9 - d2) / 2 } else { 1 };
+                    p.fill(x, 0, z, x, h - 1, z, Mat::Sinter);
+                }
+                if (30..=42).contains(&d2) && hash01(s, x, z, 72) < 0.14 {
+                    let h = 2 + (hash01(s, x, z, 73) * 4.0) as i32;
+                    p.fill(x, 0, z, x, h - 1, z, Mat::Basalt);
+                }
+            }
+        }
+        // Évent : magma, puis bassin au sommet du cône.
+        p.fill(0, -3, 0, 0, 2, 0, Mat::Hot);
+        p.fill(0, 3, 0, 0, 4, 0, Mat::Water);
+        // Bain chaud : creusé dans la terrasse, fond de magma.
+        for z in 0..=6 {
+            for x in -7..=-1 {
+                let pd = (x + 4) * (x + 4) + (z - 3) * (z - 3);
+                if pd <= 4 {
+                    p.set(x, 0, z, Mat::Air);
+                    p.fill(x, -2, z, x, -1, z, Mat::Water);
+                    p.set(x, -3, z, Mat::Hot);
+                } else if pd <= 8 {
+                    // Margelle étanche, quel que soit le sol naturel.
+                    p.fill(x, -2, z, x, -1, z, Mat::Sinter);
+                }
+            }
+        }
+    })
+}
+
+/// Feu d'alarme : socle de pierres, trépied de rondins, bûcher de rondins et de foin, baril de
+/// goudron au sommet ; un foyer de veille au pied.
+fn vardkase(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    land_part(probe, out, root, [-5, -5, 5, 5], 14, 5, |p| {
+        for z in -4..=4 {
+            for x in -4..=4 {
+                if x * x + z * z <= 14 {
+                    p.set(x, 0, z, Mat::Stone);
+                }
+            }
+        }
+        for (bx, bz) in [(-3, -2), (3, -2), (0, 3)] {
+            for t in 0..=9 {
+                p.set(bx * (9 - t) / 9, 1 + t, bz * (9 - t) / 9, Mat::Log);
+            }
+        }
+        p.fill(-1, 7, -1, 1, 8, 1, Mat::Log);
+        p.fill(-1, 9, -1, 1, 9, 1, Mat::Hay);
+        p.fill(0, 10, 0, 0, 11, 0, Mat::Tar);
+        p.set(3, 1, 3, Mat::Hearth);
+        p.set(2, 1, 3, Mat::Torch);
+    })
+}
+
+/// Barrage de castors : hutte de branches près de l'eau et digue de rondins et de boue en travers
+/// de l'eau, à un bloc au-dessus de la surface.
+fn baverdamm(probe: &SiteProbe, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let Some((rot, d)) = water_dir(probe, site, |k| k != WaterKind::None, 8) else {
+        return false;
+    };
+    let root = Xf {
+        x: site.x,
+        z: site.z,
+        rot,
+    };
+    let s = site.seed;
+    let lodge = land_part(probe, out, root.child(0, -3, 0), [-3, -3, 3, 3], 6, 3, |p| {
+        for z in -3..=3 {
+            for x in -3..=3 {
+                let d2 = x * x + z * z;
+                if d2 <= 9 {
+                    let m = if hash01(s, x, z, 81) < 0.3 {
+                        Mat::Earth
+                    } else {
+                        Mat::Log
+                    };
+                    p.fill(x, 0, z, x, (9 - d2) / 3, z, m);
+                }
+            }
+        }
+        p.fill(0, 0, 0, 0, 1, 0, Mat::Air);
+        p.set(0, 0, 1, Mat::Air);
+    });
+    if !lodge {
+        return false;
+    }
+    let mut dam = P::raw(root, 0);
+    let mut cells = 0;
+    for x in -7..=7 {
+        let (wx, wz) = root.map(x, d);
+        let w = (probe.water)(wx, wz);
+        if !w.is_wet() || w.level - w.top > 6 {
+            continue;
+        }
+        for z in d..=d + 1 {
+            for y in w.top..=w.level {
+                let m = if hash01(s, x * 3 + z, y, 82) < 0.3 {
+                    Mat::Earth
+                } else {
+                    Mat::Log
+                };
+                dam.set_abs(x, y, z, m);
+            }
+        }
+        if hash01(s, x, 0, 83) < 0.3 {
+            dam.set_abs(x, w.level + 1, d, Mat::Log);
+        }
+        cells += 1;
+    }
+    if cells >= 5 {
+        out.push(dam.finish());
+    }
+    true
+}
+
+/// Pose le chevalement d'une mine : deux portiques en A de rondins, poutre sommitale et poulie.
+fn headframe(p: &mut P) {
+    for z in [-1, 1] {
+        for t in 0..=9 {
+            let x = 3 - (2 * t) / 9;
+            p.set(x, t, z, Mat::Log);
+            p.set(-x, t, z, Mat::Log);
+        }
+        p.fill(-3, 4, z, 3, 4, z, Mat::Plank);
+    }
+    p.fill(-1, 9, -1, 1, 9, 1, Mat::Log);
+    p.set(1, 8, 0, Mat::Grey);
+    p.set(-1, 8, 0, Mat::Grey);
+    p.set(0, 7, 0, Mat::Grey);
+}
+
+/// Mine abandonnée : chevalement, puits boisé de plus de dix blocs avec sa mare au fond, deux
+/// galeries étayées avec rails et wagonnets, bâtiment des machines et halde de stériles.
+fn gruva(probe: &SiteProbe, root: Xf, out: &mut Vec<Part>) -> bool {
+    let main = land_part(probe, out, root, [-4, -4, 4, 4], 13, 3, |p| {
+        for z in -2i32..=2 {
+            for x in -2i32..=2 {
+                if x.abs() == 2 || z.abs() == 2 {
+                    p.set(x, 0, z, Mat::Stone);
+                }
+            }
+        }
+        headframe(p);
+        let depth = (p.floor - 10).clamp(0, 14);
+        if depth < 8 {
+            return;
+        }
+        let y0 = -depth;
+        // Cuvelage du puits, galeries, puis puits et mare.
+        p.ring(-2, -2, 2, 2, y0 - 3, -1, Mat::Plank);
+        for (x, z) in [(-2, -2), (2, -2), (-2, 2), (2, 2)] {
+            p.fill(x, y0 - 3, z, x, -1, z, Mat::Log);
+        }
+        p.fill(2, y0, -1, 14, y0 + 2, 1, Mat::Air);
+        p.fill(-1, y0, -12, 1, y0 + 2, -2, Mat::Air);
+        p.fill(-1, y0 - 3, -1, 1, -1, 1, Mat::Air);
+        p.fill(-1, y0 - 3, -1, 1, y0 - 1, 1, Mat::Water);
+        // Étais, rails et wagonnets.
+        for x in [4, 8, 12] {
+            for z in [-1, 1] {
+                p.fill(x, y0, z, x, y0 + 1, z, Mat::Log);
+            }
+            p.fill(x, y0 + 2, -1, x, y0 + 2, 1, Mat::Log);
+        }
+        for z in [-4, -8, -12] {
+            for x in [-1, 1] {
+                p.fill(x, y0, z, x, y0 + 1, z, Mat::Log);
+            }
+            p.fill(-1, y0 + 2, z, 1, y0 + 2, z, Mat::Log);
+        }
+        for x in 2..=14 {
+            p.set(x, y0 - 1, 0, Mat::Plank);
+        }
+        for z in -12..=-2 {
+            p.set(0, y0 - 1, z, Mat::Plank);
+        }
+        p.fill(6, y0, 0, 7, y0, 0, Mat::Tar);
+        p.set(0, y0, -7, Mat::Tar);
+        // Bout de galerie noyé.
+        p.fill(11, y0, -1, 11, y0 + 1, 1, Mat::Plank);
+        p.fill(12, y0, -1, 14, y0, 1, Mat::Water);
+    });
+    if !main {
+        return false;
+    }
+    // Bâtiment des machines.
+    land_part(probe, out, root, [5, -4, 12, 3], 9, 4, |p| {
+        cabin(p, 6, -3, 11, 2, 4, &MINE, 2, 3);
+        p.fill(8, 0, -2, 9, 1, -1, Mat::Stone);
+        p.set(7, 0, 1, Mat::Torch);
+    });
+    // Halde de stériles.
+    land_part(probe, out, root, [-14, -9, -5, 0], 8, 4, |p| {
+        for z in -9..=0 {
+            for x in -14..=-5 {
+                let d2 = (x + 9) * (x + 9) + (z + 4) * (z + 4);
+                if d2 <= 25 {
+                    p.fill(x, 0, z, x, (25 - d2) / 6, z, Mat::Stone);
+                }
+            }
+        }
+    });
+    true
+}
+
+/// Haut fourneau en ruine : cuve de pierre éventrée au sommet, arche de chargement, roue à eau
+/// de rondins avec son bief, halle à charbon et tas de scories bleues.
+fn hytta(probe: &SiteProbe, root: Xf, site: &StructSite, out: &mut Vec<Part>) -> bool {
+    let s = site.seed;
+    let main = land_part(probe, out, root, [-4, -4, 7, 4], 13, 4, |p| {
+        for y in 0..=11 {
+            let half: i32 = if y <= 4 { 3 } else { 2 };
+            for z in -half..=half {
+                for x in -half..=half {
+                    if x.abs() != half && z.abs() != half {
+                        continue;
+                    }
+                    if y >= 6 && hash01(s, x + 31 * y, z, 85) < 0.14 * (y - 5) as f64 {
+                        continue;
+                    }
+                    p.set(x, y, z, Mat::Stone);
+                }
+            }
+        }
+        // Sole de charbon et d'écume, arche de chargement.
+        p.fill(-2, -1, -2, 2, -1, 2, Mat::Coal);
+        p.fill(-1, 0, 3, 1, 2, 3, Mat::Air);
+        p.fill(-1, 0, -1, 1, 0, 0, Mat::Slag);
+        // Roue à eau : jante, rayons, moyeu, axe, bief sur pilotis.
+        for z in -3..=3 {
+            for y in 0..=6 {
+                let d2 = z * z + (y - 3) * (y - 3);
+                if (5..=10).contains(&d2) {
+                    p.set(6, y, z, Mat::Log);
+                }
+            }
+        }
+        p.fill(6, 3, -2, 6, 3, 2, Mat::Plank);
+        p.fill(6, 1, 0, 6, 5, 0, Mat::Plank);
+        p.set(6, 3, 0, Mat::Log);
+        p.fill(4, 3, 0, 5, 3, 0, Mat::Log);
+        p.fill(6, 7, -4, 6, 7, 0, Mat::Plank);
+        p.fill(6, 0, -4, 6, 6, -4, Mat::Log);
+    });
+    if !main {
+        return false;
+    }
+    // Halle à charbon : poteaux, toit de planches en deux niveaux, tas de charbon.
+    land_part(probe, out, root, [-14, -5, -6, 5], 8, 4, |p| {
+        for x in [-13, -7] {
+            for z in [-4, 0, 4] {
+                p.fill(x, 0, z, x, 4, z, Mat::Log);
+            }
+        }
+        p.fill(-14, 5, -5, -6, 5, 5, Mat::Plank);
+        p.fill(-13, 6, -3, -7, 6, 3, Mat::Plank);
+        for z in -3..=3 {
+            for x in -12..=-8 {
+                if hash01(s, x, z, 86) < 0.8 {
+                    let h = 1 + (hash01(s, x, z, 87) * 3.0) as i32;
+                    p.fill(x, 0, z, x, h - 1, z, Mat::Coal);
+                }
+            }
+        }
+    });
+    // Tas de scories bleues.
+    land_part(probe, out, root, [-1, -12, 7, -6], 7, 4, |p| {
+        for z in -12..=-6 {
+            for x in -1..=7 {
+                let d2 = (x - 3) * (x - 3) + (z + 9) * (z + 9);
+                if d2 <= 16 {
+                    let m = if hash01(s, x, z, 88) < 0.15 {
+                        Mat::Stone
+                    } else {
+                        Mat::Slag
+                    };
+                    p.fill(x, 0, z, x, 1 + (16 - d2) / 4, z, m);
+                }
+            }
+        }
+    });
     true
 }
