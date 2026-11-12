@@ -469,6 +469,8 @@ pub struct Atmosphere {
     pub omens: Omens,
     /// Température de l'air ici et maintenant (échelle de T₀, altitude, saison et heure comprises).
     pub air: f32,
+    /// Hauteur du soleil (−1 à 1) utilisée pour l'échantillon.
+    pub sun: f32,
 }
 
 /// Ce que la survie lit de l'atmosphère du joueur.
@@ -481,6 +483,10 @@ pub struct Environment {
     pub chill: f32,
     pub rain: f32,
     pub snow: f32,
+    /// Densité de brouillard ajoutée à celle de l'air (portée de vue des animaux).
+    pub fog: f32,
+    /// Hauteur du soleil, de −1 à 1 (lumière pour la vue des animaux).
+    pub sun: f32,
 }
 
 impl Atmosphere {
@@ -491,6 +497,8 @@ impl Atmosphere {
             chill: self.chill,
             rain: self.rain,
             snow: self.snow,
+            fog: self.fog,
+            sun: self.sun,
         }
     }
 
@@ -514,6 +522,7 @@ impl Atmosphere {
             wind,
             omens: Omens::default(),
             air: base.air,
+            sun: base.sun,
         }
     }
 }
@@ -701,6 +710,7 @@ impl WeatherModel {
             wind,
             omens,
             air: loc.air_temperature(clock.year_fraction(), sun_height) as f32,
+            sun: sun_height as f32,
         }
     }
 

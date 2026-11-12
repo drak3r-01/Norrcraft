@@ -404,7 +404,8 @@ impl AudioDirector {
             | EcsEvent::MobDespawned { .. }
             | EcsEvent::AttackDealt { .. }
             | EcsEvent::Notice(_)
-            | EcsEvent::CropGrew { .. } => {}
+            | EcsEvent::CropGrew { .. }
+            | EcsEvent::AnimalAct { .. } => {}
         }
     }
 

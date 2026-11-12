@@ -33,6 +33,8 @@ fn env(air: f32, wind: f32, rain: f32) -> Environment {
         chill: 1.0,
         rain,
         snow: 0.0,
+        fog: 0.0,
+        sun: 1.0,
     }
 }
 

@@ -104,6 +104,8 @@ pub fn hit_mob_damage(
         h.alive = false;
     } else if world.has::<PassiveAi>(mob) {
         trigger_player_flee(world, mob, mobs, rng);
+    } else if world.has::<crate::brain::Brain>(mob) {
+        crate::brain::provoke(world, mob, player);
     }
     let player_pos = player
         .and_then(|p| world.copy::<Transform>(p))

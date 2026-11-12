@@ -297,7 +297,10 @@ pub fn spawn_mob(
     world.insert(id, Collider::new(cfg.width_x, cfg.width_z, cfg.height, 0.0));
     world.insert(id, Health::new(cfg.max_health));
     world.insert(id, MobType::new(cfg.id.clone()));
-    if cfg.behavior_type == MobBehaviorType::Aggressive {
+    if cfg.behavior.is_some() {
+        // Profil Norrcraft : moteur d'états (session 5.1), gîte au point d'apparition.
+        world.insert(id, crate::brain::Brain::new(t.pos));
+    } else if cfg.behavior_type == MobBehaviorType::Aggressive {
         world.insert(id, AggressiveAi::default());
     } else {
         world.insert(id, PassiveAi::default());

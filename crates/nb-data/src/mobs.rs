@@ -117,6 +117,10 @@ pub struct MobConfig {
     /// Profondeur d'eau maximale (rivières) ; `0` = pas de plafond.
     #[serde(default)]
     pub spawn_max_water_depth: i32,
+    /// Profil de comportement Norrcraft (`behaviors.json`, session 5.1) : le mob est alors mené
+    /// par le moteur d'états (`nb-ecs::brain`) au lieu des IA passive et agressive d'origine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub behavior: Option<String>,
 }
 
 impl MobConfig {
@@ -152,6 +156,9 @@ impl MobConfig {
         }
         if let Some(s) = obj.get("displayName").and_then(Value::as_str) {
             self.display_name = s.to_owned();
+        }
+        if let Some(s) = obj.get("behavior").and_then(Value::as_str) {
+            self.behavior = (!s.is_empty()).then(|| s.to_owned());
         }
         f32_field! {
             "widthX" => width_x, "widthZ" => width_z, "height" => height,

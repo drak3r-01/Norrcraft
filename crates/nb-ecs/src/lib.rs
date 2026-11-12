@@ -20,6 +20,7 @@
 
 pub mod ai;
 pub mod blocks;
+pub mod brain;
 pub mod command;
 pub mod components;
 pub mod crafting;
@@ -36,6 +37,7 @@ pub mod spawn;
 pub mod survival;
 pub mod world;
 
+pub use brain::{AnimalAct, Brain, BrainSystem, Carrying, Crouching, Emitter};
 pub use blocks::{BlockAccess, MemoryBlocks, WorldBlocks};
 pub use command::{execute_command, TimeControl};
 pub use components::{

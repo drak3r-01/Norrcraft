@@ -4,6 +4,7 @@
 //! ceux de la version Java. Les registres sont des structures immuables passées par référence
 //! (aucun singleton global).
 
+pub mod behavior;
 pub mod blocks;
 pub mod items;
 pub mod keys;
@@ -19,6 +20,7 @@ pub use blocks::{
     BlockId, BlockIds, BlockPalette, BlockProperties, BlockRegistry, BlockType, PaletteReport,
     BLOCKS_JSON, CRAFT_BLOCKS_JSON, UNASSIGNED_ID,
 };
+pub use behavior::{BehaviorBook, Profile, StateKind, Stimulus};
 pub use universe::WorldKind;
 pub use items::{ItemId, ItemInfo, ItemRegistry, FIRST_PURE_ITEM, ITEMS_JSON, STACK_MAX};
 pub use mobs::{

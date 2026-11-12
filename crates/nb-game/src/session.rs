@@ -159,6 +159,15 @@ impl WorldSession {
         sim.schedule
             .insert(1, Box::new(nb_ecs::survival::VitalsSystem));
         sim.schedule.push(Box::new(nb_ecs::survival::CropSystem));
+        // Bestiaire Norrcraft : moteur d'états juste après les IA d'origine (sans effet sans brain).
+        let after_ai = sim
+            .schedule
+            .names()
+            .iter()
+            .position(|n| *n == "AggressiveAI")
+            .map_or(usize::MAX, |i| i + 1);
+        sim.schedule
+            .insert(after_ai, Box::new(nb_ecs::BrainSystem::default()));
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,

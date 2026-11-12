@@ -280,6 +280,14 @@ pub fn solar_bias(raw: f32) -> f32 {
     }
 }
 
+/// Hauteur du soleil de −1 à 1 à l'heure `time_of_day` (0..1200) avec le décalage solaire
+/// `bias` : `(bias − sin θ) / (1 + |bias|)`, même formule que le ciel de nb-gfx (sert à la vue
+/// des animaux quand la météo n'en fournit pas).
+pub fn sun_height(time_of_day: f32, bias: f32) -> f32 {
+    let angle = f64::from(time_of_day / DAY_SECONDS) * TAU;
+    ((f64::from(bias) - angle.sin()) / (1.0 + f64::from(bias.abs()))).clamp(-1.0, 1.0) as f32
+}
+
 /// Lumière du jour à un instant et pour une latitude.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DayLight {

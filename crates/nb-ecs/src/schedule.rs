@@ -25,6 +25,8 @@ pub struct EcsRngs {
     pub aggressive: JavaRandom,
     /// RNG du `World` (particules ambiantes).
     pub ambient: JavaRandom,
+    /// Moteur d'états du bestiaire Norrcraft (`BrainSystem`).
+    pub brain: JavaRandom,
 }
 
 impl EcsRngs {
@@ -35,6 +37,7 @@ impl EcsRngs {
             passive: JavaRandom::new(seed.wrapping_add(1)),
             aggressive: JavaRandom::new(seed.wrapping_add(2)),
             ambient: JavaRandom::new(seed.wrapping_add(3)),
+            brain: JavaRandom::new(seed.wrapping_add(4)),
         }
     }
 
@@ -55,6 +58,7 @@ impl EcsRngs {
             passive: next(),
             aggressive: next(),
             ambient: next(),
+            brain: next(),
         }
     }
 }
@@ -119,6 +123,12 @@ pub enum EcsEvent {
     Hurt { cold: bool },
     /// Une culture est passée au stade suivant.
     CropGrew { pos: IVec3, block: BlockId },
+    /// Acte d'un animal Norrcraft sur le monde (broutage, construction, vol, mise à mort).
+    AnimalAct {
+        entity: EntityId,
+        act: crate::brain::AnimalAct,
+        pos: IVec3,
+    },
 }
 
 /// Tout ce dont les systèmes ont besoin pendant un tick (aucun état global).
