@@ -1041,6 +1041,7 @@ impl Plan {
 const PLAN_MARGIN: i32 = 16;
 
 type RouteKey = (i32, i32, i32, i32);
+type BuildingCache = Arc<Mutex<HashMap<(i32, i32), Option<Arc<Building>>>>>;
 type PlanCache = Arc<Mutex<HashMap<(i32, i32), Arc<Plan>>>>;
 
 /// Placement des structures : fonction pure de (graine, colonne), cellules et pistes mémoïsées.
@@ -1053,7 +1054,7 @@ pub struct Structures {
     sites: Arc<Mutex<HashMap<Key, Option<StructSite>>>>,
     routes: Arc<Mutex<HashMap<RouteKey, Option<Arc<Route>>>>>,
     plans: PlanCache,
-    buildings: Arc<Mutex<HashMap<(i32, i32), Option<Arc<Building>>>>>,
+    buildings: BuildingCache,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {

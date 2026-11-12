@@ -280,6 +280,7 @@ impl P {
         self.voxels.push((wx, y, wz, m));
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn fill(&mut self, x0: i32, y0: i32, z0: i32, x1: i32, y1: i32, z1: i32, m: Mat) {
         for y in y0..=y1 {
             for z in z0..=z1 {
@@ -291,6 +292,7 @@ impl P {
     }
 
     /// Contour d'un rectangle, de `y0` à `y1`.
+    #[allow(clippy::too_many_arguments)]
     fn ring(&mut self, x0: i32, z0: i32, x1: i32, z1: i32, y0: i32, y1: i32, m: Mat) {
         for y in y0..=y1 {
             for z in z0..=z1 {
@@ -718,7 +720,7 @@ fn water_dir(
         for s in 1..=reach {
             let w = (probe.water)(site.x + dx * s, site.z + dz * s);
             if w.is_wet() && want(w.kind) {
-                if best.map_or(true, |(_, d)| s < d) {
+                if best.is_none_or(|(_, d)| s < d) {
                     best = Some((rot, s));
                 }
                 break;
