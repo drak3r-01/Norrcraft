@@ -127,6 +127,14 @@ pub enum EcsEvent {
     IceCrack { pos: IVec3 },
     /// La glace a cédé en `pos` (6.1).
     IceBroke { pos: IVec3 },
+    /// « Whoumf » sourd du manteau neigeux : une avalanche va partir (6.2).
+    Whoumf { pos: IVec3 },
+    /// Une avalanche est partie de `pos` : colonnes balayées, volume déposé en huitièmes (6.2).
+    Avalanche {
+        pos: IVec3,
+        columns: u32,
+        volume: u32,
+    },
     /// Acte d'un animal Norrcraft sur le monde (broutage, construction, vol, mise à mort).
     AnimalAct {
         entity: EntityId,

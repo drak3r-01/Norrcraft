@@ -130,6 +130,8 @@ impl System for PlayerInputSystem {
         let vit = world.copy::<Vitals>(id).filter(|_| surv_on);
         let mut sprint_flag = false;
         let mut jump_flag = false;
+        // Neige et glisse (6.2) : posée par `GlideSystem`, absente dans les univers sans neige.
+        let loco = world.copy::<crate::glide::Locomotion>(id);
 
         // --- Étapes 1 à 12 : mouvement, caméra, dégâts, visée ------------------------------
         let (origin, dir, targeted, place_target, feet, collider) = {
@@ -233,10 +235,13 @@ impl System for PlayerInputSystem {
                 if let Some(vv) = vit {
                     speed *= vv.speed_mult();
                 }
+                if let Some(l) = loco {
+                    speed *= l.speed;
+                }
                 let friction = if in_fluid {
                     8.0
                 } else if v.grounded {
-                    15.0
+                    loco.and_then(|l| l.friction).unwrap_or(15.0)
                 } else {
                     2.5
                 };

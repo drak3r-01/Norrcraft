@@ -19,6 +19,7 @@
 //! Tout le reste (bizarreries B2–B23 de la spec) est reproduit tel quel.
 
 pub mod ai;
+pub mod avalanche;
 pub mod blocks;
 pub mod brain;
 pub mod command;
@@ -26,6 +27,7 @@ pub mod components;
 pub mod density;
 pub mod crafting;
 pub mod ecology;
+pub mod glide;
 pub mod ice;
 pub mod health;
 pub mod herd;
@@ -44,6 +46,8 @@ pub mod world;
 
 pub use brain::{AnimalAct, Brain, BrainSystem, Carrying, Crouching, Emitter};
 pub use ecology::{Carcass, EcologyHandle, EcologySystem, Poisoned, Standing};
+pub use avalanche::{AvalancheSystem, Buried};
+pub use glide::{Gear, GearIds, GlideSystem, Locomotion};
 pub use ice::{IceHandle, IceKind, IceState, IceSystem, Load};
 pub use herd::{HerdHandle, HerdMember, HerdSystem};
 pub use husbandry::{Domestic, HusbandrySystem};

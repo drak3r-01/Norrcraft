@@ -406,6 +406,8 @@ impl AudioDirector {
             | EcsEvent::Notice(_)
             | EcsEvent::CropGrew { .. }
             | EcsEvent::AnimalAct { .. }
+            | EcsEvent::Whoumf { .. }
+            | EcsEvent::Avalanche { .. }
             | EcsEvent::IceCrack { .. }
             | EcsEvent::IceBroke { .. } => {}
         }

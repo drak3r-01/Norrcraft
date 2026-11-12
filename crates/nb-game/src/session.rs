@@ -198,6 +198,19 @@ impl WorldSession {
             after_ai.saturating_add(4),
             Box::new(nb_ecs::IceSystem::new(ice.clone(), regs.items.id_of("isdubbar"))),
         );
+        // Neige et glisse, avalanches (6.2) : propres à Norrcraft (blocs de neige, objets).
+        if regs.kind == WorldKind::Norrcraft {
+            sim.schedule.insert(
+                0,
+                Box::new(nb_ecs::GlideSystem::new(nb_ecs::GearIds::from_names(|n| {
+                    regs.items.id_of(n)
+                }))),
+            );
+            sim.schedule.insert(
+                after_ai.saturating_add(6),
+                Box::new(nb_ecs::AvalancheSystem::default()),
+            );
+        }
         sim.init_player(camera, mode, regs.blocks.ids().air);
         Self {
             world,

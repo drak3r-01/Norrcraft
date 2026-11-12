@@ -173,8 +173,8 @@ fn norrcraft_registries_hold_nothing_from_vanilla() {
     let blocks = BlockRegistry::for_kind(WorldKind::Norrcraft);
     let items = ItemRegistry::for_kind(WorldKind::Norrcraft, &blocks);
     // Un objet par bloc (hors air), aucun objet pur.
-    // Un objet par bloc (hors air) plus les 12 objets purs de la glace (session 6.1).
-    assert_eq!(items.len(), blocks.len() - 1 + 12);
+    // Un objet par bloc (hors air) plus les 23 objets purs (glace 6.1, glisse 6.2).
+    assert_eq!(items.len(), blocks.len() - 1 + 23);
     assert!(items.id_of("stick").is_none() && items.id_of("stone").is_none());
     let book = RecipeBook::for_kind(WorldKind::Norrcraft, &items);
     assert_eq!(book.recipes().len(), 0);

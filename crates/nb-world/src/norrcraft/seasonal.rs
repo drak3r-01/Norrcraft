@@ -79,6 +79,8 @@ impl SeasonBlocks {
         for l in layers {
             out.output[usize::from(l)] = true;
         }
+        // Neige tassée par le piétinement (6.2) : fond avec le reste du manteau.
+        out.output[usize::from(id("packad_sno"))] = true;
         for b in [
             out.snow,
             out.new_ice,

@@ -10,5 +10,16 @@
  {"id": 264, "name": "gadda", "texture": "item_brick"},
  {"id": 265, "name": "sik", "texture": "item_brick"},
  {"id": 266, "name": "roding", "texture": "item_brick"},
- {"id": 267, "name": "harr", "texture": "item_brick"}
+ {"id": 267, "name": "harr", "texture": "item_brick"},
+ {"id": 268, "name": "skidor", "texture": "item_stick"},
+ {"id": 269, "name": "skidstav", "texture": "item_stick"},
+ {"id": 270, "name": "skidtjara", "texture": "item_brick"},
+ {"id": 271, "name": "snoskor", "texture": "item_stick"},
+ {"id": 272, "name": "langfardsskridskor", "texture": "item_iron_ingot"},
+ {"id": 273, "name": "spark", "texture": "item_stick"},
+ {"id": 274, "name": "pulka", "texture": "item_stick"},
+ {"id": 275, "name": "ackja", "texture": "item_stick"},
+ {"id": 276, "name": "slade", "texture": "item_stick"},
+ {"id": 277, "name": "isjakt", "texture": "item_stick"},
+ {"id": 278, "name": "snoskyffel", "texture": "item_iron_ingot"}
 ]
