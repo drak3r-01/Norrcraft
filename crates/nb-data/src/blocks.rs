@@ -90,6 +90,23 @@ pub struct PaletteReport {
     pub added: Vec<String>,
 }
 
+/// Comportement d'un bloc face à l'eau vivante (clé `"fluid"` de `blocks.json`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FluidKind {
+    /// Déduit : air, eau, croix et couches (emportés), tout le reste étanche.
+    #[default]
+    Auto,
+    /// Garde sa place ; l'eau le traverse et le remplit.
+    Permeable,
+    /// Perméable et immergé par défaut (plantes d'eau).
+    Aquatic,
+    /// Emporté par l'eau (devient de l'air).
+    Washable,
+    /// Étanche.
+    Closed,
+}
+
 /// Entrée brute de `blocks.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,6 +136,9 @@ pub struct BlockProperties {
     /// Feuillage caduc : la teinte de saison du mailleur s en applique.
     #[serde(default)]
     pub seasonal: bool,
+    /// Comportement face à l'eau vivante (doc 07 §2.2) ; `auto` : déduit.
+    #[serde(default)]
+    pub fluid: FluidKind,
 }
 
 /// Un type de bloc chargé. Les indices de texture sont résolus plus tard par l'atlas.
@@ -136,6 +156,7 @@ pub struct BlockType {
     pub light_emission: u8,
     pub height: u8,
     pub seasonal: bool,
+    pub fluid: FluidKind,
 }
 
 impl From<BlockProperties> for BlockType {
@@ -157,6 +178,7 @@ impl From<BlockProperties> for BlockType {
             light_emission: p.light_emission,
             height: p.height,
             seasonal: p.seasonal,
+            fluid: p.fluid,
         }
     }
 }
@@ -513,6 +535,7 @@ impl BlockRegistry {
                         light_emission: 0,
                         height: 0,
                         seasonal: false,
+                        fluid: FluidKind::Auto,
                     });
                 }
             }

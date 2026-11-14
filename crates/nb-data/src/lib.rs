@@ -18,9 +18,11 @@ pub mod settings;
 pub mod spawn_rules;
 pub mod survival;
 pub mod universe;
+pub mod water;
 
 pub use blocks::{
-    BlockId, BlockIds, BlockPalette, BlockProperties, BlockRegistry, BlockType, PaletteReport,
+    BlockId, BlockIds, BlockPalette, BlockProperties, BlockRegistry, BlockType, FluidKind,
+    PaletteReport,
     BLOCKS_JSON, CRAFT_BLOCKS_JSON, UNASSIGNED_ID,
 };
 pub use behavior::{BehaviorBook, Profile, StateKind, Stimulus};
@@ -28,6 +30,7 @@ pub use ecology::Ecology;
 pub use husbandry::{Husbandry, Role as HusbandryRole};
 pub use spawn_rules::{Avoid, HerdMotion, HerdRules, Persistence, Sky, SpawnRules};
 pub use universe::WorldKind;
+pub use water::{WaterRules, WATER_JSON};
 pub use items::{ItemId, ItemInfo, ItemRegistry, FIRST_PURE_ITEM, ITEMS_JSON, STACK_MAX};
 pub use mobs::{
     builtin_mob_ids, norr_mob_ids, Gait, MobBehaviorType, MobConfig, MobGeometry, MobMedium, MobRegistry,

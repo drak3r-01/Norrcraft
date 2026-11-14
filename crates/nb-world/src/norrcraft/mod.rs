@@ -162,6 +162,7 @@ impl WorldProfile {
             biome_infos(),
             Systems {
                 seasons: true,
+                living_water: true,
                 ..Systems::default()
             },
             Arc::new(NorrcraftTerrain::new(

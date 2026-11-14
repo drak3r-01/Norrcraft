@@ -833,6 +833,9 @@ impl Game {
                     if let Some(reply) = session.boat_command(cmd, regs) {
                         return Some(reply);
                     }
+                    if let Some(reply) = session.water_command(cmd, regs) {
+                        return Some(reply);
+                    }
                     if let Some(reply) = fx.command(cmd) {
                         return Some(reply);
                     }

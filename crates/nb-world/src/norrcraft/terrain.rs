@@ -41,6 +41,7 @@ use super::structures::{StructBlocks, Structures};
 use super::subsoil::{ColumnIn, DepositInfo, Region, SiteProbe, Sites, Subsoil, SubsoilBlocks};
 use super::trees::{TreeBlocks, TreeColumn, TreeProbe, Trees};
 use crate::chunk::{Chunk, AIR, CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z};
+use crate::fluid::{RestKind, WaterRest, WaterTable};
 use crate::profile::{BiomeId, Climate, TerrainGenerator};
 use crate::seasons::SeasonRules;
 use crate::world::find_spawn_location;
@@ -758,6 +759,43 @@ impl TerrainGenerator for NorrcraftTerrain {
         if let Some(step) = self.season_step() {
             self.overlay_season(chunk, &cols, x0, z0, step);
         }
+    }
+
+    /// Table d'eau du chunk (doc 07 §2.3) : fond, niveau, nature de la nappe et courant des
+    /// rivières, recopiés de l'analyse du chunk (colonnes scellées).
+    fn water_table(&self, cx: i32, cz: i32) -> Option<Box<WaterTable>> {
+        let (x0, z0) = (cx * CHUNK_SIZE_X as i32, cz * CHUNK_SIZE_Z as i32);
+        let cols = self.analyse(x0, z0);
+        let inner_n = CHUNK_SIZE_X + 2;
+        let mut table = Box::<WaterTable>::default();
+        for lz in 0..CHUNK_SIZE_Z {
+            for lx in 0..CHUNK_SIZE_X {
+                let k = (lz + 1) * inner_n + lx + 1;
+                let c = &cols.water[k];
+                let kind = match (c.kind, c.is_wet()) {
+                    (_, false) | (WaterKind::None, _) => RestKind::Dry,
+                    (WaterKind::Sea, _) => RestKind::Sea,
+                    (WaterKind::Lake, _) => RestKind::Lake,
+                    (WaterKind::River, _) => RestKind::River,
+                };
+                let flow = if kind == RestKind::River {
+                    let f = self.hydro.river_flow(x0 + lx as i32, z0 + lz as i32, c, &cols.reliefs[k]);
+                    [
+                        (f[0] * 16.0).round().clamp(-127.0, 127.0) as i8,
+                        (f[1] * 16.0).round().clamp(-127.0, 127.0) as i8,
+                    ]
+                } else {
+                    [0, 0]
+                };
+                table.0[lz * CHUNK_SIZE_X + lx] = WaterRest {
+                    top: c.top.clamp(0, 255) as u8,
+                    level: c.level.clamp(0, 255) as u8,
+                    kind,
+                    flow,
+                };
+            }
+        }
+        Some(table)
     }
 
     fn set_season(&self, step: Option<u8>) {

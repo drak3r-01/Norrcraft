@@ -1,16 +1,19 @@
 //! Stockage des chunks (`IChunkStorage`, `InMemoryChunkStorage`, `FileChunkStorage`).
 //!
-//! Seuls les voxels sont persistés. Format de fichier (nouveau, versionné ; aucune
-//! compatibilité avec les `.bin` du Java) — `chunks/c_<cx>_<cz>.nbc` :
+//! Seuls les voxels et, depuis la version 2, la couche fluide sont persistés. Format de
+//! fichier (nouveau, versionné ; aucune compatibilité avec les `.bin` du Java) —
+//! `chunks/c_<cx>_<cz>.nbc` :
 //!
 //! | octets | contenu |
 //! |---|---|
 //! | 4 | magique `NBCK` |
-//! | 2 | version (u16 LE) = 1 |
+//! | 2 | version (u16 LE) = 1, ou 2 si le chunk porte une couche fluide |
 //! | 1 | layout : 0 = `x + 16·y + 2048·z` |
 //! | 1 | compression : 0 = brut, 1 = RLE (paires `(longueur 1..=255, id)`) |
 //! | 4 | longueur de la charge utile (u32 LE) |
 //! | n | charge utile (32 768 identifiants une fois décompressée) |
+//! | 1 (v2) | présence de la couche fluide (1) |
+//! | 4 + m (v2) | longueur, puis couche fluide (32 768 octets) compressée par le même RLE |
 
 use std::collections::HashMap;
 use std::fs;
@@ -29,10 +32,22 @@ pub type Voxels = Box<[BlockId; CHUNK_VOLUME]>;
 pub const CHUNK_MAGIC: [u8; 4] = *b"NBCK";
 /// Version courante du format de chunk.
 pub const CHUNK_FORMAT_VERSION: u16 = 1;
+/// Version écrite quand le chunk porte une couche fluide non nulle.
+pub const CHUNK_FORMAT_VERSION_FLUID: u16 = 2;
 const LAYOUT_JAVA: u8 = 0;
 const COMPRESSION_RAW: u8 = 0;
 const COMPRESSION_RLE: u8 = 1;
 const HEADER_LEN: usize = 12;
+
+/// Couche fluide d'un chunk (voir `fluid::layer`), même ordre que les voxels.
+pub type FluidBytes = Box<[u8; CHUNK_VOLUME]>;
+
+/// Contenu persisté d'un chunk : voxels et, si le chunk en a une, couche fluide.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkBlob {
+    pub voxels: Voxels,
+    pub fluid: Option<FluidBytes>,
+}
 
 /// Persistance des voxels d'un chunk.
 pub trait ChunkStorage: Send + Sync {
@@ -41,6 +56,23 @@ pub trait ChunkStorage: Send + Sync {
     /// `Ok(None)` si absent. Une erreur conduit l'appelant à régénérer le chunk (comme le Java).
     fn load_chunk(&self, pos: ChunkPos) -> Result<Option<Voxels>>;
     fn has_chunk(&self, pos: ChunkPos) -> bool;
+
+    /// Persiste voxels et couche fluide. Par défaut la couche est ignorée (stockages sans eau).
+    fn save_chunk_blob(
+        &self,
+        pos: ChunkPos,
+        voxels: &[BlockId; CHUNK_VOLUME],
+        _fluid: Option<&[u8; CHUNK_VOLUME]>,
+    ) -> Result<()> {
+        self.save_chunk(pos, voxels)
+    }
+    /// Charge voxels et couche fluide.
+    fn load_chunk_blob(&self, pos: ChunkPos) -> Result<Option<ChunkBlob>> {
+        Ok(self.load_chunk(pos)?.map(|voxels| ChunkBlob {
+            voxels,
+            fluid: None,
+        }))
+    }
 }
 
 fn boxed(v: &[BlockId; CHUNK_VOLUME]) -> Voxels {
@@ -50,7 +82,7 @@ fn boxed(v: &[BlockId; CHUNK_VOLUME]) -> Voxels {
 /// Stockage en mémoire (monde du menu) ; copie les voxels à l'enregistrement.
 #[derive(Debug, Default)]
 pub struct InMemoryChunkStorage {
-    chunks: Mutex<HashMap<ChunkPos, Voxels>>,
+    chunks: Mutex<HashMap<ChunkPos, ChunkBlob>>,
 }
 
 impl InMemoryChunkStorage {
@@ -76,23 +108,43 @@ impl InMemoryChunkStorage {
         self.lock().keys().copied().collect()
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<ChunkPos, Voxels>> {
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<ChunkPos, ChunkBlob>> {
         self.chunks.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
 impl ChunkStorage for InMemoryChunkStorage {
     fn save_chunk(&self, pos: ChunkPos, voxels: &[BlockId; CHUNK_VOLUME]) -> Result<()> {
-        self.lock().insert(pos, boxed(voxels));
-        Ok(())
+        self.save_chunk_blob(pos, voxels, None)
     }
 
     fn load_chunk(&self, pos: ChunkPos) -> Result<Option<Voxels>> {
-        Ok(self.lock().get(&pos).map(|v| boxed(v)))
+        Ok(self.lock().get(&pos).map(|b| boxed(&b.voxels)))
     }
 
     fn has_chunk(&self, pos: ChunkPos) -> bool {
         self.lock().contains_key(&pos)
+    }
+
+    fn save_chunk_blob(
+        &self,
+        pos: ChunkPos,
+        voxels: &[BlockId; CHUNK_VOLUME],
+        fluid: Option<&[u8; CHUNK_VOLUME]>,
+    ) -> Result<()> {
+        let fluid = fluid.filter(|f| f.iter().any(|&b| b != 0)).map(|f| Box::new(*f));
+        self.lock().insert(
+            pos,
+            ChunkBlob {
+                voxels: boxed(voxels),
+                fluid,
+            },
+        );
+        Ok(())
+    }
+
+    fn load_chunk_blob(&self, pos: ChunkPos) -> Result<Option<ChunkBlob>> {
+        Ok(self.lock().get(&pos).cloned())
     }
 }
 
@@ -159,30 +211,57 @@ fn rle_decode(payload: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// Sérialise des voxels (compression RLE).
+/// Sérialise des voxels (compression RLE), format version 1.
 pub fn encode_chunk(voxels: &[BlockId; CHUNK_VOLUME]) -> Vec<u8> {
+    encode_chunk_fluid(voxels, None)
+}
+
+/// Sérialise voxels et couche fluide. Une couche absente ou entièrement nulle donne un fichier
+/// version 1, octet pour octet identique à [`encode_chunk`] (les mondes sans eau vivante ne
+/// changent pas).
+pub fn encode_chunk_fluid(
+    voxels: &[BlockId; CHUNK_VOLUME],
+    fluid: Option<&[u8; CHUNK_VOLUME]>,
+) -> Vec<u8> {
+    let fluid = fluid.filter(|f| f.iter().any(|&b| b != 0));
     let payload = rle_encode(voxels);
     let mut out = Vec::with_capacity(HEADER_LEN + payload.len());
     out.extend_from_slice(&CHUNK_MAGIC);
-    out.extend_from_slice(&CHUNK_FORMAT_VERSION.to_le_bytes());
+    let version = if fluid.is_some() {
+        CHUNK_FORMAT_VERSION_FLUID
+    } else {
+        CHUNK_FORMAT_VERSION
+    };
+    out.extend_from_slice(&version.to_le_bytes());
     out.push(LAYOUT_JAVA);
     out.push(COMPRESSION_RLE);
     out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
     out.extend_from_slice(&payload);
+    if let Some(f) = fluid {
+        let fp = rle_encode(f);
+        out.push(1);
+        out.extend_from_slice(&(fp.len() as u32).to_le_bytes());
+        out.extend_from_slice(&fp);
+    }
     out
 }
 
-/// Désérialise un fichier de chunk ; vérifie magique, version, layout et taille.
+/// Désérialise un fichier de chunk (voxels seuls) ; vérifie magique, version, layout et taille.
 pub fn decode_chunk(bytes: &[u8]) -> Result<Voxels> {
+    decode_chunk_blob(bytes).map(|b| b.voxels)
+}
+
+/// Désérialise un fichier de chunk versions 1 et 2.
+pub fn decode_chunk_blob(bytes: &[u8]) -> Result<ChunkBlob> {
     let bad = |m: &str| Error::data("fichier de chunk", m);
     if bytes.len() < HEADER_LEN || bytes[..4] != CHUNK_MAGIC {
         return Err(bad("en-tête NBCK absent"));
     }
     let version = u16::from_le_bytes([bytes[4], bytes[5]]);
-    if version != CHUNK_FORMAT_VERSION {
+    if version != CHUNK_FORMAT_VERSION && version != CHUNK_FORMAT_VERSION_FLUID {
         return Err(Error::SaveVersion {
             found: u32::from(version),
-            expected: u32::from(CHUNK_FORMAT_VERSION),
+            expected: u32::from(CHUNK_FORMAT_VERSION_FLUID),
         });
     }
     if bytes[6] != LAYOUT_JAVA {
@@ -197,9 +276,30 @@ pub fn decode_chunk(bytes: &[u8]) -> Result<Voxels> {
         COMPRESSION_RLE => rle_decode(payload)?,
         _ => return Err(bad("compression inconnue")),
     };
-    raw.into_boxed_slice()
+    let voxels: Voxels = raw
+        .into_boxed_slice()
         .try_into()
-        .map_err(|_| bad("taille de voxels incorrecte"))
+        .map_err(|_| bad("taille de voxels incorrecte"))?;
+    let mut fluid = None;
+    if version == CHUNK_FORMAT_VERSION_FLUID {
+        let rest = &bytes[HEADER_LEN + len..];
+        if rest.len() < 5 {
+            return Err(bad("couche fluide tronquée"));
+        }
+        if rest[0] == 1 {
+            let flen = u32::from_le_bytes([rest[1], rest[2], rest[3], rest[4]]) as usize;
+            let fp = rest
+                .get(5..5 + flen)
+                .ok_or_else(|| bad("couche fluide tronquée"))?;
+            let raw = rle_decode(fp)?;
+            let f: FluidBytes = raw
+                .into_boxed_slice()
+                .try_into()
+                .map_err(|_| bad("taille de couche fluide incorrecte"))?;
+            fluid = Some(f);
+        }
+    }
+    Ok(ChunkBlob { voxels, fluid })
 }
 
 /// Écriture atomique (fichier temporaire puis renommage).
@@ -225,6 +325,24 @@ impl ChunkStorage for FileChunkStorage {
 
     fn has_chunk(&self, pos: ChunkPos) -> bool {
         self.chunk_path(pos).is_file()
+    }
+
+    fn save_chunk_blob(
+        &self,
+        pos: ChunkPos,
+        voxels: &[BlockId; CHUNK_VOLUME],
+        fluid: Option<&[u8; CHUNK_VOLUME]>,
+    ) -> Result<()> {
+        write_atomic(&self.chunk_path(pos), &encode_chunk_fluid(voxels, fluid))
+    }
+
+    fn load_chunk_blob(&self, pos: ChunkPos) -> Result<Option<ChunkBlob>> {
+        let path = self.chunk_path(pos);
+        match fs::read(&path) {
+            Ok(bytes) => decode_chunk_blob(&bytes).map(Some),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(Error::io(path, e)),
+        }
     }
 }
 

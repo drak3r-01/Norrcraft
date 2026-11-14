@@ -57,5 +57,7 @@
  {"id": 311, "name": "tang", "texture": "item_brick"},
  {"id": 312, "name": "slattergras", "texture": "item_brick"},
  {"id": 313, "name": "ho", "texture": "item_brick"},
- {"id": 314, "name": "brandaska", "texture": "item_brick"}
+ {"id": 314, "name": "brandaska", "texture": "item_brick"},
+ {"id": 315, "name": "hink", "texture": "item_brick"},
+ {"id": 316, "name": "hink_vatten", "texture": "item_brick"}
 ]

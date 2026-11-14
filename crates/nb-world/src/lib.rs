@@ -27,6 +27,7 @@
 
 pub mod calendar;
 pub mod chunk;
+pub mod fluid;
 pub mod herds;
 pub mod light;
 pub mod manager;

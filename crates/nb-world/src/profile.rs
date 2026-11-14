@@ -132,6 +132,12 @@ pub trait TerrainGenerator: Send + Sync + fmt::Debug {
     fn reseason(&self, _chunk: &mut Chunk) -> bool {
         false
     }
+
+    /// Table d'eau des 16 × 16 colonnes du chunk `(cx, cz)`, `[lz * 16 + lx]` (nappes infinies et
+    /// courant des rivières). `None` : l'univers n'a pas d'eau vivante.
+    fn water_table(&self, _cx: i32, _cz: i32) -> Option<Box<crate::fluid::WaterTable>> {
+        None
+    }
 }
 
 /// Drapeaux de systèmes optionnels : le code teste un drapeau, jamais l'univers.
@@ -142,6 +148,8 @@ pub struct Systems {
     pub freshness: bool,
     pub folklore: bool,
     pub air_medium: bool,
+    /// Eau à niveaux, courants et sources (doc 07) ; faux pour vanilla.
+    pub living_water: bool,
 }
 
 /// Tout ce qui dépend de l'univers d'un monde, construit au chargement et partagé (`Arc`).

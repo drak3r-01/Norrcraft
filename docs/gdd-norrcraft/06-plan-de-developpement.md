@@ -112,7 +112,7 @@ du doc 07) ; la 6.6 en dépend.
 
 | Session | Contenu (référence doc 07) | Taille | Dépend de |
 | --- | --- | --- | --- |
-| 6E.1 | Simulation et stockage : couche fluide des chunks, classes de blocs, table d'eau et courant des rivières, automate (chute, étalement, pression, films), sommeil et régime permanent, sources, pluie, gel, format de chunk v2, `/water` (§2 à §4, §11, §14) | L | 1.4, 3.2 |
+| 6E.1 (**faite**, `docs/EAU_VIVANTE.md`) | Simulation et stockage : couche fluide des chunks, classes de blocs, table d'eau et courant des rivières, automate (chute, étalement, pression, films), sommeil et régime permanent, sources, pluie, gel, format de chunk v2, `/water` (§2 à §4, §11, §14) | L | 1.4, 3.2 |
 | 6E.2 | Rendu, son et réseau : surface inclinée, écume et normales advectées, nappes qui tombent, brume, ambiances de chute et de ruisseau, protocole LAN 5 (§9, §10, §12) | L | 6E.1 |
 | 6E.3 | Courants et vivant : joueur (gué, nage, rapides, contre-courant), mobs, bateaux, saumons qui remontent, glace fragile sur le courant, plantes aquatiques vivantes (§5.3, §6, §7.1) | L | 6E.1, 6.1, 6.3 |
 | 6E.4 | Génération et saisons : chutes des marches de rivière, cascades de paroi, sources, résurgences, torrents glaciaires, nouvelles plantes, cascades gelées, mode `eau` de `worldmap`, exécutable (§5.2, §7.2, §8) | L | 6E.1, 6E.2 |

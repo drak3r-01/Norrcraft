@@ -370,6 +370,19 @@ impl Hydrology {
         (2.0 * f - 1.0).abs() / g.max(1e-6)
     }
 
+    /// Tangente unitaire `(x, z)` du lit de rivière en `(x, z)` : perpendiculaire au gradient du
+    /// bruit de rivière (mêmes différences finies que [`Self::river_distance`]).
+    pub fn river_tangent(&self, x: f64, z: f64) -> [f64; 2] {
+        const L: f64 = 850.0;
+        let (px, pz) = self.river_warp.warp(x, z, 110.0, 300.0);
+        let f = self.river.fbm(px / L, pz / L, 3);
+        let fx = self.river.fbm((px + 1.0) / L, pz / L, 3);
+        let fz = self.river.fbm(px / L, (pz + 1.0) / L, 3);
+        let (gx, gz) = (fx - f, fz - f);
+        let n = (gx * gx + gz * gz).sqrt().max(1e-9);
+        [-gz / n, gx / n]
+    }
+
     /// Colonne d'eau **brute** (avant scellement) au point `(x, z)`, à partir de son relief `r`,
     /// de ses champs `m` et des lacs voisins.
     pub fn column(
@@ -546,6 +559,38 @@ impl Hydrography {
     /// Lacs couvrant un rectangle de colonnes.
     pub fn lakes(&self, x_min: i32, z_min: i32, x_max: i32, z_max: i32) -> LakeSet {
         LakeSet::new(&self.hydro, &self.heights, x_min, z_min, x_max, z_max)
+    }
+
+    /// Courant `[x, z]` (blocs par seconde) d'une colonne de rivière scellée `c` (doc 07 §8.1) :
+    /// tangente du lit orientée vers l'aval (relief filtré décroissant), plus vive dans un lit
+    /// étroit et à l'approche d'un seuil. `[0, 0]` hors rivière.
+    pub fn river_flow(&self, wx: i32, wz: i32, c: &WaterColumn, r: &Relief) -> [f32; 2] {
+        if c.kind != WaterKind::River || !c.is_wet() {
+            return [0.0, 0.0];
+        }
+        let (x, z) = (f64::from(wx), f64::from(wz));
+        let mut t = self.hydro.river_tangent(x, z);
+        let sea = self.hydro.sea;
+        let down = |s: f64| {
+            let (px, pz) = (x + 6.0 * s * t[0], z + 6.0 * s * t[1]);
+            let m = self.heights.macro_fields().sample(px, pz);
+            let rr = self.heights.relief(px, pz, &m);
+            filtered_height(&rr, f64::from(sea))
+        };
+        if down(1.0) > down(-1.0) {
+            t = [-t[0], -t[1]];
+        }
+        let hl = filtered_height(r, f64::from(sea));
+        let (w, frac) = stair_level(hl, sea);
+        let mut v = 0.8 + 1.2 * smooth(7.0, 2.5, c.river_width);
+        if w > sea && frac < 0.30 {
+            v += 2.6 * smooth(0.30, 0.0, frac);
+        }
+        if frac > 0.85 {
+            v += 0.8;
+        }
+        let v = v.min(4.5);
+        [(t[0] * v) as f32, (t[1] * v) as f32]
     }
 
     /// Colonne brute `(wx, wz)`, champs lents lus par le treillis 4 × 4 (comme les chunks).

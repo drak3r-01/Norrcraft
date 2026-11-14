@@ -351,6 +351,94 @@ impl WorldSession {
         for (pos, block) in broken {
             nb_ecs::ecology::dam_broken(ctx.blocks, &regs.blocks, &regs.mobs, pos, block);
         }
+        // Eau vivante (doc 07) : l'hôte simule seul, juste après les systèmes ECS.
+        if world.has_living_water() {
+            let env = self.environment.as_ref();
+            let fluid_env = nb_world::fluid::FluidEnv {
+                season_step: world.chunk_manager().season(),
+                rain: env.map_or(0.0, |e| e.rain),
+                air_temp: env.map_or(10.0, |e| e.air),
+                daylight: env.is_none_or(|e| e.sun > 0.0),
+                centers: vec![pos],
+            };
+            world.tick_fluids(&fluid_env);
+        }
+    }
+
+    /// `/water pour [n] | spring | drain | wake | info` (session 6E.1, triches) : mise au point
+    /// de l'eau vivante sur la cellule visée. `None` : pas pour nous.
+    pub fn water_command(&mut self, command: &str, regs: &Registries) -> Option<String> {
+        use nb_core::glam::IVec3;
+        use nb_world::fluid::FluidWorld;
+        let mut words = command.split_whitespace();
+        if words.next()? != "/water" {
+            return None;
+        }
+        if !self.world.has_living_water() {
+            return Some("Pas d'eau vivante dans cet univers.".to_owned());
+        }
+        if !self.allow_cheats {
+            return Some("Cheats are not enabled in this world.".to_owned());
+        }
+        // Cellule visée : on avance le long du regard jusqu'au premier bloc étanche ou à l'eau.
+        let cam = self.camera();
+        let dir = cam.look_dir();
+        let ids = regs.blocks.ids();
+        let cell = |p: Vec3| IVec3::new(p.x.floor() as i32, p.y.floor() as i32, p.z.floor() as i32);
+        let mut prev = cell(cam.position);
+        let mut hit = prev;
+        let mut d = 0.0f32;
+        while d < 16.0 {
+            let c = cell(cam.position + dir * d);
+            let b = self.world.block(c.x, c.y, c.z);
+            if b != ids.air {
+                hit = c;
+                break;
+            }
+            prev = c;
+            hit = c;
+            d += 0.05;
+        }
+        let sub = words.next().unwrap_or("info");
+        let n: Option<u8> = words.next().and_then(|w| w.parse().ok());
+        let reply = self.world.with_fluid(|sim, w| match sub {
+            "pour" => {
+                let target = if sim.open(w, hit) { hit } else { prev };
+                let poured = sim.pour(w, target, n.unwrap_or(8).min(8));
+                format!("{poured} huitième(s) versé(s) en {target}.")
+            }
+            "spring" => {
+                let at = (if sim.open(w, hit) { hit } else { prev }) - IVec3::Y;
+                if sim.place_spring(w, at) {
+                    format!("Source posée en {at}.")
+                } else {
+                    "Impossible de poser une source ici.".to_owned()
+                }
+            }
+            "drain" => format!("{} cellule(s) vidée(s).", sim.drain_radius(w, hit, 8)),
+            "wake" => format!("{} cellule(s) réveillée(s).", sim.wake_radius(w, hit, 16)),
+            _ => {
+                let target = if sim.open(w, hit) { hit } else { prev };
+                let code = w.cell(target).map(|c| c.1);
+                let flow = sim.current_at(w, target);
+                let s = sim.stats;
+                format!(
+                    "{target} : niveau {} infinie {} code {:?} courant ({:.1} {:.1} {:.1}) — \
+                     éveillées {} traitées {} {} µs, {} pas",
+                    sim.lvl(w, target),
+                    sim.inf(w, target),
+                    code.map(|c| c.0),
+                    flow.x,
+                    flow.y,
+                    flow.z,
+                    s.awake,
+                    s.processed,
+                    s.last_tick_us,
+                    s.steps
+                )
+            }
+        });
+        reply
     }
 
     /// `CommandProcessor.executeCommand`.

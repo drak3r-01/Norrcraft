@@ -1,0 +1,28 @@
+{
+  "stepTicks": 12, "cellsPerTick": 512, "timeCapMicros": 400,
+  "pressureSearchesPerTick": 48, "pressureNodes": 96,
+  "spreadMax": 4, "seekRadius": 5, "calmSteps": 6,
+  "simRadius": 6, "bootWakeMax": 2048,
+  "speeds": { "fall": 6.0, "film": 2.6, "stream": 1.6, "gradient": 0.4, "maxFree": 3.0,
+              "plungePull": 4.0, "swirl": 1.0, "rapid": 3.2 },
+  "springs": {
+    "mountain": { "rate": 3.0, "season": [0.3, 0.5, 1.6, 1.8, 1.0, 0.8, 0.7, 0.4] },
+    "karst":    { "rate": 4.0, "season": [0.8, 0.9, 1.3, 1.2, 1.0, 0.9, 0.9, 0.8] },
+    "glacier":  { "rate": 5.0, "season": [0.0, 0.0, 0.6, 1.4, 2.0, 1.6, 0.6, 0.1] }
+  },
+  "weather": { "steps": 10, "rainSamples": 12, "puddleMax": 2, "freezeBelow": -2.0, "thawAbove": 2.0,
+               "rechargeSteps": 50, "rechargeSamples": 16, "seepSteps": 40, "seepSamples": 8 },
+  "player": { "wade": 0.4, "rockHit": 0.5, "upstreamDrain": 4.0 },
+  "boats": { "draught": 5, "fallWater": 0.12, "raftBreaks": 4, "anchorHolds": 3.0 },
+  "salmon": { "leapMax": 6, "leapChance": 0.35, "leapEvery": 3.0 },
+  "plants": {
+    "fraken":     { "water": ["fresh"], "depth": [1, 1], "current": [0.0, 0.3] },
+    "nate":       { "water": ["fresh", "brackish"], "depth": [1, 4], "current": [0.0, 1.0] },
+    "nackmossa":  { "water": ["fresh"], "depth": [1, 2], "current": [0.8, 9.0] },
+    "algras":     { "water": ["brackish", "salt"], "depth": [1, 5], "current": [0.0, 1.0] },
+    "fingertang": { "water": ["salt"], "depth": [3, 14], "current": [0.0, 9.0] },
+    "nackros":    { "water": ["fresh"], "depth": [1, 3], "current": [0.0, 0.3] },
+    "vass":       { "water": ["fresh", "brackish"], "depth": [1, 2], "current": [0.0, 1.0] },
+    "kaveldun":   { "water": ["fresh"], "depth": [1, 1], "current": [0.0, 0.5] }
+  }
+}

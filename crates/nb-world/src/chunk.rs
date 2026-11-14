@@ -46,6 +46,8 @@ pub struct Chunk {
     pos: ChunkPos,
     voxels: Box<[BlockId; CHUNK_VOLUME]>,
     light: Box<[u8; CHUNK_VOLUME]>,
+    /// Couche fluide (doc 07 §2.1) ; `None` tant que le chunk n'a pas d'eau en mouvement.
+    fluid: Option<Box<[u8; CHUNK_VOLUME]>>,
 }
 
 impl std::fmt::Debug for Chunk {
@@ -63,6 +65,7 @@ impl Chunk {
             pos,
             voxels: boxed_volume(AIR),
             light: boxed_volume(FULL_LIGHT),
+            fluid: None,
         }
     }
 
@@ -82,6 +85,65 @@ impl Chunk {
     /// Remplace tous les voxels (réseau : chunk modifié reçu de l'hôte).
     pub fn replace_voxels(&mut self, voxels: &[BlockId; CHUNK_VOLUME]) {
         self.voxels.copy_from_slice(voxels);
+    }
+
+    /// Comme [`Chunk::replace_voxels`], puis assainit la couche fluide : toute cellule dont le
+    /// nouveau voxel ne peut pas porter d'eau (`keep[id]` faux) voit son octet remis à 0.
+    pub fn replace_voxels_keep(&mut self, voxels: &[BlockId; CHUNK_VOLUME], keep: &[bool; 256]) {
+        self.voxels.copy_from_slice(voxels);
+        self.sanitize_fluid(keep);
+    }
+
+    /// Remet à 0 l'octet fluide des cellules dont le voxel ne peut pas porter d'eau ; libère la
+    /// couche si elle devient nulle.
+    pub fn sanitize_fluid(&mut self, keep: &[bool; 256]) {
+        if let Some(layer) = self.fluid.as_mut() {
+            let mut any = false;
+            for (b, &v) in layer.iter_mut().zip(self.voxels.iter()) {
+                if *b != 0 && !keep[usize::from(v)] {
+                    *b = 0;
+                }
+                any |= *b != 0;
+            }
+            if !any {
+                self.fluid = None;
+            }
+        }
+    }
+
+    /// Octet fluide ; défaut hors limites ou sans couche.
+    #[inline]
+    pub fn fluid_code(&self, x: i32, y: i32, z: i32) -> crate::fluid::FluidCode {
+        match (&self.fluid, local_index(x, y, z)) {
+            (Some(l), Some(i)) => crate::fluid::FluidCode(l[i]),
+            _ => crate::fluid::FluidCode::DEFAULT,
+        }
+    }
+
+    /// Écrit l'octet fluide (alloue la couche au besoin ; écrire le défaut sans couche ne
+    /// l'alloue pas). `false` si hors limites.
+    pub fn set_fluid_code(&mut self, x: i32, y: i32, z: i32, c: crate::fluid::FluidCode) -> bool {
+        let Some(i) = local_index(x, y, z) else {
+            return false;
+        };
+        match self.fluid.as_mut() {
+            Some(l) => l[i] = c.0,
+            None if c.0 != 0 => {
+                let mut l = boxed_volume(0);
+                l[i] = c.0;
+                self.fluid = Some(l);
+            }
+            None => {}
+        }
+        true
+    }
+
+    pub fn fluid_layer(&self) -> Option<&[u8; CHUNK_VOLUME]> {
+        self.fluid.as_deref()
+    }
+
+    pub fn set_fluid_layer(&mut self, layer: Option<Box<[u8; CHUNK_VOLUME]>>) {
+        self.fluid = layer.filter(|l| l.iter().any(|&b| b != 0));
     }
 
     /// Identifiant brut du bloc ; hors limites → air.
@@ -256,6 +318,17 @@ impl ChunkEntry {
         self.flags.mark_all();
     }
 
+    /// Remplace voxels et couche fluide, et pose les trois drapeaux (chunk reçu de l'hôte).
+    pub fn replace_blob(&self, voxels: &[BlockId; CHUNK_VOLUME], fluid: Option<&[u8; CHUNK_VOLUME]>) {
+        {
+            let mut g = self.write();
+            g.replace_voxels(voxels);
+            g.set_fluid_layer(fluid.map(|f| Box::new(*f)));
+        }
+        self.edits.fetch_add(1, Ordering::AcqRel);
+        self.flags.mark_all();
+    }
+
     /// Remplace tous les voxels **si aucune écriture n'a eu lieu** depuis que le compteur valait
     /// `expected` (surcouche saisonnière calculée sur une copie). Le verrou en écriture est tenu
     /// pendant le test : une écriture concurrente attend, puis ne se perd pas.
@@ -263,14 +336,43 @@ impl ChunkEntry {
         &self,
         voxels: &[BlockId; CHUNK_VOLUME],
         expected: u64,
+        keep: Option<&[bool; 256]>,
     ) -> bool {
         let mut g = self.write();
         if self.edit_count() != expected {
             return false;
         }
-        g.replace_voxels(voxels);
+        match keep {
+            Some(k) => g.replace_voxels_keep(voxels, k),
+            None => g.replace_voxels(voxels),
+        }
         self.edits.fetch_add(1, Ordering::AcqRel);
         self.flags.mark_all();
+        true
+    }
+
+    /// Écrit voxel et octet fluide sous un seul verrou (simulation de l'eau). Marque `dirty` ;
+    /// marque `light_dirty` et incrémente `edits` seulement si l'identifiant change. Le maillage
+    /// n'est pas marqué : la simulation le fait en fin de pas.
+    pub fn set_fluid(
+        &self,
+        x: i32,
+        y: i32,
+        z: i32,
+        id: BlockId,
+        code: crate::fluid::FluidCode,
+    ) -> bool {
+        let mut c = self.write();
+        let changed = c.block(x, y, z) != id;
+        if !c.set_block(x, y, z, id) {
+            return false;
+        }
+        c.set_fluid_code(x, y, z, code);
+        self.flags.set_dirty(true);
+        if changed {
+            self.edits.fetch_add(1, Ordering::AcqRel);
+            self.flags.set_light_dirty(true);
+        }
         true
     }
 
@@ -289,6 +391,7 @@ impl ChunkEntry {
 pub struct ChunkSnapshot {
     voxels: Option<Box<[BlockId; CHUNK_VOLUME]>>,
     light: Option<Box<[u8; CHUNK_VOLUME]>>,
+    fluid: Option<Box<[u8; CHUNK_VOLUME]>>,
 }
 
 impl std::fmt::Debug for ChunkSnapshot {
@@ -305,9 +408,15 @@ impl ChunkSnapshot {
             Some(c) => Self {
                 voxels: Some(c.voxels.clone()),
                 light: Some(c.light.clone()),
+                fluid: c.fluid.clone(),
             },
             None => Self::default(),
         }
+    }
+
+    /// Couche fluide copiée, si le chunk en avait une.
+    pub fn fluid_layer(&self) -> Option<&[u8; CHUNK_VOLUME]> {
+        self.fluid.as_deref()
     }
 
     pub fn is_present(&self) -> bool {

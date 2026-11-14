@@ -7,7 +7,7 @@
 use std::collections::{HashMap, HashSet};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, RwLock};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, RwLock};
 use std::thread::JoinHandle;
 
 use nb_core::glam::Vec3;
@@ -16,10 +16,11 @@ use nb_data::{BlockId, BlockRegistry};
 
 use crate::chunk::{Chunk, ChunkEntry, SharedChunk, CHUNK_SIZE_X, CHUNK_SIZE_Z, CHUNK_VOLUME};
 use crate::config::WorldConfig;
+use crate::fluid::{FluidBlocks, FluidCode, FluidEvents};
 use crate::generator::WorldGenerator;
 use crate::light::{LightContext, LightTable};
 use crate::profile::TerrainGenerator;
-use crate::storage::ChunkStorage;
+use crate::storage::{ChunkBlob, ChunkStorage};
 use crate::vanilla::adapter::VanillaTerrain;
 
 /// Distance de rendu par défaut (en chunks).
@@ -171,6 +172,11 @@ struct Inner {
     season_epoch: AtomicU64,
     /// Chunks dont la surcouche saisonnière est à recalculer.
     season_q: PrioQueue,
+    /// Classes de blocs de l'eau vivante ; posé une fois par `enable_fluids` (univers avec eau
+    /// vivante seulement).
+    fluid_blocks: OnceLock<FluidBlocks>,
+    /// Événements pour la simulation de l'eau (jamais alimentés sans `fluid_blocks`).
+    fluid_events: Mutex<FluidEvents>,
 }
 
 /// Une écriture de bloc en coordonnées monde (journal d'éditions, voir
@@ -238,10 +244,33 @@ impl Inner {
         let chunk = entry.read();
         {
             let _guard = lock(&self.storage_lock);
-            self.storage.save_chunk(chunk.pos(), chunk.voxels())?;
+            self.storage
+                .save_chunk_blob(chunk.pos(), chunk.voxels(), chunk.fluid_layer())?;
         }
         entry.flags.set_dirty(false);
         Ok(())
+    }
+
+    fn fluid_on(&self) -> bool {
+        self.fluid_blocks.get().is_some()
+    }
+
+    fn push_fluid_edit(&self, p: nb_core::glam::IVec3) {
+        if self.fluid_on() {
+            lock(&self.fluid_events).edits.push(p);
+        }
+    }
+
+    fn push_fluid_loaded(&self, pos: ChunkPos) {
+        if self.fluid_on() {
+            lock(&self.fluid_events).loaded.push(pos);
+        }
+    }
+
+    fn push_fluid_unloaded(&self, pos: ChunkPos) {
+        if self.fluid_on() {
+            lock(&self.fluid_events).unloaded.push(pos);
+        }
     }
 
     /// Écrit sur disque un chunk déchargé (thread de sauvegarde). Abandonné si le chunk a été
@@ -261,7 +290,10 @@ impl Inner {
             if !still_pending(self) {
                 return;
             }
-            if let Err(e) = self.storage.save_chunk(chunk.pos(), chunk.voxels()) {
+            if let Err(e) =
+                self.storage
+                    .save_chunk_blob(chunk.pos(), chunk.voxels(), chunk.fluid_layer())
+            {
                 eprintln!("échec de sauvegarde du chunk {pos:?} : {e}");
             }
         }
@@ -285,16 +317,19 @@ impl Inner {
             return;
         }
         // Chunk déchargé dont l'écriture est encore en attente : sa copie mémoire fait foi.
-        let pending: Option<crate::storage::Voxels> = lock(&self.unsaved)
-            .get(&pos)
-            .cloned()
-            .map(|e| Box::new(*e.read().voxels()));
+        let pending: Option<ChunkBlob> = lock(&self.unsaved).get(&pos).cloned().map(|e| {
+            let g = e.read();
+            ChunkBlob {
+                voxels: Box::new(*g.voxels()),
+                fluid: g.fluid_layer().map(|f| Box::new(*f)),
+            }
+        });
         let stored = if pending.is_some() {
             pending
         } else {
             let _g = lock(&self.storage_lock);
             if self.storage.has_chunk(pos) {
-                match self.storage.load_chunk(pos) {
+                match self.storage.load_chunk_blob(pos) {
                     Ok(v) => v,
                     Err(e) => {
                         eprintln!("chunk {pos:?} illisible, régénéré : {e}");
@@ -308,9 +343,13 @@ impl Inner {
         let epoch = self.season_epoch.load(Ordering::Acquire);
         let chunk = match stored {
             // Chunk enregistré dans une autre saison : surcouche recalculée avant l'affichage.
-            Some(v) => {
-                let mut c = Chunk::from_voxels(pos, v.as_slice());
+            Some(blob) => {
+                let mut c = Chunk::from_voxels(pos, blob.voxels.as_slice());
+                c.set_fluid_layer(blob.fluid);
                 generator.reseason(&mut c);
+                if let Some(fb) = self.fluid_blocks.get() {
+                    c.sanitize_fluid(&fb.keep_table());
+                }
                 c
             }
             // Monde client : un chunk absent du stockage n'existe pas encore (l'hôte l'enverra).
@@ -327,6 +366,7 @@ impl Inner {
             .write()
             .unwrap_or_else(|e| e.into_inner())
             .insert(pos, entry);
+        self.push_fluid_loaded(pos);
         self.mark_neighbors_mesh_dirty(pos);
         if self.season_epoch.load(Ordering::Acquire) != epoch {
             self.season_q.push(pos);
@@ -347,7 +387,8 @@ impl Inner {
         let mut copy = entry.read().clone();
         if generator.reseason(&mut copy) {
             let voxels: Box<[BlockId; CHUNK_VOLUME]> = Box::new(*copy.voxels());
-            if !entry.replace_voxels_if_unchanged(&voxels, edits) {
+            let keep = self.fluid_blocks.get().map(|fb| fb.keep_table());
+            if !entry.replace_voxels_if_unchanged(&voxels, edits, keep.as_ref()) {
                 self.season_q.push(pos);
                 return;
             }
@@ -495,6 +536,8 @@ impl ChunkManager {
             remote: AtomicBool::new(false),
             season_epoch: AtomicU64::new(0),
             season_q: PrioQueue::new(),
+            fluid_blocks: OnceLock::new(),
+            fluid_events: Mutex::new(FluidEvents::default()),
         });
         let gen_q = Arc::new(PrioQueue::new());
         let light_q = Arc::new(PrioQueue::new());
@@ -770,6 +813,7 @@ impl ChunkManager {
             .unwrap_or_else(|e| e.into_inner())
             .remove(&pos);
         if let Some(entry) = removed {
+            self.inner.push_fluid_unloaded(pos);
             // Monde client : l'hôte fait foi, on ne garde rien (une copie périmée serait relue).
             if entry.flags.is_dirty() && !self.inner.remote.load(Ordering::Acquire) {
                 // Écriture sur le thread de sauvegarde : ni E/S ni fsync sur le thread principal.
@@ -870,15 +914,27 @@ impl ChunkManager {
 
     /// Voxels du chunk : chunk actif, sinon stockage. `None` si le chunk n'a jamais été écrit.
     pub fn voxels_of(&self, pos: ChunkPos) -> Option<Box<[BlockId; CHUNK_VOLUME]>> {
+        self.blob_of(pos).map(|b| b.voxels)
+    }
+
+    /// Voxels et couche fluide du chunk : chunk actif, sinon stockage.
+    pub fn blob_of(&self, pos: ChunkPos) -> Option<ChunkBlob> {
+        let of = |e: &ChunkEntry| {
+            let g = e.read();
+            ChunkBlob {
+                voxels: Box::new(*g.voxels()),
+                fluid: g.fluid_layer().map(|f| Box::new(*f)),
+            }
+        };
         if let Some(c) = self.inner.active_get(pos) {
-            return Some(Box::new(*c.read().voxels()));
+            return Some(of(&c));
         }
         if let Some(e) = lock(&self.inner.unsaved).get(&pos).cloned() {
-            return Some(Box::new(*e.read().voxels()));
+            return Some(of(&e));
         }
         let _g = lock(&self.inner.storage_lock);
         if self.inner.storage.has_chunk(pos) {
-            self.inner.storage.load_chunk(pos).ok().flatten()
+            self.inner.storage.load_chunk_blob(pos).ok().flatten()
         } else {
             None
         }
@@ -888,20 +944,93 @@ impl ChunkManager {
     /// enregistré dans le stockage pour son prochain chargement. Les quatre voisins sont
     /// remaillés (faces de bord).
     pub fn install_chunk(&self, pos: ChunkPos, voxels: &[BlockId; CHUNK_VOLUME]) {
+        self.install_chunk_blob(pos, voxels, None);
+    }
+
+    /// Comme [`Self::install_chunk`] avec la couche fluide reçue de l'hôte.
+    pub fn install_chunk_blob(
+        &self,
+        pos: ChunkPos,
+        voxels: &[BlockId; CHUNK_VOLUME],
+        fluid: Option<&[u8; CHUNK_VOLUME]>,
+    ) {
         if let Some(c) = self.inner.active_get(pos) {
-            if c.read().voxels() == voxels {
-                return; // identique : ni remaillage ni recalcul de lumière
+            {
+                let g = c.read();
+                if g.voxels() == voxels && g.fluid_layer() == fluid {
+                    return; // identique : ni remaillage ni recalcul de lumière
+                }
             }
-            c.replace_voxels(voxels);
+            c.replace_blob(voxels, fluid);
             self.inner.mark_neighbors_mesh_dirty(pos);
+            self.inner.push_fluid_loaded(pos);
         } else {
             // Une écriture en attente de l'ancien contenu ne doit pas écraser celui-ci.
             lock(&self.inner.unsaved).remove(&pos);
             let _g = lock(&self.inner.storage_lock);
-            if let Err(e) = self.inner.storage.save_chunk(pos, voxels) {
+            if let Err(e) = self.inner.storage.save_chunk_blob(pos, voxels, fluid) {
                 eprintln!("réseau : chunk {pos:?} non enregistré : {e}");
             }
         }
+    }
+
+    // ---- eau vivante (doc 07 §2.4) ----
+
+    /// Active le suivi de l'eau vivante : classes de blocs et file d'événements.
+    pub fn enable_fluids(&self) {
+        let _ = self
+            .inner
+            .fluid_blocks
+            .set(FluidBlocks::from_registry(&self.registry));
+    }
+
+    /// Classes de blocs de l'eau vivante, si elle est active.
+    pub fn fluid_blocks(&self) -> Option<&FluidBlocks> {
+        self.inner.fluid_blocks.get()
+    }
+
+    /// Bloc et code fluide d'une cellule ; `None` si le chunk n'est pas actif.
+    pub fn fluid_cell(&self, x: i32, y: i32, z: i32) -> Option<(BlockId, FluidCode)> {
+        let (cx, cz) = (chunk_coord(x), chunk_coord(z));
+        let c = self.inner.active_get(ChunkPos::new(cx, cz))?;
+        let g = c.read();
+        let (lx, lz) = (x.wrapping_sub(cx.wrapping_mul(16)), z.wrapping_sub(cz.wrapping_mul(16)));
+        Some((g.block(lx, y, lz), g.fluid_code(lx, y, lz)))
+    }
+
+    /// Écriture de la simulation : voxel et code, sans journal d'éditions ni remaillage (la
+    /// simulation le fait en fin de pas). `false` si le chunk est absent.
+    pub fn write_fluid(&self, x: i32, y: i32, z: i32, id: BlockId, code: FluidCode) -> bool {
+        let (cx, cz) = (chunk_coord(x), chunk_coord(z));
+        let Some(c) = self.inner.active_get(ChunkPos::new(cx, cz)) else {
+            return false;
+        };
+        c.set_fluid(
+            x.wrapping_sub(cx.wrapping_mul(16)),
+            y,
+            z.wrapping_sub(cz.wrapping_mul(16)),
+            id,
+            code,
+        )
+    }
+
+    /// Niveau d'eau 0..=8 d'une cellule hors nappes générées (chunk absent → 0).
+    pub fn water_level(&self, x: i32, y: i32, z: i32) -> u8 {
+        let (Some(fb), Some((id, code))) = (self.fluid_blocks(), self.fluid_cell(x, y, z)) else {
+            return 0;
+        };
+        match fb.class_of(id) {
+            crate::fluid::FluidClass::Water | crate::fluid::FluidClass::Aquatic => {
+                code.level(8)
+            }
+            crate::fluid::FluidClass::Permeable => code.level(0),
+            _ => 0,
+        }
+    }
+
+    /// Événements à consommer par la simulation.
+    pub fn take_fluid_events(&self) -> FluidEvents {
+        std::mem::take(&mut *lock(&self.inner.fluid_events))
     }
 
     fn write_block(&self, x: i32, y: i32, z: i32, id: BlockId) -> bool {
@@ -912,6 +1041,11 @@ impl ChunkManager {
         let lx = x.wrapping_sub(cx.wrapping_mul(16));
         let lz = z.wrapping_sub(cz.wrapping_mul(16));
         c.set_block(lx, y, lz, id);
+        if self.inner.fluid_on() {
+            // Un bloc posé ou cassé à la main efface l'état fluide de sa cellule.
+            c.write().set_fluid_code(lx, y, lz, FluidCode::DEFAULT);
+            self.inner.push_fluid_edit(nb_core::glam::IVec3::new(x, y, z));
+        }
         if lx == 0 {
             self.inner.mark_mesh_dirty(ChunkPos::new(cx - 1, cz));
         }
